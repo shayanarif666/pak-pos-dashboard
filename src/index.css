@@ -1,0 +1,83 @@
+@import "tailwindcss";
+
+/* Brand green built around #135c4c (brand-700), the dashboard primary colour. */
+@theme {
+  --color-brand-50: #eef7f4;
+  --color-brand-100: #d5ece5;
+  --color-brand-200: #acd8ca;
+  --color-brand-300: #7bbda9;
+  --color-brand-400: #4c9c86;
+  --color-brand-500: #2d8069;
+  --color-brand-600: #1b6d59;
+  --color-brand-700: #135c4c;
+  --color-brand-800: #0f4a3e;
+  --color-brand-900: #0b3b31;
+  --color-brand-950: #06251f;
+}
+
+/* Diamond texture from the brand swatch, used on the sidebar header and login. */
+.brand-pattern {
+  background-color: #135c4c;
+  background-image: url("./assets/brand-pattern.png");
+  background-size: 105px 41px;
+}
+
+/* White + blue theme. Root font is 18px (was the browser default 16px), so every
+   rem-based Tailwind size (text-sm, text-xs, padding, gaps) scales up together. */
+html {
+  font-size: 18px;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: #f8fafc;
+  color: #0f172a;
+  font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  line-height: 1.5;
+}
+
+select,
+select option {
+  background: #ffffff;
+  color: #0f172a;
+}
+
+::selection {
+  background: #acd8ca;
+  color: #0f172a;
+}
+
+@keyframes toast-enter {
+  from {
+    opacity: 0;
+    transform: translateX(1.25rem) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.fade-in {
+  animation: fade-in 0.25s ease-out;
+}
+
+.toast-enter {
+  animation: toast-enter 0.28s ease-out;
+}
