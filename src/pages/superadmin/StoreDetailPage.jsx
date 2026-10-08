@@ -165,6 +165,37 @@ export function StoreDetailPage() {
         <PersonCard person={admin} />
       </Card>
 
+      <Card title="Devices">
+        {devices.length ? (
+          <div className="grid gap-3 md:grid-cols-2">
+            {devices.map((device) => (
+              <div
+                key={device.id}
+                className="rounded-2xl border border-slate-200 bg-slate-100 p-4"
+              >
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="font-medium text-slate-900">{device.name}</p>
+                  <Pill tone={statusTone(device.is_active ? "active" : "inactive")}>
+                    {device.is_active ? "active" : "inactive"}
+                  </Pill>
+                </div>
+                <p className="mt-1 font-mono text-xs text-slate-500">{device.device_uid}</p>
+                <p className="mt-1 text-sm text-slate-600">
+                  {device.location_name || "Location"} · {device.platform || "—"}
+                  {device.app_version ? ` · v${device.app_version}` : ""}
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Last seen{" "}
+                  {device.last_seen_at ? new Date(device.last_seen_at).toLocaleString() : "—"}
+                </p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-slate-500">No devices registered</p>
+        )}
+      </Card>
+
       <Card title="Store Managers">
         {managers.length ? (
           <div className="grid gap-4 md:grid-cols-2">

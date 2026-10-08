@@ -40,7 +40,10 @@ export function SupplierDetailPage() {
   const supplier = supplierQuery.data
   const ledger = ledgerQuery.data || []
   const products = productsQuery.data || []
-  const locations = locationsQuery.data || []
+  // Stock from this supplier can only be booked at the branches it supplies.
+  const locations = (locationsQuery.data || []).filter(
+    (row) => supplier?.location_scope !== "selected" || (supplier.location_ids || []).includes(row.id)
+  )
 
   async function save(event) {
     event.preventDefault()
@@ -77,6 +80,12 @@ export function SupplierDetailPage() {
           <h1 className="mt-2 text-2xl font-semibold text-slate-900">{supplier.name}</h1>
           <p className="mt-1 text-sm text-slate-600">
             {supplier.phone || "—"} · {supplier.email || "—"}
+          </p>
+          <p className="mt-1 text-sm text-slate-600">
+            Supplies:{" "}
+            {supplier.location_scope === "selected"
+              ? (supplier.locations || []).map((row) => row.name).join(", ") || "—"
+              : "All locations"}
           </p>
         </div>
         <div className="text-right">

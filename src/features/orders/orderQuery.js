@@ -11,6 +11,7 @@ import {
   listCustomOrders,
   listOrders,
   listRefunds,
+  salesByLocation,
   refundEntireOrder,
   refundOrderItem,
   voidOrder,
@@ -24,6 +25,7 @@ export const orderKeys = {
   custom: (filters = {}) => ["orders", "custom", filters],
   cancelled: (filters = {}) => ["orders", "cancelled", filters],
   refunds: (filters = {}) => ["orders", "refunds", filters],
+  byLocation: (filters = {}) => ["orders", "byLocation", filters],
   detail: (id) => ["orders", "detail", id],
   payments: (id) => ["orders", "payments", id],
   receipt: (id) => ["orders", "receipt", id],
@@ -55,6 +57,14 @@ export function useCancelledOrdersQuery(filters = {}) {
   return useQuery({
     queryKey: orderKeys.cancelled(filters),
     queryFn: async () => unwrap(await listCancelledOrders(filters)) || { orders: [], count: 0, lost_sales: 0 },
+  })
+}
+
+export function useSalesByLocationQuery(filters = {}, options = {}) {
+  return useQuery({
+    queryKey: orderKeys.byLocation(filters),
+    queryFn: async () => unwrap(await salesByLocation(filters)) || { locations: [], totals: {} },
+    enabled: options.enabled !== false,
   })
 }
 

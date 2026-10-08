@@ -15,6 +15,7 @@ import { Select } from "../../ui/Select.jsx"
 import { PageLoader } from "../../ui/Spinner.jsx"
 import { useToast } from "../../ui/Toast.jsx"
 import { StatusBadge } from "../../ui/Pill.jsx"
+import { LocationSelect } from "../../features/orders/LocationSales.jsx"
 
 const emptyPayment = {
   method: "cash",
@@ -26,7 +27,8 @@ export function TransactionsPage() {
   const [selectedOrder, setSelectedOrder] = useState(null)
   const [receiptOpen, setReceiptOpen] = useState(false)
   const [form, setForm] = useState(emptyPayment)
-  const ordersQuery = useOrdersQuery()
+  const [locationId, setLocationId] = useState("")
+  const ordersQuery = useOrdersQuery(locationId ? { location_id: locationId } : {})
   const paymentsQuery = useOrderPaymentsQuery(selectedOrder?.id, { enabled: Boolean(selectedOrder) })
   const receiptQuery = useOrderReceiptQuery(selectedOrder?.id, { enabled: Boolean(selectedOrder && receiptOpen) })
   const addPayment = useAddOrderPayment()
@@ -62,10 +64,20 @@ export function TransactionsPage() {
 
   return (
     <section className="space-y-6">
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Sales</p>
-        <h1 className="mt-2 text-2xl font-semibold text-slate-900">Transactions</h1>
-        <p className="mt-1 text-sm text-slate-500">Select an order to view payments, add split payments, confirm payments, and load receipts.</p>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Sales</p>
+          <h1 className="mt-2 text-2xl font-semibold text-slate-900">Transactions</h1>
+          <p className="mt-1 text-sm text-slate-500">Select an order to view payments, add split payments, confirm payments, and load receipts.</p>
+        </div>
+        <LocationSelect
+          className="min-w-56"
+          value={locationId}
+          onChange={(value) => {
+            setLocationId(value)
+            setSelectedOrder(null)
+          }}
+        />
       </div>
 
       {ordersQuery.isPending ? <PageLoader label="Loading orders…" /> : null}

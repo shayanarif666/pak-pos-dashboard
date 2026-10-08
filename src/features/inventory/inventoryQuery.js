@@ -81,10 +81,10 @@ export function useCancelStockTransfer() {
   })
 }
 
-export function useSuppliersQuery() {
+export function useSuppliersQuery(params = {}) {
   return useQuery({
-    queryKey: inventoryKeys.suppliers,
-    queryFn: async () => unwrap(await listSuppliers()) || [],
+    queryKey: [...inventoryKeys.suppliers, params],
+    queryFn: async () => unwrap(await listSuppliers(params)) || [],
   })
 }
 

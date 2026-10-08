@@ -26,8 +26,9 @@ export function cancelStockTransfer(id) {
   return apiPost(`/api/v1/stock-transfers/${id}/cancel`, {}, auth)
 }
 
-export function listSuppliers() {
-  return apiGet("/api/v1/suppliers", auth)
+/** params.location_id: only suppliers that deliver to that branch (store admin filter). */
+export function listSuppliers(params = {}) {
+  return apiGet(withQuery("/api/v1/suppliers", params), auth)
 }
 
 export function getSupplier(id) {

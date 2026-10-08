@@ -10,10 +10,15 @@ import { Modal } from "../../ui/Modal.jsx"
 
 import { PageLoader } from "../../ui/Spinner.jsx"
 import { Pill, StatusBadge } from "../../ui/Pill.jsx"
+import { LocationSelect } from "../../features/orders/LocationSales.jsx"
 
-export function RefundsPage({ embedded = false }) {
+/** locationId: branch chosen by the parent page; otherwise the page shows its own location filter. */
+export function RefundsPage({ embedded = false, locationId }) {
   const [selected, setSelected] = useState(null)
-  const refundsQuery = useRefundsQuery()
+  const [ownLocation, setOwnLocation] = useState("")
+  const controlled = locationId !== undefined
+  const location = controlled ? locationId : ownLocation
+  const refundsQuery = useRefundsQuery(location ? { location_id: location } : {})
   const receiptQuery = useRefundReceiptQuery(selected?.order_id, selected?.id, { enabled: Boolean(selected) })
   const rows = refundsQuery.data || []
 
@@ -26,6 +31,12 @@ export function RefundsPage({ embedded = false }) {
           Lists complete and partial refunds. Partial refunds are item-level refunds while the order remains completed.
         </p>
       </div>
+
+      {!controlled ? (
+        <div className="mb-4 max-w-xs">
+          <LocationSelect value={ownLocation} onChange={setOwnLocation} />
+        </div>
+      ) : null}
 
       {refundsQuery.isPending ? <PageLoader label="Loading refunds…" /> : null}
       {refundsQuery.error ? <p className="mb-4 text-sm text-rose-700">{refundsQuery.error.message}</p> : null}

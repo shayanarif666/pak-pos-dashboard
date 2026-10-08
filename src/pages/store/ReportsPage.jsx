@@ -23,6 +23,7 @@ import { Select } from "../../ui/Select.jsx"
 import { PageLoader } from "../../ui/Spinner.jsx"
 import { useToast } from "../../ui/Toast.jsx"
 import { StatusBadge } from "../../ui/Pill.jsx"
+import { LocationSelect } from "../../features/orders/LocationSales.jsx"
 
 const REPORT_TABS = [
   { id: "sales", label: "Sales Summary" },
@@ -151,6 +152,8 @@ export function ReportsPage() {
   const [customTo, setCustomTo] = useState("")
   const [exportType, setExportType] = useState("sales")
   const [exportFormat, setExportFormat] = useState("csv")
+  // Store admin: one branch or all; managers and cashiers are limited to their own by the API.
+  const [locationId, setLocationId] = useState("")
   const exportMutation = useExportReport()
   const canExport = user?.role === "store_admin" || user?.role === "manager"
 
@@ -165,8 +168,9 @@ export function ReportsPage() {
       to: range.to || undefined,
       period: periodForPreset(preset),
       channel: channelTab === "overall" ? undefined : channelTab,
+      location_id: locationId || undefined,
     }),
-    [range, preset, channelTab]
+    [range, preset, channelTab, locationId]
   )
 
   const reportQuery = useBreakdownReportQuery(filters)
@@ -276,6 +280,7 @@ export function ReportsPage() {
           ))}
         </div>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <LocationSelect value={locationId} onChange={setLocationId} />
           {preset === "custom" ? (
             <>
               <Input

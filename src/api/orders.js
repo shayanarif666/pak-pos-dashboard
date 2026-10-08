@@ -14,6 +14,11 @@ export function listCancelledOrders(params = {}) {
   return apiGet(withQuery("/api/v1/orders/cancelled", params), auth)
 }
 
+/** Per-branch sales summary: { locations: [...], totals }. Filters: location_id, from, to, channel, payment_method. */
+export function salesByLocation(params = {}) {
+  return apiGet(withQuery("/api/v1/orders/summary/locations", params), auth)
+}
+
 export function listRefunds(params = {}) {
   return apiGet(withQuery("/api/v1/orders/refunds", params), auth)
 }
