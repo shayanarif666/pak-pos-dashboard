@@ -1,14 +1,18 @@
-import { useMemo, useState } from "react"
-import { Link } from "react-router-dom"
-import { useAuth } from "../../auth/AuthContext.jsx"
-import { useExpiryQuery, useLocationsQuery } from "../../features/catalog/catalogQuery.jsx"
-import { resolveDashboardLocation } from "../../features/catalog/dashboardLocation.js"
-
-import { Select } from "../../ui/Select.jsx"
-import { PageLoader } from "../../ui/Spinner.jsx"
+import { useMemo } from "react"
+import { useNavigate } from "react-router-dom"
+import { useExpiryQuery } from "../../features/catalog/catalogQuery.jsx"
+import { useDashboardLocation, useLocationName } from "../../features/scope/DashboardLocation.jsx"
+import { DataTable } from "../../ui/DataTable.jsx"
 import { StatusBadge } from "../../ui/Pill.jsx"
+import { PageHeader, StatCards } from "../../ui/PageHeader.jsx"
+import { formatDate } from "../../ui/format.js"
 
-const STATUSES = ["expired", "critical", "warning", "ok"]
+const STATUSES = [
+  ["expired", "Expired"],
+  ["critical", "Critical"],
+  ["warning", "Warning"],
+  ["ok", "OK"],
+]
 
 function expiryTone(status) {
   if (status === "expired") return "rose"
@@ -17,100 +21,93 @@ function expiryTone(status) {
   return "emerald"
 }
 
+function daysLeft(date) {
+  if (!date) return null
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  return Math.round((new Date(`${String(date).slice(0, 10)}T00:00:00`) - today) / 86400000)
+}
+
+/** Product Expiry: stock with an expiry date at the chosen location(s), soonest first. */
 export function ExpiryPage() {
-  const auth = useAuth()
-  const isAdmin = auth.user.role === "store_admin"
-  const tokenLocation = resolveDashboardLocation(auth)
+  const navigate = useNavigate()
+  const { locationId, isAll, label } = useDashboardLocation()
+  const locationName = useLocationName()
   const expiryQuery = useExpiryQuery()
-  const locationsQuery = useLocationsQuery({ enabled: isAdmin })
-  const [status, setStatus] = useState("")
-  const [locationId, setLocationId] = useState(isAdmin ? "" : tokenLocation?.id || "")
-  const rows = expiryQuery.data || []
-  const locations = locationsQuery.data || []
+  // One row per product and location; keep the chosen location's.
+  const rows = useMemo(
+    () => (expiryQuery.data || []).filter((row) => !locationId || row.location_id === locationId),
+    [expiryQuery.data, locationId]
+  )
+  const counts = useMemo(
+    () => Object.fromEntries(STATUSES.map(([key]) => [key, rows.filter((row) => row.expiry_status === key).length])),
+    [rows]
+  )
 
-  const visible = useMemo(() => {
-    return rows.filter((row) => {
-      if (status && row.expiry_status !== status) return false
-      const loc = locationId || (!isAdmin ? tokenLocation?.id : "")
-      if (loc && row.location_id !== loc) return false
-      return true
-    })
-  }, [rows, status, locationId, isAdmin, tokenLocation?.id])
-
-  const counts = useMemo(() => {
-    return STATUSES.reduce((acc, key) => {
-      acc[key] = rows.filter((row) => row.expiry_status === key).length
-      return acc
-    }, {})
-  }, [rows])
-
-  if (expiryQuery.isPending) return <PageLoader label="Loading expiry…" />
+  const columns = [
+    {
+      key: "title",
+      header: "Product",
+      render: (row) => (
+        <div className="min-w-44">
+          <p className="font-semibold text-slate-900">{row.title}</p>
+          <p className="text-xs text-slate-500">#{row.product_number} · {row.sku}</p>
+        </div>
+      ),
+    },
+    { key: "category", header: "Category", sortValue: (row) => row.category?.name, render: (row) => row.category?.name || "—" },
+    ...(isAll ? [{ key: "location", header: "Location", sortValue: (row) => locationName(row.location_id), render: (row) => locationName(row.location_id) }] : []),
+    { key: "qty", header: "Qty", align: "right", sortValue: (row) => Number(row.stocks?.[0]?.qty || 0), render: (row) => row.stocks?.[0]?.qty ?? "—" },
+    { key: "expiry_date", header: "Expiry date", sortValue: (row) => new Date(row.expiry_date), render: (row) => formatDate(row.expiry_date) },
+    {
+      key: "days_left",
+      header: "Days left",
+      align: "right",
+      sortValue: (row) => daysLeft(row.expiry_date),
+      render: (row) => {
+        const left = daysLeft(row.expiry_date)
+        return left === null ? "—" : left < 0 ? <span className="font-semibold text-rose-700">{Math.abs(left)} days ago</span> : left
+      },
+    },
+    { key: "expiry_status", header: "Status", render: (row) => <StatusBadge value={row.expiry_status} tone={expiryTone(row.expiry_status)} /> },
+  ]
 
   return (
-    <section>
-      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Inventory</p>
-      <h1 className="mt-2 text-2xl font-semibold text-slate-900">Expiry Manager</h1>
-      <p className="mt-1 text-sm text-slate-500">
-        Status is computed from each location’s stock expiry date. It is not posted by the client.
-      </p>
-
-      {expiryQuery.error ? (
-        <p className="mt-4 text-sm text-rose-700">{expiryQuery.error.message}</p>
-      ) : null}
-
-      <div className="mt-6 grid gap-3 sm:grid-cols-4">
-        {STATUSES.map((key) => (
-          <article key={key} className="rounded-[24px] border border-slate-200 bg-white p-4">
-            <p className="text-xs uppercase tracking-[0.16em] text-slate-500">{key}</p>
-            <p className="mt-2 text-2xl font-semibold text-slate-900">{counts[key] || 0}</p>
-          </article>
-        ))}
-      </div>
-
-      <div className="mt-6 grid gap-3 md:grid-cols-2">
-        <Select label="Status" value={status} onChange={(e) => setStatus(e.target.value)}>
-          <option value="">All statuses</option>
-          {STATUSES.map((key) => (
-            <option key={key} value={key}>
-              {key}
-            </option>
-          ))}
-        </Select>
-        {isAdmin ? (
-          <Select label="Location" value={locationId} onChange={(e) => setLocationId(e.target.value)}>
-            <option value="">All locations</option>
-            {locations.map((row) => (
-              <option key={row.id} value={row.id}>
-                {row.name}
-              </option>
-            ))}
-          </Select>
-        ) : null}
-      </div>
-
-      <div className="mt-6 grid gap-4 md:grid-cols-2">
-        {visible.map((row) => (
-          <article
-            key={`${row.id}-${row.location_id}-${row.expiry_date}`}
-            className="rounded-[28px] border border-slate-200 bg-white p-5"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <Link to={`/products/${row.id}`} className="text-lg font-semibold text-slate-900 hover:text-brand-700">
-                  {row.title}
-                </Link>
-                <p className="text-xs text-slate-500">SKU {row.sku}</p>
-              </div>
-              <StatusBadge value={row.expiry_status} tone={expiryTone(row.expiry_status)} />
-            </div>
-            <p className="mt-3 text-sm text-slate-600">
-              Expires {row.expiry_date} · Qty {row.stocks?.[0]?.qty ?? "—"}
-            </p>
-            <p className="text-xs text-slate-500">Location {row.location_number || row.location_id}</p>
-          </article>
-        ))}
-      </div>
-      {!visible.length ? <p className="mt-8 text-sm text-slate-500">No expiry rows match this filter.</p> : null}
+    <section className="space-y-6">
+      <PageHeader
+        section="Catalog"
+        title="Product Expiry"
+        description={`Stock with an expiry date at ${isAll ? "every location" : label}, soonest first. Critical and warning windows come from the store's expiry settings.`}
+      />
+      <StatCards
+        items={[
+          { label: "Expired", value: counts.expired },
+          { label: "Critical", value: counts.critical },
+          { label: "Warning", value: counts.warning },
+          { label: "OK", value: counts.ok },
+        ]}
+      />
+      <DataTable
+        columns={columns}
+        rows={rows}
+        rowKey={(row) => `${row.id}-${row.location_id}`}
+        loading={expiryQuery.isPending}
+        error={expiryQuery.error}
+        search={{ placeholder: "Search product or SKU…", text: (row) => `${row.title} ${row.sku} ${row.barcode || ""} ${row.product_number}` }}
+        filters={[
+          { key: "expiry_status", label: "Status", options: STATUSES.map(([value, text]) => ({ value, label: text })) },
+          {
+            key: "category",
+            label: "Category",
+            options: [...new Map(rows.filter((row) => row.category).map((row) => [row.category.id, row.category.name])).entries()].map(([value, text]) => ({ value, label: text })),
+            match: (row, value) => row.category?.id === value,
+          },
+        ]}
+        dateRange={{ label: "Expiry date", value: (row) => row.expiry_date }}
+        initialSort={{ key: "expiry_date", dir: "asc" }}
+        onRowClick={(row) => navigate(`/products/${row.id}`)}
+        emptyText="No stock with an expiry date."
+      />
     </section>
   )
 }

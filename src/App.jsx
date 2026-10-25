@@ -14,7 +14,6 @@ import { InventoryPage } from "./pages/store/InventoryPage.jsx"
 import { LocationsPage } from "./pages/store/LocationsPage.jsx"
 import { MovementsPage } from "./pages/store/MovementsPage.jsx"
 import { OffersPage } from "./pages/store/OffersPage.jsx"
-import { OrdersPage } from "./pages/store/OrdersPage.jsx"
 import { OrderDetailPage } from "./pages/store/OrderDetailPage.jsx"
 import { ProductDetailPage } from "./pages/store/ProductDetailPage.jsx"
 import { ProductFormPage } from "./pages/store/ProductFormPage.jsx"
@@ -26,14 +25,9 @@ import { StoreBillingPage } from "./pages/store/StoreBillingPage.jsx"
 import { StoreDevicesPage } from "./pages/store/StoreDevicesPage.jsx"
 import { SupplierDetailPage } from "./pages/store/SupplierDetailPage.jsx"
 import { SuppliersPage } from "./pages/store/SuppliersPage.jsx"
-import { TaxPage } from "./pages/store/TaxPage.jsx"
-import { TransactionsPage } from "./pages/store/TransactionsPage.jsx"
 import { TransfersPage } from "./pages/store/TransfersPage.jsx"
 import { WeightPage } from "./pages/store/WeightPage.jsx"
-import { ShiftsPage } from "./pages/store/ShiftsPage.jsx"
 import { StaffPage } from "./pages/store/StaffPage.jsx"
-import { OrderHistoryPage } from "./pages/store/OrderHistoryPage.jsx"
-import { SettingsPage } from "./pages/store/SettingsPage.jsx"
 import { BackupPage } from "./pages/store/BackupPage.jsx"
 import { AccountPage } from "./pages/AccountPage.jsx"
 import { DataToolsPage } from "./pages/superadmin/DataToolsPage.jsx"
@@ -45,6 +39,12 @@ import { StoreFormPage } from "./pages/superadmin/StoreFormPage.jsx"
 import { StoresPage } from "./pages/superadmin/StoresPage.jsx"
 import { AuditPage } from "./pages/superadmin/AuditPage.jsx"
 import { DevicesPage } from "./pages/superadmin/DevicesPage.jsx"
+import { OrdersTablePage } from "./pages/store/OrdersTablePage.jsx"
+import { RefundsTablePage } from "./pages/store/RefundsTablePage.jsx"
+import { TransactionsTablePage } from "./pages/store/TransactionsTablePage.jsx"
+import { SessionsPage } from "./pages/store/SessionsPage.jsx"
+import { BatchesPage } from "./pages/store/BatchesPage.jsx"
+import { AccountSettingsPage, CurrencySettingsPage, StoreInfoPage, TaxSettingsPage } from "./pages/store/SettingsSectionPages.jsx"
 
 /** Shared paths: pick platform vs store page by role (avoids duplicate-route redirect). */
 function AuditRoute() {
@@ -61,6 +61,13 @@ function DevicesRoute() {
   return <Navigate to="/" replace />
 }
 
+/** Store staff land on Reports (their Overview); Super Admin keeps the platform overview. */
+function HomeRoute() {
+  const { user } = useAuth()
+  if (isStoreStaff(user?.role)) return <Navigate to="/reports" replace />
+  return <OverviewPage />
+}
+
 export default function App() {
   return (
     <Routes>
@@ -70,7 +77,7 @@ export default function App() {
 
       <Route element={<RequireAuth />}>
         <Route element={<AppShell />}>
-          <Route index element={<OverviewPage />} />
+          <Route index element={<HomeRoute />} />
 
           <Route element={<RequireRole roles={["superadmin"]} />}>
             <Route path="stores/register" element={<StoreFormPage />} />
@@ -94,7 +101,6 @@ export default function App() {
           </Route>
 
           <Route element={<RequireStoreStaff />}>
-            <Route path="shifts" element={<ShiftsPage />} />
             <Route path="staff" element={<StaffPage />} />
             <Route path="reports" element={<ReportsPage />} />
             <Route path="products/new" element={<ProductFormPage />} />
@@ -109,27 +115,34 @@ export default function App() {
             <Route path="suppliers/:id" element={<SupplierDetailPage />} />
             <Route path="suppliers" element={<SuppliersPage />} />
             <Route path="customers" element={<CustomersPage />} />
-            <Route path="orders/custom" element={<OrdersPage mode="custom" />} />
-            <Route path="orders/history" element={<OrderHistoryPage />} />
-            <Route path="orders/cancelled" element={<Navigate to="/orders/history?tab=cancelled" replace />} />
+            <Route path="orders/custom" element={<OrdersTablePage mode="custom" />} />
+            <Route path="orders/history" element={<Navigate to="/orders" replace />} />
+            <Route path="orders/cancelled" element={<OrdersTablePage mode="cancelled" />} />
             <Route path="orders/:id" element={<OrderDetailPage />} />
-            <Route path="orders" element={<OrdersPage mode="all" />} />
-            <Route path="refunds" element={<Navigate to="/orders/history?tab=refunds" replace />} />
-            <Route path="transactions" element={<TransactionsPage />} />
+            <Route path="orders" element={<OrdersTablePage mode="history" />} />
+            <Route path="refunds" element={<RefundsTablePage />} />
+            <Route path="transactions" element={<TransactionsTablePage />} />
+            <Route path="sessions" element={<SessionsPage />} />
+            <Route path="transfers" element={<TransfersPage />} />
+            <Route path="batches" element={<BatchesPage />} />
+            <Route path="shifts" element={<Navigate to="/batches" replace />} />
             <Route path="offers" element={<OffersPage />} />
             <Route path="coupons" element={<CouponsPage />} />
             <Route path="reviews" element={<ReviewsPage />} />
             <Route path="locations" element={<LocationsPage />} />
             <Route path="website" element={<Navigate to="/settings?tab=website" replace />} />
-            <Route path="tax" element={<TaxPage />} />
-            <Route path="billing" element={<StoreBillingPage />} />
+            <Route path="tax" element={<Navigate to="/settings/taxes" replace />} />
+            <Route path="settings/taxes" element={<TaxSettingsPage />} />
+            <Route path="settings/currency" element={<CurrencySettingsPage />} />
+            <Route path="settings/account" element={<AccountSettingsPage />} />
             <Route path="approvals" element={<ApprovalsPage />} />
-            <Route path="settings" element={<SettingsPage />} />
+            <Route path="settings" element={<Navigate to="/settings/taxes" replace />} />
           </Route>
 
           <Route element={<RequireRole roles={["store_admin"]} />}>
-            <Route path="transfers" element={<TransfersPage />} />
             <Route path="backup" element={<BackupPage />} />
+            <Route path="billing" element={<StoreBillingPage />} />
+            <Route path="settings/store" element={<StoreInfoPage />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />

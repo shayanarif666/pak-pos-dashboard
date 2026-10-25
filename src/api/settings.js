@@ -78,3 +78,12 @@ export function listDataModules() {
 export function wipeDataModule(module) {
   return apiDelete(`/api/v1/admin/data/${module}`, auth)
 }
+
+// Store currency (code, name, symbol, decimal_places, symbol_position)
+export function getCurrency() {
+  return apiGet("/api/v1/currency", auth)
+}
+
+export function putCurrency(body) {
+  return apiPut("/api/v1/currency", body, auth)
+}

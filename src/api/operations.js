@@ -24,3 +24,13 @@ export function getStaffSales(id, params = {}) {
   return apiGet(withQuery(`/api/v1/staff/${id}/sales`, params), auth)
 }
 
+
+// Attendance (clock in / clock out), paged: ?page, limit, staffId, status, from, to, location_id
+export function listStaffSessions(params = {}) {
+  return apiGet(withQuery("/api/v1/staff-sessions", params), auth)
+}
+
+// Cash drawer batches (opened / closed on the POS)
+export function listBatches(params = {}) {
+  return apiGet(withQuery("/api/v1/batches", params), auth)
+}

@@ -4,7 +4,9 @@ import { ChevronDown, LogOut, MapPin, Menu, ShieldCheck, Store, X } from "lucide
 import { useAuth } from "../auth/AuthContext.jsx"
 import { ROLE_LABEL } from "../auth/roles.js"
 import { ErrorBoundary } from "../ui/ErrorBoundary.jsx"
-import { activeGroupTitle, flattenNavItems, isNavItemActive, navForRole } from "../nav/nav.js"
+import { activeGroupTitle, flattenNavItems, isNavItemActive, labelForPath, navForRole } from "../nav/nav.js"
+import { isStoreStaff } from "../auth/roles.js"
+import { DashboardLocationProvider, LocationScopeSwitcher } from "../features/scope/DashboardLocation.jsx"
 
 const SIGN_OUT_DELAY_MS = 900
 
@@ -214,8 +216,21 @@ function SigningOutOverlay() {
   )
 }
 
+/** Desktop top bar of store pages: the page name and the location the data is for. */
+function StoreTopBar() {
+  const { user } = useAuth()
+  const { pathname } = useLocation()
+  if (!isStoreStaff(user?.role)) return null
+  return (
+    <div className="sticky top-0 z-10 hidden items-center justify-between gap-4 border-b border-slate-200 bg-white/95 px-8 py-3 backdrop-blur lg:flex">
+      <span className="text-sm font-semibold text-slate-700">{labelForPath(user.role, pathname)}</span>
+      <LocationScopeSwitcher />
+    </div>
+  )
+}
+
 export function AppShell() {
-  const { signOut } = useAuth()
+  const { signOut, user } = useAuth()
   const navigate = useNavigate()
   const { pathname } = useLocation()
   const [open, setOpen] = useState(false)
@@ -234,6 +249,7 @@ export function AppShell() {
   }
 
   return (
+    <DashboardLocationProvider>
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-72 border-r border-slate-200 lg:block">
         <Sidebar onSignOut={handleSignOut} />
@@ -272,7 +288,9 @@ export function AppShell() {
             <Menu className="h-5 w-5" />
           </button>
           <span className="text-base font-semibold text-brand-700">Dashboard</span>
+          {isStoreStaff(user?.role) ? <LocationScopeSwitcher className="ml-auto" /> : null}
         </header>
+        <StoreTopBar />
         <main className="min-h-screen p-6 lg:p-8">
           <ErrorBoundary resetKey={pathname}>
             <Outlet />
@@ -282,5 +300,6 @@ export function AppShell() {
 
       {signingOut ? <SigningOutOverlay /> : null}
     </div>
+    </DashboardLocationProvider>
   )
 }

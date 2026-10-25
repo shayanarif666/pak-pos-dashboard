@@ -49,8 +49,8 @@ export function AccountForm({ allowPin }) {
   }
 
   return (
-    <form onSubmit={save} className="max-w-xl rounded-[28px] border border-slate-200 bg-white p-5">
-      <div className="grid gap-3 sm:grid-cols-2">
+    <form onSubmit={save} className="rounded-[28px] border border-slate-200 bg-white p-5">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <Input label="Name" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
         <Input label="Phone" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
         <Input label="Current password" type="password" value={form.current_password} required={Boolean(form.password)} onChange={(e) => setForm({ ...form, current_password: e.target.value })} />

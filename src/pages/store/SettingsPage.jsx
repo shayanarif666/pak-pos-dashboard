@@ -46,7 +46,7 @@ export function SettingsPage() {
   )
 }
 
-function StoreForm() {
+export function StoreForm() {
   const { toast } = useToast()
   const storeQuery = useMyStoreQuery()
   const updateStore = useUpdateMyStore()
@@ -82,8 +82,8 @@ function StoreForm() {
   if (storeQuery.error) return <p className="text-sm text-rose-700">{storeQuery.error.message}</p>
 
   return (
-    <form onSubmit={save} className="max-w-3xl rounded-[28px] border border-slate-200 bg-white p-5">
-      <div className="grid gap-3 sm:grid-cols-2">
+    <form onSubmit={save} className="rounded-[28px] border border-slate-200 bg-white p-5">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {FIELDS.map(([key, label]) => (
           <Input key={key} label={label} value={form[key]} onChange={(e) => setForm({ ...form, [key]: e.target.value })} />
         ))}

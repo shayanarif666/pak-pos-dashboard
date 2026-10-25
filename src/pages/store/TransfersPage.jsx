@@ -12,7 +12,10 @@ import { Modal, ModalCard } from "../../ui/Modal.jsx"
 import { Input } from "../../ui/Input.jsx"
 
 import { Select } from "../../ui/Select.jsx"
-import { PageLoader } from "../../ui/Spinner.jsx"
+import { DataTable } from "../../ui/DataTable.jsx"
+import { formatDateTime } from "../../ui/format.js"
+import { useDashboardLocation } from "../../features/scope/DashboardLocation.jsx"
+import { useStaffNames } from "../../features/lists/useStaffNames.js"
 import { useToast } from "../../ui/Toast.jsx"
 import { StatusBadge } from "../../ui/Pill.jsx"
 
@@ -35,7 +38,14 @@ export function TransfersPage() {
   const [showForm, setShowForm] = useState(false)
   const closeForm = () => setShowForm(false)
 
-  const rows = transfersQuery.data || []
+  const scope = useDashboardLocation()
+  const staffName = useStaffNames()
+  // A transfer belongs to both ends: the chosen location sees what it sent and what it receives.
+  const rows = (transfersQuery.data || []).filter(
+    (row) => !scope.locationId || row.from_location_id === scope.locationId || row.to_location_id === scope.locationId
+  )
+  const canManage = scope.isAdmin
+  const isOpen = (row) => row.status === "on_the_way" || row.status === "pending"
   const locations = locationsQuery.data || []
   const products = productsQuery.data || []
   const productName = Object.fromEntries(products.map((row) => [row.id, row.title]))
@@ -91,13 +101,15 @@ export function TransfersPage() {
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Inventory</p>
         <h1 className="mt-2 text-2xl font-semibold text-slate-900">Stock Transfers</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Store Admin only. Requires a multi-branch plan. Complete moves stock from one location to another.
+          Stock sent from one location to another. It stays on the way until the receiving location completes it.
         </p>
       </div>
-        <Button onClick={() => { setError(""); setShowForm(true) }}>
-          <Plus className="h-4 w-4" />
-          New transfer
-        </Button>
+        {canManage ? (
+          <Button onClick={() => { setError(""); setShowForm(true) }}>
+            <Plus className="h-4 w-4" />
+            New transfer
+          </Button>
+        ) : null}
       </div>
 
       <Modal open={showForm} onClose={closeForm} size="lg">
@@ -167,42 +179,46 @@ export function TransfersPage() {
       </ModalCard>
       </Modal>
 
-      {transfersQuery.isPending ? <PageLoader label="Loading transfers…" /> : null}
-      {transfersQuery.error ? (
-        <p className="text-sm text-rose-700">{transfersQuery.error.message}</p>
-      ) : null}
-
-      <div className="grid gap-3">
-        {rows.map((row) => (
-          <article
-            key={row.id}
-            className="flex flex-wrap items-center justify-between gap-3 rounded-[24px] border border-slate-200 bg-white px-5 py-4"
-          >
-            <div>
-              <p className="font-medium text-slate-900">{productName[row.product_id] || row.product_id}</p>
-              <p className="text-sm text-slate-600">
-                {locationName[row.from_location_id] || row.from_location_id} →{" "}
-                {locationName[row.to_location_id] || row.to_location_id} · Qty {row.qty}
-              </p>
-              {row.note ? <p className="text-xs text-slate-500">{row.note}</p> : null}
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <StatusBadge value={row.status} />
-              {row.status === "pending" ? (
-                <>
-                  <Button onClick={() => complete(row)}>Complete</Button>
-                  <Button variant="danger" onClick={() => cancel(row)}>
-                    Cancel
-                  </Button>
-                </>
-              ) : null}
-            </div>
-          </article>
-        ))}
-      </div>
-      {!transfersQuery.isPending && !rows.length ? (
-        <p className="text-sm text-slate-500">No transfers yet.</p>
-      ) : null}
+      <DataTable
+        columns={[
+          { key: "transfer_number", header: "Transfer #", sortValue: (row) => Number(row.transfer_number), render: (row) => <span className="font-semibold text-slate-900">#{row.transfer_number}</span> },
+          { key: "created_at", header: "Date", sortValue: (row) => new Date(row.created_at), render: (row) => formatDateTime(row.created_at) },
+          { key: "product", header: "Product", sortValue: (row) => productName[row.product_id], render: (row) => productName[row.product_id] || "—" },
+          { key: "from", header: "From", sortValue: (row) => locationName[row.from_location_id], render: (row) => locationName[row.from_location_id] || "—" },
+          { key: "to", header: "To", sortValue: (row) => locationName[row.to_location_id], render: (row) => locationName[row.to_location_id] || "—" },
+          { key: "qty", header: "Qty", align: "right", sortValue: (row) => Number(row.qty), render: (row) => Number(row.qty) },
+          { key: "by", header: "By", sortValue: (row) => staffName(row.created_by), render: (row) => staffName(row.created_by) },
+          { key: "note", header: "Note", sortable: false, className: "max-w-48 truncate", render: (row) => row.note || "—" },
+          { key: "status", header: "Status", render: (row) => <StatusBadge value={row.status} /> },
+          ...(canManage
+            ? [{
+                key: "actions",
+                header: "",
+                sortable: false,
+                render: (row) =>
+                  isOpen(row) ? (
+                    <div className="flex justify-end gap-2">
+                      <Button onClick={() => complete(row)}>Complete</Button>
+                      <Button variant="danger" onClick={() => cancel(row)}>Cancel</Button>
+                    </div>
+                  ) : null,
+              }]
+            : []),
+        ]}
+        rows={rows}
+        loading={transfersQuery.isPending}
+        error={transfersQuery.error}
+        search={{ placeholder: "Search product or note…", text: (row) => `${productName[row.product_id] || ""} ${row.note || ""} #${row.transfer_number}` }}
+        filters={[
+          { key: "status", label: "Status", options: [{ value: "on_the_way", label: "On the way" }, { value: "completed", label: "Completed" }, { value: "cancelled", label: "Cancelled" }] },
+          ...(scope.locationId
+            ? [{ key: "direction", label: "Direction", options: [{ value: "out", label: "Sent" }, { value: "in", label: "Received" }], match: (row, value) => (value === "out" ? row.from_location_id : row.to_location_id) === scope.locationId }]
+            : []),
+        ]}
+        dateRange={{ value: (row) => row.created_at }}
+        initialSort={{ key: "created_at", dir: "desc" }}
+        emptyText="No transfers yet."
+      />
     </section>
   )
 }

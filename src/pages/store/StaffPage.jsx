@@ -13,7 +13,11 @@ import { Checkbox } from "../../ui/Checkbox.jsx"
 import { Currency } from "../../ui/Currency.jsx"
 import { Input } from "../../ui/Input.jsx"
 import { Select } from "../../ui/Select.jsx"
+import { DataTable } from "../../ui/DataTable.jsx"
 import { PageLoader } from "../../ui/Spinner.jsx"
+import { PageHeader } from "../../ui/PageHeader.jsx"
+import { formatDateTime } from "../../ui/format.js"
+import { useDashboardLocation } from "../../features/scope/DashboardLocation.jsx"
 import { useToast } from "../../ui/Toast.jsx"
 import { Pill, StatusBadge, statusTone } from "../../ui/Pill.jsx"
 
@@ -35,7 +39,9 @@ export function StaffPage() {
   const staffQuery = useStaffQuery()
   const locationsQuery = useStoreLocationsQuery({ enabled: isAdmin })
   const saveStaff = useSaveStaff()
-  const rows = staffQuery.data || []
+  const scope = useDashboardLocation()
+  // One location chosen: its staff (the store admin works across every location).
+  const rows = (staffQuery.data || []).filter((row) => !scope.locationId || row.location_id === scope.locationId || row.role === "store_admin")
   const locations = locationsQuery.data || []
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState(null)
@@ -51,7 +57,7 @@ export function StaffPage() {
 
   function openCreate() {
     setEditingId(null)
-    setForm(empty)
+    setForm({ ...empty, location_id: scope.locationId || "" })
     setError("")
     setShowForm(true)
   }
@@ -99,20 +105,13 @@ export function StaffPage() {
   }
 
   return (
-    <section>
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">People</p>
-          <h1 className="mt-2 text-2xl font-semibold text-slate-900">Staff</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Cashiers sign in on the POS with their PIN. Managers can also use this dashboard.
-          </p>
-        </div>
-        <Button onClick={openCreate}>
-          <Plus className="h-4 w-4" />
-          Add staff
-        </Button>
-      </div>
+    <section className="space-y-6">
+      <PageHeader
+        section="Locations"
+        title="Staff"
+        description="Add managers and cashiers to a location. Cashiers are verified on the POS with their PIN; managers can also use this dashboard."
+        actions={<Button onClick={openCreate}><Plus className="h-4 w-4" /> Add staff</Button>}
+      />
 
       {created ? (
         <div className="mb-6 rounded-3xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">
@@ -128,40 +127,50 @@ export function StaffPage() {
         </div>
       ) : null}
 
-      {staffQuery.isPending ? <PageLoader label="Loading staff…" /> : null}
-      {staffQuery.error ? <p className="mb-4 text-sm text-rose-700">{staffQuery.error.message}</p> : null}
-
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {rows.map((row) => (
-          <article key={row.id} className="rounded-[28px] border border-slate-200 bg-white p-5">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="truncate text-lg font-semibold text-slate-900">{row.name}</p>
-                <p className="truncate text-sm text-slate-600">{row.email}</p>
+      <DataTable
+        columns={[
+          {
+            key: "name",
+            header: "Staff",
+            render: (row) => (
+              <div className="min-w-44">
+                <p className="font-semibold text-slate-900">{row.name}</p>
+                <p className="text-xs text-slate-500">#{row.user_number} · {row.email}</p>
               </div>
-              <Pill tone={row.is_active ? "emerald" : "rose"}>{row.is_active ? "Active" : "Off"}</Pill>
-            </div>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <Pill tone={statusTone(row.role)}>{row.role.replace("_", " ")}</Pill>
-              <Pill>{locationName(row.location_id)}</Pill>
-              {row.pin ? <Pill tone="sky" label="PIN">{row.pin}</Pill> : null}
-            </div>
-            <div className="mt-5 flex gap-2">
-              {row.role !== "store_admin" ? (
-                <Button variant="icon" aria-label="Edit staff" onClick={() => openEdit(row)}>
-                  <Pencil className="h-4 w-4" />
-                </Button>
-              ) : null}
-              <Button variant="icon" aria-label="Sales by this staff member" onClick={() => setSalesFor(row)}>
-                <BarChart3 className="h-4 w-4" />
-              </Button>
-            </div>
-          </article>
-        ))}
-      </div>
-      {!staffQuery.isPending && !rows.length ? (
-        <p className="mt-8 text-sm text-slate-500">No staff yet.</p>
-      ) : null}
+            ),
+          },
+          { key: "role", header: "Role", render: (row) => <Pill tone={statusTone(row.role)}>{row.role.replace("_", " ")}</Pill> },
+          { key: "location", header: "Location", sortValue: (row) => locationName(row.location_id), render: (row) => locationName(row.location_id) },
+          { key: "phone", header: "Phone", render: (row) => row.phone || "—" },
+          { key: "pin", header: "PIN", render: (row) => (row.pin ? <span className="font-mono">{row.pin}</span> : "—") },
+          { key: "last_login_at", header: "Last login", sortValue: (row) => (row.last_login_at ? new Date(row.last_login_at) : null), render: (row) => formatDateTime(row.last_login_at) },
+          { key: "is_active", header: "Status", sortValue: (row) => (row.is_active ? 1 : 0), render: (row) => <Pill tone={row.is_active ? "emerald" : "rose"}>{row.is_active ? "Active" : "Off"}</Pill> },
+          {
+            key: "actions",
+            header: "",
+            sortable: false,
+            render: (row) => (
+              <div className="flex justify-end gap-1">
+                {row.role !== "store_admin" ? (
+                  <Button variant="icon" aria-label="Edit staff" onClick={() => openEdit(row)}><Pencil className="h-4 w-4" /></Button>
+                ) : null}
+                <Button variant="icon" aria-label="Sales by this staff member" onClick={() => setSalesFor(row)}><BarChart3 className="h-4 w-4" /></Button>
+              </div>
+            ),
+          },
+        ]}
+        rows={rows}
+        loading={staffQuery.isPending}
+        error={staffQuery.error}
+        search={{ placeholder: "Search name, email or phone…", text: (row) => `${row.name} ${row.email} ${row.phone || ""} ${row.user_number}` }}
+        filters={[
+          { key: "role", label: "Role", options: [{ value: "store_admin", label: "Store admin" }, { value: "manager", label: "Manager" }, { value: "cashier", label: "Cashier" }] },
+          { key: "status", label: "Status", options: [{ value: "active", label: "Active" }, { value: "off", label: "Off" }], match: (row, value) => (row.is_active ? "active" : "off") === value },
+        ]}
+        dateRange={{ label: "Added on", value: (row) => row.created_at }}
+        initialSort={{ key: "role", dir: "asc" }}
+        emptyText="No staff yet."
+      />
 
       <Modal open={Boolean(showForm)} onClose={() => setShowForm(false)}>
           <form onSubmit={save} className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-3xl border border-slate-300 bg-white p-6">

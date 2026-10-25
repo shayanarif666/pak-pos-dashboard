@@ -75,13 +75,23 @@ const superAdminNav = [
   },
 ]
 
+// Store admin / manager sidebar. Items with roles: ["store_admin"] are hidden from managers.
 const storeNav = [
   {
-    title: "Dashboard",
+    title: "Overview",
     icon: LayoutDashboard,
+    single: true,
+    items: [{ to: "/reports", label: "Reports", icon: BarChart3 }],
+  },
+  {
+    title: "Sales",
+    icon: ShoppingBag,
     items: [
-      { to: "/", label: "Overview", icon: LayoutDashboard, end: true },
-      { to: "/reports", label: "Reports", icon: BarChart3 },
+      { to: "/orders", label: "Orders History", icon: History, end: true },
+      { to: "/orders/custom", label: "Custom Sales", icon: ClipboardList },
+      { to: "/refunds", label: "Orders Refunds", icon: Receipt },
+      { to: "/orders/cancelled", label: "Orders Cancelled", icon: FileWarning },
+      { to: "/transactions", label: "Transactions", icon: Banknote },
     ],
   },
   {
@@ -90,72 +100,56 @@ const storeNav = [
     items: [
       { to: "/products", label: "Products", icon: Package },
       { to: "/categories", label: "Categories", icon: FolderTree },
+      { to: "/expiry", label: "Product Expiry", icon: FileWarning },
+      { to: "/weight", label: "Weight Based Products", icon: Scale },
     ],
   },
   {
-    title: "Inventory",
+    title: "Inventories",
     icon: Boxes,
     items: [
-      { to: "/inventory", label: "Stock", icon: Boxes },
-      { to: "/movements", label: "Movements", icon: ArrowLeftRight },
-      { to: "/expiry", label: "Expiry", icon: FileWarning },
-      { to: "/weight", label: "Weight", icon: Scale },
-      { to: "/transfers", label: "Transfers", icon: Truck, roles: ["store_admin"] },
-      { to: "/suppliers", label: "Suppliers", icon: Warehouse },
+      { to: "/movements", label: "Stock Movements", icon: ArrowLeftRight },
+      { to: "/transfers", label: "Stock Transfers", icon: Truck },
     ],
   },
   {
-    title: "Sales",
-    icon: ShoppingBag,
+    title: "Locations",
+    icon: MapPin,
     items: [
-      { to: "/orders", label: "Orders", icon: ShoppingBag },
-      { to: "/orders/history", label: "History", icon: History },
-      { to: "/orders/custom", label: "Custom sales", icon: ClipboardList },
-      { to: "/transactions", label: "Transactions", icon: Banknote },
-      { to: "/customers", label: "Customers", icon: Users },
-    ],
-  },
-  {
-    title: "Promotions",
-    icon: BadgePercent,
-    items: [
-      { to: "/offers", label: "Offers", icon: BadgePercent },
-      { to: "/coupons", label: "Coupons", icon: Ticket },
-      { to: "/reviews", label: "Reviews", icon: ShieldCheck },
-    ],
-  },
-  {
-    title: "Point of sale",
-    icon: Monitor,
-    items: [
-      { to: "/shifts", label: "Shift history", icon: Clock },
       { to: "/locations", label: "Locations", icon: MapPin },
-      { to: "/staff", label: "Staff", icon: UserCog },
-      { to: "/devices", label: "Devices", icon: Monitor },
+      { to: "/staff", label: "Add Staff", icon: UserCog },
     ],
   },
   {
-    title: "Tax & billings",
-    icon: Receipt,
+    title: "Staff",
+    icon: Users,
     items: [
-      { to: "/tax", label: "Taxes", icon: Receipt },
-      { to: "/billing", label: "Billings", icon: Banknote },
+      { to: "/sessions", label: "Sessions History", icon: Clock },
+      { to: "/batches", label: "Batch History", icon: Layers },
+      { to: "/devices", label: "Devices Registered", icon: Monitor },
     ],
   },
   {
-    title: "Others",
-    icon: Layers,
-    items: [
-      { to: "/audit", label: "Audit", icon: ClipboardList },
-      { to: "/backup", label: "Backup", icon: Database, roles: ["store_admin"] },
-      { to: "/approvals", label: "Approvals", icon: ShieldCheck },
-    ],
+    title: "Billings",
+    icon: KeyRound,
+    single: true,
+    items: [{ to: "/billing", label: "Billings", icon: KeyRound, roles: ["store_admin"] }],
+  },
+  {
+    title: "Audit Logs",
+    icon: ClipboardList,
+    single: true,
+    items: [{ to: "/audit", label: "Audit Logs", icon: ClipboardList }],
   },
   {
     title: "Settings",
     icon: Settings,
-    single: true,
-    items: [{ to: "/settings", label: "Settings", icon: Settings }],
+    items: [
+      { to: "/settings/taxes", label: "Taxes", icon: Receipt },
+      { to: "/settings/currency", label: "Currency", icon: Banknote },
+      { to: "/settings/account", label: "My Account", icon: UserCircle },
+      { to: "/settings/store", label: "Store Information", icon: Store, roles: ["store_admin"] },
+    ],
   },
 ]
 

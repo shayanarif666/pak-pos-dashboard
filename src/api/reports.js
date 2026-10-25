@@ -19,6 +19,16 @@ export function getBreakdownReport(params = {}) {
   return apiGet(withQuery("/api/v1/reports/breakdown", params), auth)
 }
 
+// Every location together (store admin only) — includes by_location.
+export function getAllLocationsReport(params = {}) {
+  return apiGet(withQuery("/api/v1/reports/all-locations", params), auth)
+}
+
+// One location (locationId: number or UUID; a manager gets their own).
+export function getLocationReport(params = {}) {
+  return apiGet(withQuery("/api/v1/reports/location", params), auth)
+}
+
 export function getProfitReport(params = {}) {
   return apiGet(withQuery("/api/v1/reports/profit", params), auth)
 }

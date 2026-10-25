@@ -1,7 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   downloadReportExport,
+  getAllLocationsReport,
   getBreakdownReport,
+  getLocationReport,
   getDashboardReport,
   getPaymentsReport,
   getProfitReport,
@@ -43,6 +45,16 @@ export function usePaymentsReportQuery(filters = {}, options = {}) {
     queryKey: reportKeys.payments(filters),
     queryFn: async () => unwrap(await getPaymentsReport(filters)),
     enabled: options.enabled !== false,
+    staleTime: 0,
+    refetchOnMount: "always",
+  })
+}
+
+/** The Reports page: every location together (store admin, all) or one location. */
+export function useScopedReportQuery(filters = {}, { allLocations = false } = {}) {
+  return useQuery({
+    queryKey: ["reports", allLocations ? "all-locations" : "location", filters],
+    queryFn: async () => unwrap(await (allLocations ? getAllLocationsReport(filters) : getLocationReport(filters))),
     staleTime: 0,
     refetchOnMount: "always",
   })

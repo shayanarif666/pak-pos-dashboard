@@ -66,3 +66,8 @@ export function getReceipt(id) {
 export function getRefundReceipt(orderId, refundId) {
   return apiGet(`/api/v1/orders/${orderId}/refunds/${refundId}/receipt`, auth)
 }
+
+// Transactions (one per order payment), paged: ?page, limit, orderId, method, status, from, to, location_id
+export function listTransactions(params = {}) {
+  return apiGet(withQuery("/api/v1/transactions", params), auth)
+}

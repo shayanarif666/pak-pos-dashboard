@@ -9,7 +9,7 @@ import { Button } from "../../ui/Button.jsx"
 import { Modal } from "../../ui/Modal.jsx"
 import { Checkbox } from "../../ui/Checkbox.jsx"
 import { Input } from "../../ui/Input.jsx"
-import { PageLoader } from "../../ui/Spinner.jsx"
+import { DataTable } from "../../ui/DataTable.jsx"
 import { useToast } from "../../ui/Toast.jsx"
 import { Pill, statusTone } from "../../ui/Pill.jsx"
 
@@ -38,8 +38,9 @@ export function LocationsPage() {
   const allRows = locationsQuery.data || []
   const rows = useMemo(() => {
     if (isAdmin) return allRows
-    return allRows.filter((row) => row.id === assignedLocation?.id)
-  }, [allRows, assignedLocation?.id, isAdmin])
+    const own = assignedLocation?.id || user?.location_id
+    return allRows.filter((row) => row.id === own)
+  }, [allRows, assignedLocation?.id, user?.location_id, isAdmin])
 
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState(null)
@@ -271,65 +272,59 @@ export function LocationsPage() {
         </form>
       </Modal>
 
-      {locationsQuery.isPending ? <PageLoader label="Loading locations…" /> : null}
-      {locationsQuery.error ? (
-        <p className="text-sm text-rose-700">{locationsQuery.error.message}</p>
-      ) : null}
-
-      <div className="grid gap-3">
-        {rows.map((row) => (
-          <div
-            key={row.id}
-            className="rounded-[24px] border border-slate-200 bg-white px-5 py-4"
-          >
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="font-medium text-slate-900">{row.name}</p>
-                  {row.is_default ? <Pill tone="sky">Default</Pill> : null}
-                  <Pill tone={statusTone(row.is_active ? "active" : "inactive")}>
-                    {row.is_active ? "active" : "inactive"}
-                  </Pill>
-                </div>
-                <p className="mt-1 text-sm text-slate-600">
-                  #{row.location_number} · {row.city}
-                </p>
-                <p className="mt-1 text-sm text-slate-500">{row.address_line}</p>
-                {row.phone ? <p className="mt-1 text-xs text-slate-500">{row.phone}</p> : null}
-
-                {row.manager ? (
-                  <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-100 px-4 py-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-                        Manager
-                      </p>
-                      <Pill tone={row.manager.is_active !== false ? "emerald" : "rose"}>
-                        {row.manager.is_active !== false ? "active" : "inactive"}
-                      </Pill>
-                    </div>
-                    <p className="mt-2 text-sm font-medium text-slate-900">{row.manager.name}</p>
-                    <div className="mt-1 space-y-0.5 text-sm text-slate-600">
-                      {row.manager.email ? <p>{row.manager.email}</p> : null}
-                      {row.manager.phone ? <p>{row.manager.phone}</p> : null}
-                      {row.manager.pin ? <p>PIN {row.manager.pin}</p> : null}
-                    </div>
-                  </div>
-                ) : (
-                  <p className="mt-3 text-xs text-amber-700">No manager assigned</p>
-                )}
+      <DataTable
+        columns={[
+          {
+            key: "name",
+            header: "Location",
+            render: (row) => (
+              <div className="min-w-44">
+                <p className="font-semibold text-slate-900">{row.name}</p>
+                <p className="text-xs text-slate-500">#{row.location_number}{row.is_default ? " · default" : ""}</p>
               </div>
-              <Button variant="icon" aria-label="Edit location" onClick={() => openEdit(row)}>
-                <Pencil className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        ))}
-        {!locationsQuery.isPending && !rows.length ? (
-          <p className="rounded-[24px] border border-slate-200 bg-white px-5 py-8 text-center text-sm text-slate-500">
-            No locations yet.
-          </p>
-        ) : null}
-      </div>
+            ),
+          },
+          { key: "city", header: "City" },
+          { key: "address_line", header: "Address", sortable: false, className: "max-w-64 truncate", render: (row) => row.address_line || "—" },
+          { key: "phone", header: "Phone", render: (row) => row.phone || "—" },
+          {
+            key: "manager",
+            header: "Manager",
+            sortValue: (row) => row.manager?.name,
+            render: (row) =>
+              row.manager ? (
+                <div className="text-xs">
+                  <p className="font-medium text-slate-900">{row.manager.name}</p>
+                  <p className="text-slate-500">{row.manager.email}{row.manager.pin ? ` · PIN ${row.manager.pin}` : ""}</p>
+                </div>
+              ) : (
+                <span className="text-xs text-amber-700">No manager</span>
+              ),
+          },
+          { key: "is_active", header: "Status", sortValue: (row) => (row.is_active ? 1 : 0), render: (row) => <Pill tone={statusTone(row.is_active ? "active" : "inactive")}>{row.is_active ? "active" : "inactive"}</Pill> },
+          {
+            key: "actions",
+            header: "",
+            sortable: false,
+            render: (row) => (
+              <div className="flex justify-end">
+                <Button variant="icon" aria-label="Edit location" onClick={() => openEdit(row)}><Pencil className="h-4 w-4" /></Button>
+              </div>
+            ),
+          },
+        ]}
+        rows={rows}
+        loading={locationsQuery.isPending}
+        error={locationsQuery.error}
+        search={{ placeholder: "Search name, city or manager…", text: (row) => `${row.name} ${row.city} ${row.address_line} ${row.manager?.name || ""}` }}
+        filters={[
+          { key: "status", label: "Status", options: [{ value: "active", label: "Active" }, { value: "inactive", label: "Inactive" }], match: (row, value) => (row.is_active ? "active" : "inactive") === value },
+          { key: "manager", label: "Manager", options: [{ value: "yes", label: "Has manager" }, { value: "no", label: "No manager" }], match: (row, value) => (row.manager ? "yes" : "no") === value },
+        ]}
+        dateRange={{ label: "Added on", value: (row) => row.created_at }}
+        initialSort={{ key: "name", dir: "asc" }}
+        emptyText="No locations yet."
+      />
     </section>
   )
 }

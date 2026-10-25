@@ -12,7 +12,9 @@ import { Modal } from "../../ui/Modal.jsx"
 import { Checkbox } from "../../ui/Checkbox.jsx"
 import { Input } from "../../ui/Input.jsx"
 import { Select } from "../../ui/Select.jsx"
-import { PageLoader } from "../../ui/Spinner.jsx"
+import { DataTable } from "../../ui/DataTable.jsx"
+import { formatDateTime } from "../../ui/format.js"
+import { useDashboardLocation } from "../../features/scope/DashboardLocation.jsx"
 import { useToast } from "../../ui/Toast.jsx"
 import { Pill, statusTone } from "../../ui/Pill.jsx"
 
@@ -34,12 +36,8 @@ export function StoreDevicesPage() {
   const { toast } = useToast()
   const isAdmin = user?.role === "store_admin"
   const isManager = user?.role === "manager"
-  const [locationFilter, setLocationFilter] = useState("")
-  const filters = useMemo(
-    () => (isAdmin && locationFilter ? { location_id: locationFilter } : {}),
-    [isAdmin, locationFilter]
-  )
-  const devicesQuery = usePosDevicesQuery(filters)
+  const scope = useDashboardLocation()
+  const devicesQuery = usePosDevicesQuery(scope.params)
   const locationsQuery = useStoreLocationsQuery({ enabled: isAdmin || isManager })
   const registerDevice = useRegisterPosDevice()
   const updateDevice = useUpdatePosDevice()
@@ -131,8 +129,8 @@ export function StoreDevicesPage() {
     <section className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Admin</p>
-          <h1 className="mt-2 text-2xl font-semibold text-slate-900">Devices</h1>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Staff</p>
+          <h1 className="mt-2 text-2xl font-semibold text-slate-900">Devices Registered</h1>
           <p className="mt-1 text-sm text-slate-500">
             {store?.name ? `${store.name} · ` : ""}
             {isManager
@@ -148,20 +146,6 @@ export function StoreDevicesPage() {
         ) : null}
       </div>
 
-      {isAdmin && locations.length ? (
-        <Select
-          label="Filter by location"
-          value={locationFilter}
-          onChange={(e) => setLocationFilter(e.target.value)}
-        >
-          <option value="">All locations</option>
-          {locations.map((row) => (
-            <option key={row.id} value={row.id}>
-              {row.name}
-            </option>
-          ))}
-        </Select>
-      ) : null}
 
       <Modal open={showForm} onClose={closeForm} size="lg">
         <form
@@ -245,50 +229,48 @@ export function StoreDevicesPage() {
         </form>
       </Modal>
 
-      {devicesQuery.isPending ? <PageLoader label="Loading devices…" /> : null}
-      {devicesQuery.error ? (
-        <p className="text-sm text-rose-700">{devicesQuery.error.message}</p>
-      ) : null}
-
-      <div className="grid gap-3">
-        {rows.map((row) => (
-          <div
-            key={row.id}
-            className="rounded-[24px] border border-slate-200 bg-white px-5 py-4"
-          >
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="font-medium text-slate-900">{row.name}</p>
-                  <Pill tone={statusTone(row.is_active ? "active" : "inactive")}>
-                    {row.is_active ? "active" : "inactive"}
-                  </Pill>
-                </div>
-                <p className="mt-1 font-mono text-xs text-slate-500">{row.device_uid}</p>
-                <p className="mt-1 text-sm text-slate-600">
-                  {locationName[row.location_id] || location?.name || "Location"} ·{" "}
-                  {row.platform || "—"}
-                  {row.app_version ? ` · v${row.app_version}` : ""}
-                </p>
-                <p className="mt-1 text-xs text-slate-500">
-                  Last seen{" "}
-                  {row.last_seen_at ? new Date(row.last_seen_at).toLocaleString() : "—"}
-                </p>
+      <DataTable
+        columns={[
+          {
+            key: "name",
+            header: "Device",
+            render: (row) => (
+              <div className="min-w-40">
+                <p className="font-semibold text-slate-900">{row.name}</p>
+                <p className="text-xs text-slate-500">#{row.device_number} · <span className="font-mono">{row.device_uid}</span></p>
               </div>
-              {isAdmin ? (
-                <Button variant="icon" aria-label="Edit device" onClick={() => openEdit(row)}>
-                  <Pencil className="h-4 w-4" />
-                </Button>
-              ) : null}
-            </div>
-          </div>
-        ))}
-        {!devicesQuery.isPending && !rows.length ? (
-          <p className="rounded-[24px] border border-slate-200 bg-white px-5 py-8 text-center text-sm text-slate-500">
-            No devices registered.
-          </p>
-        ) : null}
-      </div>
+            ),
+          },
+          { key: "location", header: "Location", sortValue: (row) => locationName[row.location_id], render: (row) => locationName[row.location_id] || (row.location_id ? "—" : "Not assigned") },
+          { key: "platform", header: "Platform", render: (row) => row.platform || "—" },
+          { key: "app_version", header: "App version", render: (row) => (row.app_version ? `v${row.app_version}` : "—") },
+          { key: "created_at", header: "Registered", sortValue: (row) => new Date(row.created_at), render: (row) => formatDateTime(row.created_at) },
+          { key: "last_seen_at", header: "Last seen", sortValue: (row) => (row.last_seen_at ? new Date(row.last_seen_at) : null), render: (row) => formatDateTime(row.last_seen_at) },
+          { key: "is_active", header: "Status", sortValue: (row) => (row.is_active ? 1 : 0), render: (row) => <Pill tone={statusTone(row.is_active ? "active" : "inactive")}>{row.is_active ? "active" : "inactive"}</Pill> },
+          ...(isAdmin
+            ? [{
+                key: "actions",
+                header: "",
+                sortable: false,
+                render: (row) => (
+                  <div className="flex justify-end">
+                    <Button variant="icon" aria-label="Edit device" onClick={() => openEdit(row)}><Pencil className="h-4 w-4" /></Button>
+                  </div>
+                ),
+              }]
+            : []),
+        ]}
+        rows={rows}
+        loading={devicesQuery.isPending}
+        error={devicesQuery.error}
+        search={{ placeholder: "Search device name or id…", text: (row) => `${row.name} ${row.device_uid} ${row.device_number}` }}
+        filters={[
+          { key: "status", label: "Status", options: [{ value: "active", label: "Active" }, { value: "inactive", label: "Inactive" }], match: (row, value) => (row.is_active ? "active" : "inactive") === value },
+        ]}
+        dateRange={{ label: "Registered", value: (row) => row.created_at }}
+        initialSort={{ key: "created_at", dir: "desc" }}
+        emptyText="No devices registered."
+      />
     </section>
   )
 }

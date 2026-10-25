@@ -3,6 +3,7 @@ import { Pencil, Plus, Trash2, X } from "lucide-react"
 import {
   useCategoriesQuery,
   useDeleteCategory,
+  useProductsQuery,
   useSaveCategory,
 } from "../../features/catalog/catalogQuery.jsx"
 import { Button } from "../../ui/Button.jsx"
@@ -11,7 +12,8 @@ import { Checkbox } from "../../ui/Checkbox.jsx"
 import { Input, Textarea } from "../../ui/Input.jsx"
 
 import { Select } from "../../ui/Select.jsx"
-import { PageLoader } from "../../ui/Spinner.jsx"
+import { DataTable } from "../../ui/DataTable.jsx"
+import { PageHeader } from "../../ui/PageHeader.jsx"
 import { useToast } from "../../ui/Toast.jsx"
 import { Pill } from "../../ui/Pill.jsx"
 
@@ -68,6 +70,11 @@ export function CategoriesPage() {
   const [showForm, setShowForm] = useState(false)
   const [error, setError] = useState("")
   const loading = categoriesQuery.isPending
+  const productsQuery = useProductsQuery({})
+  const productCount = new Map()
+  for (const product of productsQuery.data || []) {
+    productCount.set(product.category_id, (productCount.get(product.category_id) || 0) + 1)
+  }
   const listError = categoriesQuery.error?.message || ""
 
   function openCreate() {
@@ -133,74 +140,80 @@ export function CategoriesPage() {
 
   const parents = rows.filter((row) => row.id !== editingId)
 
-  return (
-    <section>
-      <div className="mb-6 flex items-end justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Catalog</p>
-          <h1 className="mt-2 text-2xl font-semibold text-slate-900">Categories</h1>
-          <p className="mt-1 text-sm text-slate-500">Shared across every location of this store.</p>
+  const parentName = (id) => rows.find((row) => row.id === id)?.name || "—"
+  const percentOrRs = (type, value) =>
+    type && value != null && value !== "" ? (type === "percentage" ? `${Number(value)}%` : `Rs ${Number(value)}`) : "—"
+
+  const columns = [
+    {
+      key: "name",
+      header: "Category",
+      render: (row) => (
+        <div className="flex min-w-44 items-center gap-3">
+          {row.image_url ? (
+            <img src={row.image_url} alt="" className="h-10 w-10 shrink-0 rounded-xl object-cover" />
+          ) : (
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-[10px] text-slate-400">No img</div>
+          )}
+          <div className="min-w-0">
+            <p className="truncate font-semibold text-slate-900">{row.name}</p>
+            <p className="text-xs text-slate-500">#{row.category_number} · {row.slug}</p>
+          </div>
         </div>
-        <Button onClick={openCreate}>
-          <Plus className="h-4 w-4" />
-          Add category
-        </Button>
-      </div>
+      ),
+    },
+    { key: "parent", header: "Parent", sortValue: (row) => parentName(row.parent_category_id), render: (row) => (row.parent_category_id ? parentName(row.parent_category_id) : "—") },
+    { key: "products", header: "Products", align: "right", sortValue: (row) => productCount.get(row.id) || 0, render: (row) => productCount.get(row.id) || 0 },
+    { key: "tax", header: "Category tax", sortValue: (row) => Number(row.tax_value || 0), render: (row) => percentOrRs(row.tax_type, row.tax_value) },
+    { key: "discount", header: "Discount", sortValue: (row) => Number(row.discount_value || 0), render: (row) => percentOrRs(row.discount_type, row.discount_value) },
+    {
+      key: "channels",
+      header: "Shown on",
+      sortable: false,
+      render: (row) => (
+        <div className="flex gap-1">
+          <Pill tone={row.is_pos_visible ? "sky" : "zinc"} dot={false}>POS</Pill>
+          <Pill tone={row.is_web_visible ? "fuchsia" : "zinc"} dot={false}>Web</Pill>
+        </div>
+      ),
+    },
+    { key: "is_active", header: "Status", sortValue: (row) => (row.is_active ? 1 : 0), render: (row) => <Pill tone={row.is_active ? "emerald" : "rose"}>{row.is_active ? "Active" : "Off"}</Pill> },
+    {
+      key: "actions",
+      header: "",
+      sortable: false,
+      render: (row) => (
+        <div className="flex justify-end gap-1">
+          <Button variant="icon" aria-label="Edit category" onClick={() => openEdit(row)}><Pencil className="h-4 w-4" /></Button>
+          <Button variant="icon" aria-label="Delete category" onClick={() => remove(row)}><Trash2 className="h-4 w-4" /></Button>
+        </div>
+      ),
+    },
+  ]
 
-      {loading ? <PageLoader label="Loading categories…" /> : null}
-      {(error || listError) && !showForm ? (
-        <p className="mb-4 text-sm text-rose-700">{error || listError}</p>
-      ) : null}
-
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {rows.map((row) => (
-          <article
-            key={row.id}
-            className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_16px_50px_rgba(15,23,42,0.08)] backdrop-blur-2xl"
-          >
-            <div className="flex items-start gap-3">
-              {row.image_url ? (
-                <img
-                  src={row.image_url}
-                  alt=""
-                  className="h-14 w-14 rounded-2xl object-cover"
-                />
-              ) : (
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-xs text-slate-500">
-                  No img
-                </div>
-              )}
-              <div className="min-w-0 flex-1">
-                <h2 className="truncate text-lg font-semibold text-slate-900">{row.name}</h2>
-                <p className="truncate text-xs text-slate-500">{row.slug}</p>
-              </div>
-              <Pill tone={row.is_active ? "emerald" : "rose"}>{row.is_active ? "Active" : "Off"}</Pill>
-            </div>
-            <div className="mt-4 flex flex-wrap gap-1.5">
-              <Pill tone={row.is_pos_visible ? "sky" : "zinc"}>POS</Pill>
-              <Pill tone={row.is_web_visible ? "fuchsia" : "zinc"}>Web</Pill>
-              {row.tax_type ? (
-                <Pill tone="amber">
-                  Tax {row.tax_value}
-                  {row.tax_type === "percentage" ? "%" : ""}
-                </Pill>
-              ) : null}
-            </div>
-            <div className="mt-5 flex gap-2">
-              <Button variant="icon" aria-label="Edit category" onClick={() => openEdit(row)}>
-                <Pencil className="h-4 w-4" />
-              </Button>
-              <Button variant="icon" aria-label="Delete category" onClick={() => remove(row)}>
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </div>
-          </article>
-        ))}
-      </div>
-
-      {!loading && !rows.length ? (
-        <p className="mt-8 text-sm text-slate-500">No categories yet. Create one before adding products.</p>
-      ) : null}
+  return (
+    <section className="space-y-6">
+      <PageHeader
+        section="Catalog"
+        title="Categories"
+        description="Shared across every location of this store. A category tax and discount apply to every product in it."
+        actions={<Button onClick={openCreate}><Plus className="h-4 w-4" /> Add category</Button>}
+      />
+      {error && !showForm ? <p className="text-sm text-rose-700">{error}</p> : null}
+      <DataTable
+        columns={columns}
+        rows={rows}
+        loading={loading}
+        error={listError ? { message: listError } : null}
+        search={{ placeholder: "Search category…", text: (row) => `${row.name} ${row.slug} ${row.category_number}` }}
+        filters={[
+          { key: "status", label: "Status", options: [{ value: "active", label: "Active" }, { value: "off", label: "Off" }], match: (row, value) => (row.is_active ? "active" : "off") === value },
+          { key: "tax", label: "Category tax", options: [{ value: "yes", label: "With tax" }, { value: "no", label: "No tax" }], match: (row, value) => (row.tax_type ? "yes" : "no") === value },
+        ]}
+        dateRange={{ label: "Added on", value: (row) => row.created_at }}
+        initialSort={{ key: "name", dir: "asc" }}
+        emptyText="No categories yet. Create one before adding products."
+      />
 
       <Modal open={Boolean(showForm)} onClose={() => setShowForm(false)}>
           <form

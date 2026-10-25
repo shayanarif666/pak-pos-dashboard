@@ -12,7 +12,10 @@ import { Modal, ModalCard } from "../../ui/Modal.jsx"
 import { Input } from "../../ui/Input.jsx"
 
 import { Select } from "../../ui/Select.jsx"
-import { PageLoader } from "../../ui/Spinner.jsx"
+import { DataTable } from "../../ui/DataTable.jsx"
+import { formatDateTime } from "../../ui/format.js"
+import { useDashboardLocation } from "../../features/scope/DashboardLocation.jsx"
+import { useStaffNames } from "../../features/lists/useStaffNames.js"
 import { useToast } from "../../ui/Toast.jsx"
 import { Pill } from "../../ui/Pill.jsx"
 
@@ -46,26 +49,22 @@ export function MovementsPage() {
   const { toast } = useToast()
   const isAdmin = auth.user.role === "store_admin"
   const tokenLocation = resolveDashboardLocation(auth)
-  const [locationId, setLocationId] = useState(isAdmin ? "" : tokenLocation?.id || "")
-  const [movementType, setMovementType] = useState("")
-  const [filters, setFilters] = useState({ locationId: isAdmin ? "" : tokenLocation?.id || "", movement_type: "" })
+  const scope = useDashboardLocation()
+  const staffName = useStaffNames()
   const [form, setForm] = useState({
     product_id: "",
     movement_type: "stock_in",
     qty: "",
     reason: "purchase",
     reason_note: "",
-    location_id: tokenLocation?.id || "",
+    location_id: scope.locationId || tokenLocation?.id || "",
   })
 
   const [showForm, setShowForm] = useState(false)
   const closeForm = () => setShowForm(false)
   const locationsQuery = useLocationsQuery({ enabled: isAdmin })
   const productsQuery = useProductsQuery()
-  const movementsQuery = useStockMovementsQuery({
-    locationId: filters.locationId || undefined,
-    movement_type: filters.movement_type || undefined,
-  })
+  const movementsQuery = useStockMovementsQuery(scope.locationId ? { locationId: scope.locationId } : {})
   const createMovement = useCreateStockMovement()
 
   const locations = locationsQuery.data || []
@@ -73,7 +72,6 @@ export function MovementsPage() {
   const rows = movementsQuery.data || []
   const productName = Object.fromEntries(products.map((row) => [row.id, row.title]))
   const loading = movementsQuery.isPending
-  const error = movementsQuery.error?.message || ""
 
   async function save(event) {
     event.preventDefault()
@@ -191,68 +189,42 @@ export function MovementsPage() {
       </ModalCard>
       </Modal>
 
-      <form
-        onSubmit={(event) => {
-          event.preventDefault()
-          setFilters({ locationId, movement_type: movementType })
-        }}
-        className="grid gap-3 rounded-[28px] border border-slate-200 bg-white p-4 md:grid-cols-[1fr_1fr_auto]"
-      >
-        {isAdmin ? (
-          <Select label="Filter location" value={locationId} onChange={(e) => setLocationId(e.target.value)}>
-            <option value="">All locations</option>
-            {locations.map((row) => (
-              <option key={row.id} value={row.id}>
-                {row.name}
-              </option>
-            ))}
-          </Select>
-        ) : (
-          <Input label="Location" value={tokenLocation?.name || "Login location"} disabled />
-        )}
-        <Select label="Filter type" value={movementType} onChange={(e) => setMovementType(e.target.value)}>
-          <option value="">All types</option>
-          {TYPES.map((type) => (
-            <option key={type} value={type}>
-              {label(type)}
-            </option>
-          ))}
-        </Select>
-        <div className="flex items-end">
-          <Button type="submit" variant="ghost">
-            Filter
-          </Button>
-        </div>
-      </form>
-
-      {error ? <p className="text-sm text-rose-700">{error}</p> : null}
-      {loading ? <PageLoader label="Loading movements…" /> : null}
-
-      <div className="grid gap-3">
-        {rows.map((row) => (
-          <article
-            key={row.id}
-            className="flex flex-wrap items-center justify-between gap-3 rounded-[24px] border border-slate-200 bg-white px-5 py-4"
-          >
-            <div>
-              <p className="font-medium text-slate-900">{productName[row.product_id] || row.product_id}</p>
-              <p className="text-xs text-slate-500">
-                {row.location_name || "Location"} · {new Date(row.created_at).toLocaleString()}
-              </p>
-              {row.reason_note ? <p className="mt-1 text-sm text-slate-600">{row.reason_note}</p> : null}
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Pill tone={typeTone(row.movement_type)}>{label(row.movement_type)}</Pill>
-              <Pill tone="zinc">{label(row.reason)}</Pill>
-              <p className="text-lg font-semibold text-slate-900">
-                {row.qty > 0 ? "+" : ""}
+      <DataTable
+        columns={[
+          { key: "created_at", header: "Date", sortValue: (row) => new Date(row.created_at), render: (row) => formatDateTime(row.created_at) },
+          { key: "product", header: "Product", sortValue: (row) => productName[row.product_id], render: (row) => <span className="font-medium text-slate-900">{productName[row.product_id] || "—"}</span> },
+          ...(scope.isAll ? [{ key: "location_name", header: "Location", render: (row) => row.location_name || "—" }] : []),
+          { key: "movement_type", header: "Type", render: (row) => <Pill tone={typeTone(row.movement_type)}>{label(row.movement_type)}</Pill> },
+          { key: "reason", header: "Reason", render: (row) => <span className="capitalize">{label(row.reason)}</span> },
+          {
+            key: "qty",
+            header: "Qty",
+            align: "right",
+            sortValue: (row) => Number(row.qty),
+            render: (row) => (
+              <span className={Number(row.qty) < 0 ? "font-semibold text-rose-700" : "font-semibold text-emerald-700"}>
+                {Number(row.qty) > 0 ? "+" : ""}
                 {row.qty}
-              </p>
-            </div>
-          </article>
-        ))}
-      </div>
-      {!loading && !rows.length ? <p className="text-sm text-slate-500">No movements yet.</p> : null}
+              </span>
+            ),
+          },
+          { key: "qty_after", header: "Stock after", align: "right", sortValue: (row) => Number(row.qty_after), render: (row) => row.qty_after ?? "—" },
+          { key: "staff", header: "By", sortValue: (row) => staffName(row.staff_id), render: (row) => (row.staff_id ? staffName(row.staff_id) : "System") },
+          { key: "reason_note", header: "Note", sortable: false, className: "max-w-56 truncate", render: (row) => row.reason_note || "—" },
+        ]}
+        rows={rows}
+        loading={loading}
+        error={movementsQuery.error}
+        search={{ placeholder: "Search product or note…", text: (row) => `${productName[row.product_id] || ""} ${row.reason_note || ""}` }}
+        filters={[
+          { key: "movement_type", label: "Type", options: ["stock_in", "stock_out", "adjustment", "sale", "refund", "transfer_in", "transfer_out", "custom_sale"].map((value) => ({ value, label: label(value) })) },
+          { key: "reason", label: "Reason", options: [...REASONS, "sale", "refund", "transfer"].map((value) => ({ value, label: label(value) })) },
+          { key: "product", label: "Product", options: products.map((row) => ({ value: row.id, label: row.title })), match: (row, value) => row.product_id === value },
+        ]}
+        dateRange={{ value: (row) => row.created_at }}
+        initialSort={{ key: "created_at", dir: "desc" }}
+        emptyText="No movements yet."
+      />
     </section>
   )
 }
