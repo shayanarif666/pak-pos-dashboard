@@ -36,7 +36,8 @@ function ReceiptLine({ label, value, strong = false }) {
 function OrderReceipt({ storeName, order, items, payments, receipt, customer, cashier }) {
   const receiptNumber = receipt?.receipt_number
   const issuedAt = receipt?.issued_at || order.placed_at
-  const paid = payments.reduce((sum, row) => sum + Number(row.amount || 0), 0)
+  // What the customer handed over (cash may be more than the bill); the payment rows only cover the bill.
+  const paid = Number(order.amount_paid) || payments.reduce((sum, row) => sum + Number(row.amount || 0), 0)
 
   return (
     <article className="mx-auto w-full max-w-md overflow-hidden rounded-[28px] border border-slate-300 bg-[#f7f4ef] text-slate-900 shadow-[0_24px_80px_rgba(15,23,42,0.08)]">
@@ -134,7 +135,7 @@ function OrderReceipt({ storeName, order, items, payments, receipt, customer, ca
         </div>
         <ReceiptLine
           label="Amount paid"
-          value={<Currency value={paid || order.amount_paid || 0} />}
+          value={<Currency value={paid} />}
         />
         {order.change_due != null ? (
           <ReceiptLine label="Change due" value={<Currency value={order.change_due} />} />
