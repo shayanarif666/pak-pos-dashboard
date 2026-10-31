@@ -1,8 +1,9 @@
-import { useMemo } from "react"
-import { Link, useNavigate } from "react-router-dom"
+import { useMemo, useState } from "react"
+import { Link, useNavigate, useSearchParams } from "react-router-dom"
 import { Eye, Pencil, Plus, Trash2 } from "lucide-react"
 import { useCategoriesQuery, useDisableProduct, useProductsQuery } from "../../features/catalog/catalogQuery.jsx"
 import { useDashboardLocation } from "../../features/scope/DashboardLocation.jsx"
+import { LocationScopePills } from "../../features/scope/LocationScopeField.jsx"
 import { DataTable } from "../../ui/DataTable.jsx"
 import { Currency } from "../../ui/Currency.jsx"
 import { Button } from "../../ui/Button.jsx"
@@ -19,18 +20,8 @@ function productType(row) {
 }
 const TYPE_LABEL = { loose: "Loose", pack: "Pack", weight: "Weight", pack_weight: "Pack + weight" }
 
-function stockOf(row) {
-  const stocks = row.stocks || []
-  return {
-    qty: stocks.reduce((sum, stock) => sum + Number(stock.qty || 0), 0),
-    low: stocks.some((stock) => stock.is_low),
-  }
-}
-function stockStatus(row) {
-  const { qty, low } = stockOf(row)
-  if (qty <= 0) return "out"
-  return low ? "low" : "in"
-}
+// Stock total and status come from the API (total_qty, stock_status: in / low / out).
+const STOCK_TONE = { out: "font-semibold text-rose-700", low: "font-semibold text-amber-700", in: "font-semibold text-slate-900" }
 
 function taxText(row) {
   const taxes = row.taxes || []
@@ -45,12 +36,18 @@ export function ProductsPage() {
   const { params, isAll, label } = useDashboardLocation()
   const disableProduct = useDisableProduct()
   const categoriesQuery = useCategoriesQuery()
-  const productsQuery = useProductsQuery(params.location_id ? { locationId: params.location_id } : {})
+  const [searchParams] = useSearchParams()
+  // Category filter is sent to the API as category_id (?category= opens the page filtered).
+  const [categoryId, setCategoryId] = useState(searchParams.get("category") || "")
+  const productsQuery = useProductsQuery({
+    ...(params.location_id ? { locationId: params.location_id } : {}),
+    ...(categoryId ? { category_id: categoryId } : {}),
+  })
   const categories = categoriesQuery.data || []
   const rows = useMemo(() => productsQuery.data || [], [productsQuery.data])
 
   const totals = useMemo(() => {
-    const statuses = rows.map(stockStatus)
+    const statuses = rows.map((row) => row.stock_status)
     return {
       products: rows.length,
       active: rows.filter((row) => row.is_active).length,
@@ -93,7 +90,17 @@ export function ProductsPage() {
       ),
     },
     { key: "sku", header: "SKU / Barcode", render: (row) => (<div className="text-xs"><p className="font-mono text-slate-700">{row.sku}</p><p className="font-mono text-slate-400">{row.barcode || "—"}</p></div>) },
-    { key: "category", header: "Category", sortValue: (row) => row.category?.name, render: (row) => row.category?.name || "—" },
+    {
+      key: "category",
+      header: "Category",
+      sortValue: (row) => row.category?.name,
+      render: (row) =>
+        row.category ? (
+          <Link to={`/categories/${row.category.category_number ?? row.category.id}`} onClick={(event) => event.stopPropagation()} className="hover:underline">
+            {row.category.name}
+          </Link>
+        ) : "—",
+    },
     { key: "type", header: "Type", sortValue: productType, render: (row) => <Pill tone="violet" dot={false}>{TYPE_LABEL[productType(row)]}</Pill> },
     { key: "cost_price", header: "Cost", align: "right", sortValue: (row) => toNumber(row.cost_price), render: (row) => <Currency value={row.cost_price} /> },
     { key: "selling_price", header: "Price", align: "right", sortValue: (row) => toNumber(row.selling_price), render: (row) => <Currency value={row.selling_price} /> },
@@ -118,15 +125,14 @@ export function ProductsPage() {
       key: "stock",
       header: isAll ? "Stock (all)" : "Stock",
       align: "right",
-      sortValue: (row) => stockOf(row).qty,
-      render: (row) => {
-        const status = stockStatus(row)
-        return (
-          <span className={status === "out" ? "font-semibold text-rose-700" : status === "low" ? "font-semibold text-amber-700" : "font-semibold text-slate-900"}>
-            {stockOf(row).qty}
-          </span>
-        )
-      },
+      sortValue: (row) => toNumber(row.total_qty),
+      render: (row) => <span className={STOCK_TONE[row.stock_status] || STOCK_TONE.in}>{row.total_qty ?? 0}</span>,
+    },
+    {
+      key: "locations",
+      header: "Sold at",
+      sortValue: (row) => (row.location_scope === "selected" ? (row.locations || []).length : 0),
+      render: (row) => <LocationScopePills row={row} />,
     },
     { key: "is_active", header: "Status", sortValue: (row) => (row.is_active ? 1 : 0), render: (row) => <Pill tone={row.is_active ? "emerald" : "rose"}>{row.is_active ? "Active" : "Disabled"}</Pill> },
     {
@@ -172,13 +178,15 @@ export function ProductsPage() {
         error={productsQuery.error || categoriesQuery.error}
         search={{ placeholder: "Search title, SKU or barcode…", text: (row) => `${row.title} ${row.sku} ${row.barcode} ${row.product_number}` }}
         filters={[
-          { key: "category", label: "Category", options: categories.map((row) => ({ value: row.id, label: row.name })), match: (row, value) => row.category_id === value },
+          { key: "category", label: "Category", server: true, options: categories.map((row) => ({ value: String(row.category_number), label: row.name })) },
           { key: "type", label: "Type", options: Object.entries(TYPE_LABEL).map(([value, text]) => ({ value, label: text })), match: (row, value) => productType(row) === value },
-          { key: "stock", label: "Stock", options: [{ value: "in", label: "In stock" }, { value: "low", label: "Low stock" }, { value: "out", label: "Out of stock" }], match: (row, value) => stockStatus(row) === value },
+          { key: "stock", label: "Stock", options: [{ value: "in", label: "In stock" }, { value: "low", label: "Low stock" }, { value: "out", label: "Out of stock" }], match: (row, value) => row.stock_status === value },
           { key: "status", label: "Status", options: [{ value: "active", label: "Active" }, { value: "disabled", label: "Disabled" }], match: (row, value) => (row.is_active ? "active" : "disabled") === value },
         ]}
         dateRange={{ label: "Added on", value: (row) => row.created_at }}
         initialSort={{ key: "title", dir: "asc" }}
+        initialFilters={categoryId ? { category: categoryId } : {}}
+        onFiltersChange={(values) => setCategoryId(values.category || "")}
         onRowClick={(row) => navigate(`/products/${row.id}`)}
         emptyText="No products yet — add your first product."
       />

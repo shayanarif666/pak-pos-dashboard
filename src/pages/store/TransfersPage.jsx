@@ -1,3 +1,4 @@
+import { StatCards } from "../../ui/PageHeader.jsx"
 import { useState } from "react"
 import {
   useCancelStockTransfer,
@@ -179,6 +180,14 @@ export function TransfersPage() {
       </ModalCard>
       </Modal>
 
+      <StatCards
+        items={[
+          { label: "Transfers", value: rows.length },
+          { label: "Open", value: rows.filter(isOpen).length, hint: "Pending or on the way" },
+          { label: "Received", value: rows.filter((row) => row.status === "received" || row.status === "completed").length },
+          { label: "Cancelled", value: rows.filter((row) => row.status === "cancelled" || row.status === "rejected").length },
+        ]}
+      />
       <DataTable
         columns={[
           { key: "transfer_number", header: "Transfer #", sortValue: (row) => Number(row.transfer_number), render: (row) => <span className="font-semibold text-slate-900">#{row.transfer_number}</span> },

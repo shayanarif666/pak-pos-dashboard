@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom"
-import { ChevronDown, LogOut, MapPin, Menu, ShieldCheck, Store, X } from "lucide-react"
+import { ChevronDown, ChevronRight, LogOut, MapPin, Menu, ShieldCheck, Store, X } from "lucide-react"
 import { useAuth } from "../auth/AuthContext.jsx"
 import { ROLE_LABEL } from "../auth/roles.js"
 import { ErrorBoundary } from "../ui/ErrorBoundary.jsx"
@@ -29,8 +29,8 @@ function SidebarLink({ item, items, onNavigate, nested = false }) {
         "flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors duration-150",
         nested ? "ml-3" : "",
         active
-          ? "bg-brand-700 text-white shadow-[0_6px_16px_rgba(19,92,76,0.25)]"
-          : "text-slate-600 hover:bg-brand-50 hover:text-brand-700",
+          ? "bg-brand-700 text-white"
+          : "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
       ].join(" ")}
       aria-current={active ? "page" : undefined}
     >
@@ -53,7 +53,7 @@ function NavGroup({ group, items, open, onToggle, onNavigate }) {
         onClick={onNavigate}
         className={[
           "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors duration-150",
-          containsActive ? "bg-brand-700 text-white shadow-[0_6px_16px_rgba(19,92,76,0.25)]" : "text-slate-800 hover:bg-slate-100",
+          containsActive ? "bg-brand-700 text-white" : "text-slate-800 hover:bg-slate-100",
         ].join(" ")}
         aria-current={containsActive ? "page" : undefined}
       >
@@ -78,14 +78,14 @@ function NavGroup({ group, items, open, onToggle, onNavigate }) {
         aria-expanded={open}
         className={[
           "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors duration-150",
-          containsActive ? "text-brand-800" : "text-slate-800 hover:bg-slate-100",
+          containsActive ? "text-slate-950" : "text-slate-800 hover:bg-slate-100",
           open && !containsActive ? "bg-slate-50" : "",
         ].join(" ")}
       >
         <span
           className={[
             "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors",
-            containsActive ? "bg-brand-100 text-brand-700" : "bg-slate-100 text-slate-600",
+            containsActive ? "bg-brand-700 text-white" : "bg-slate-100 text-slate-600",
           ].join(" ")}
         >
           <group.icon className="h-[18px] w-[18px]" strokeWidth={1.9} />
@@ -114,9 +114,11 @@ function NavGroup({ group, items, open, onToggle, onNavigate }) {
   )
 }
 
+/** Top of the sidebar: the store (or platform) and the location the user works at. */
 function SidebarHeader() {
   const { user, store, location } = useAuth()
   const isPlatform = user.role === "superadmin"
+  const name = isPlatform ? "Platform" : store?.name || "Store"
   const place = isPlatform
     ? "All stores"
     : user.role === "store_admin"
@@ -124,34 +126,48 @@ function SidebarHeader() {
       : location?.name || "Assigned location"
 
   return (
-    <div className="brand-pattern relative overflow-hidden px-5 pb-5 pt-6 text-white">
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-brand-700/30 via-brand-800/55 to-brand-950/85" />
-      <div className="pointer-events-none absolute -right-10 -top-12 h-36 w-36 rounded-full bg-white/10 blur-2xl" />
-      <div className="relative">
-        <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/15 text-lg font-bold tracking-wide ring-1 ring-white/30 backdrop-blur">
+    <div className="flex items-center gap-3 border-b border-slate-200 px-5 py-5">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-700 text-white">
+        {isPlatform ? <ShieldCheck className="h-5 w-5" /> : <Store className="h-5 w-5" />}
+      </span>
+      <div className="min-w-0">
+        <p className="truncate text-base font-bold leading-tight text-slate-950">{name}</p>
+        <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-slate-500">
+          <MapPin className="h-3 w-3 shrink-0" />
+          {place}
+        </p>
+      </div>
+    </div>
+  )
+}
+
+/** Bottom of the sidebar: the signed-in user (opens the profile) and sign out. */
+function SidebarUser({ onNavigate, onSignOut }) {
+  const { user } = useAuth()
+  const { pathname } = useLocation()
+  const active = pathname === "/profile"
+  return (
+    <div className="border-t border-slate-200 p-3">
+      <div className={["flex items-center gap-2 rounded-2xl p-2 transition", active ? "bg-slate-100" : "hover:bg-slate-50"].join(" ")}>
+        <NavLink to="/profile" onClick={onNavigate} className="flex min-w-0 flex-1 items-center gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-700 text-sm font-bold text-white">
             {initialsOf(user.name)}
-          </div>
-          <div className="min-w-0">
-            <p className="truncate text-base font-semibold leading-tight">{user.name}</p>
-            <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-0.5 text-xs font-semibold text-brand-50 ring-1 ring-white/25">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-300" aria-hidden="true" />
-              {ROLE_LABEL[user.role]}
-            </span>
-          </div>
-        </div>
-        <div className="mt-4 flex items-center gap-3 rounded-2xl bg-white/10 px-3 py-2.5 ring-1 ring-white/20 backdrop-blur">
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white/15">
-            {isPlatform ? <ShieldCheck className="h-4 w-4" /> : <Store className="h-4 w-4" />}
           </span>
-          <div className="min-w-0">
-            <p className="truncate text-sm font-semibold">{isPlatform ? "Platform" : store?.name || "Store"}</p>
-            <p className="flex items-center gap-1 truncate text-xs text-brand-100">
-              <MapPin className="h-3 w-3 shrink-0" />
-              {place}
-            </p>
-          </div>
-        </div>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-semibold text-slate-950">{user.name}</span>
+            <span className="block truncate text-xs text-slate-500">{ROLE_LABEL[user.role]} · {user.email}</span>
+          </span>
+          <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
+        </NavLink>
+        <button
+          type="button"
+          onClick={onSignOut}
+          aria-label="Sign out"
+          title="Sign out"
+          className="rounded-xl p-2 text-slate-500 transition hover:bg-rose-50 hover:text-rose-700"
+        >
+          <LogOut className="h-[18px] w-[18px]" />
+        </button>
       </div>
     </div>
   )
@@ -188,16 +204,7 @@ function Sidebar({ onNavigate, onSignOut }) {
         ))}
       </nav>
 
-      <div className="border-t border-slate-200 p-3">
-        <button
-          type="button"
-          onClick={onSignOut}
-          className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-rose-50 hover:text-rose-700"
-        >
-          <LogOut className="h-[18px] w-[18px]" />
-          Sign out
-        </button>
-      </div>
+      <SidebarUser onNavigate={onNavigate} onSignOut={onSignOut} />
     </div>
   )
 }
@@ -223,7 +230,7 @@ function StoreTopBar() {
   if (!isStoreStaff(user?.role)) return null
   return (
     <div className="sticky top-0 z-10 hidden items-center justify-between gap-4 border-b border-slate-200 bg-white/95 px-8 py-3 backdrop-blur lg:flex">
-      <span className="text-sm font-semibold text-slate-700">{labelForPath(user.role, pathname)}</span>
+      <span className="text-base font-semibold text-slate-950">{labelForPath(user.role, pathname)}</span>
       <LocationScopeSwitcher />
     </div>
   )
@@ -250,7 +257,7 @@ export function AppShell() {
 
   return (
     <DashboardLocationProvider>
-    <div className="min-h-screen bg-slate-50 text-slate-900">
+    <div className="min-h-screen bg-white text-slate-900">
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-72 border-r border-slate-200 lg:block">
         <Sidebar onSignOut={handleSignOut} />
       </aside>
@@ -266,7 +273,7 @@ export function AppShell() {
           <aside className="relative h-full w-72 border-r border-slate-200 bg-white">
             <button
               type="button"
-              className="absolute right-3 top-3 z-10 rounded-lg p-1 text-white hover:text-brand-100"
+              className="absolute right-3 top-5 z-10 rounded-lg p-1 text-slate-500 hover:text-slate-900"
               onClick={() => setOpen(false)}
               aria-label="Close sidebar"
             >
@@ -281,13 +288,13 @@ export function AppShell() {
         <header className="sticky top-0 z-20 flex items-center gap-3 border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur lg:hidden">
           <button
             type="button"
-            className="rounded-lg p-2 text-slate-700 hover:bg-brand-50"
+            className="rounded-lg p-2 text-slate-700 hover:bg-slate-100"
             onClick={() => setOpen(true)}
             aria-label="Open sidebar"
           >
             <Menu className="h-5 w-5" />
           </button>
-          <span className="text-base font-semibold text-brand-700">Dashboard</span>
+          <span className="text-base font-semibold text-slate-950">Dashboard</span>
           {isStoreStaff(user?.role) ? <LocationScopeSwitcher className="ml-auto" /> : null}
         </header>
         <StoreTopBar />

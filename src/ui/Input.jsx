@@ -2,7 +2,7 @@ import { useState } from "react"
 import { Eye, EyeOff } from "lucide-react"
 
 const fieldClass =
-  "w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] outline-none placeholder:text-slate-400 transition focus:border-brand-600 focus:bg-white focus:ring-4 focus:ring-brand-600/15 disabled:opacity-50"
+  "w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none placeholder:text-slate-400 transition hover:border-slate-400 focus:border-brand-700 focus:ring-4 focus:ring-slate-900/10 disabled:opacity-50"
 
 export function Input({ label, error, className = "", type = "text", ...props }) {
   const [showPassword, setShowPassword] = useState(false)

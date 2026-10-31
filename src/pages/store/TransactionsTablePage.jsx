@@ -4,7 +4,8 @@ import { useDashboardLocation, useLocationName } from "../../features/scope/Dash
 import { DataTable } from "../../ui/DataTable.jsx"
 import { Currency } from "../../ui/Currency.jsx"
 import { StatusBadge } from "../../ui/Pill.jsx"
-import { PageHeader } from "../../ui/PageHeader.jsx"
+import { PageHeader, StatCards } from "../../ui/PageHeader.jsx"
+import { useScopedReportQuery } from "../../features/reports/reportQuery.js"
 import { formatDateTime } from "../../ui/format.js"
 
 const METHODS = [
@@ -37,6 +38,11 @@ export function TransactionsTablePage() {
   }
   const query = useTransactionsQuery(params)
   const rows = query.data?.rows || []
+  // Totals for the chosen dates and location (all methods), from the payments report.
+  const summary = useScopedReportQuery(
+    { ...locationParams, from: table.from || undefined, to: table.to ? `${table.to}T23:59:59` : undefined },
+    { allLocations: isAll }
+  ).data?.payments?.totals
 
   const columns = [
     { key: "id", header: "Transaction #", render: (row) => <span className="font-semibold text-slate-900">#{row.id}</span> },
@@ -56,6 +62,14 @@ export function TransactionsTablePage() {
         section="Sales"
         title="Transactions"
         description="Every payment taken for an order — created with the order, one per payment method. Search by order number."
+      />
+      <StatCards
+        items={[
+          { label: "Transactions", value: summary?.transactions ?? "—" },
+          { label: "Gross taken", value: <Currency value={summary?.gross_amount} /> },
+          { label: "Refunded", value: <Currency value={summary?.refunds} /> },
+          { label: "Net", value: <Currency value={summary?.net_amount} />, hint: "Gross − refunds, for the dates chosen below" },
+        ]}
       />
       <DataTable
         columns={columns}

@@ -112,7 +112,7 @@ export function WeightPage() {
         <label className="min-w-64 flex-1 text-xs font-medium text-slate-500">
           <span className="mb-1 block">Sell another product by weight</span>
           <select
-            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-brand-600"
+            className="select-ui h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-900 outline-none hover:border-slate-400 focus:border-brand-700"
             value={productId}
             onChange={(event) => setProductId(event.target.value)}
           >

@@ -1,3 +1,4 @@
+import { StatCards } from "../../ui/PageHeader.jsx"
 import { useMemo, useState } from "react"
 import { Pencil, Plus, X } from "lucide-react"
 import { useAuth } from "../../auth/AuthContext.jsx"
@@ -272,6 +273,14 @@ export function LocationsPage() {
         </form>
       </Modal>
 
+      <StatCards
+        items={[
+          { label: "Locations", value: allRows.length },
+          { label: "Active", value: allRows.filter((row) => row.is_active !== false).length },
+          { label: "Inactive", value: allRows.filter((row) => row.is_active === false).length },
+          { label: "Shown", value: rows.length, hint: "With the filters below" },
+        ]}
+      />
       <DataTable
         columns={[
           {

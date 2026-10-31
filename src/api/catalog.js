@@ -6,8 +6,9 @@ export function listCategories() {
   return apiGet("/api/v1/categories", auth)
 }
 
-export function getCategory(id) {
-  return apiGet(`/api/v1/categories/${id}`, auth)
+/** One category with its products and totals (params: location_id). */
+export function getCategory(id, params = {}) {
+  return apiGet(withQuery(`/api/v1/categories/${id}`, params), auth)
 }
 
 export function createCategory(body, imageFile) {

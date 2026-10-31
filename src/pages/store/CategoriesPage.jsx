@@ -1,11 +1,15 @@
+import { useNavigate } from "react-router-dom"
 import { useState } from "react"
 import { Pencil, Plus, Trash2, X } from "lucide-react"
+import { useAuth } from "../../auth/AuthContext.jsx"
 import {
   useCategoriesQuery,
   useDeleteCategory,
+  useLocationsQuery,
   useProductsQuery,
   useSaveCategory,
 } from "../../features/catalog/catalogQuery.jsx"
+import { LocationScopeField, LocationScopePills, scopePayload } from "../../features/scope/LocationScopeField.jsx"
 import { Button } from "../../ui/Button.jsx"
 import { Modal } from "../../ui/Modal.jsx"
 import { Checkbox } from "../../ui/Checkbox.jsx"
@@ -13,7 +17,7 @@ import { Input, Textarea } from "../../ui/Input.jsx"
 
 import { Select } from "../../ui/Select.jsx"
 import { DataTable } from "../../ui/DataTable.jsx"
-import { PageHeader } from "../../ui/PageHeader.jsx"
+import { PageHeader, StatCards } from "../../ui/PageHeader.jsx"
 import { useToast } from "../../ui/Toast.jsx"
 import { Pill } from "../../ui/Pill.jsx"
 
@@ -29,9 +33,11 @@ const empty = {
   is_active: true,
   is_pos_visible: true,
   is_web_visible: true,
+  location_scope: "all",
+  location_ids: [],
 }
 
-function payload(form) {
+function payload(form, isAdmin) {
   const body = {
     name: form.name.trim(),
     description: form.description.trim() || null,
@@ -40,6 +46,8 @@ function payload(form) {
     is_active: Boolean(form.is_active),
     is_pos_visible: Boolean(form.is_pos_visible),
     is_web_visible: Boolean(form.is_web_visible),
+    // Only a store admin picks locations; a manager's category is for their own location.
+    ...(isAdmin ? scopePayload(form) : {}),
   }
   if (form.tax_type) {
     body.tax_type = form.tax_type
@@ -59,7 +67,12 @@ function payload(form) {
 }
 
 export function CategoriesPage() {
+  const navigate = useNavigate()
   const { toast, confirmToast } = useToast()
+  const { user } = useAuth()
+  const isAdmin = user?.role === "store_admin"
+  const locationsQuery = useLocationsQuery({ enabled: isAdmin })
+  const locations = (locationsQuery.data || []).filter((row) => row.is_active !== false)
   const categoriesQuery = useCategoriesQuery()
   const saveCategory = useSaveCategory()
   const deleteCategoryMutation = useDeleteCategory()
@@ -98,6 +111,8 @@ export function CategoriesPage() {
       is_active: row.is_active !== false,
       is_pos_visible: row.is_pos_visible !== false,
       is_web_visible: row.is_web_visible !== false,
+      location_scope: row.location_scope || "all",
+      location_ids: row.location_ids || [],
     })
     setImageFile(null)
     setEditingId(row.id)
@@ -108,8 +123,12 @@ export function CategoriesPage() {
   async function save(event) {
     event.preventDefault()
     setError("")
+    if (isAdmin && form.location_scope === "selected" && !form.location_ids.length) {
+      setError("Pick at least one location, or choose All locations.")
+      return
+    }
     try {
-      const body = payload(form)
+      const body = payload(form, isAdmin)
       if (editingId) {
         await saveCategory.mutateAsync({ id: editingId, body, imageFile })
         toast("Category updated")
@@ -177,13 +196,19 @@ export function CategoriesPage() {
         </div>
       ),
     },
+    {
+      key: "locations",
+      header: "Sold at",
+      sortValue: (row) => (row.location_scope === "selected" ? (row.locations || []).length : 0),
+      render: (row) => <LocationScopePills row={row} />,
+    },
     { key: "is_active", header: "Status", sortValue: (row) => (row.is_active ? 1 : 0), render: (row) => <Pill tone={row.is_active ? "emerald" : "rose"}>{row.is_active ? "Active" : "Off"}</Pill> },
     {
       key: "actions",
       header: "",
       sortable: false,
       render: (row) => (
-        <div className="flex justify-end gap-1">
+        <div className="flex justify-end gap-1" onClick={(event) => event.stopPropagation()}>
           <Button variant="icon" aria-label="Edit category" onClick={() => openEdit(row)}><Pencil className="h-4 w-4" /></Button>
           <Button variant="icon" aria-label="Delete category" onClick={() => remove(row)}><Trash2 className="h-4 w-4" /></Button>
         </div>
@@ -196,10 +221,18 @@ export function CategoriesPage() {
       <PageHeader
         section="Catalog"
         title="Categories"
-        description="Shared across every location of this store. A category tax and discount apply to every product in it."
+        description="Sold at every location or only the ones you pick. A category tax and discount apply to every product in it."
         actions={<Button onClick={openCreate}><Plus className="h-4 w-4" /> Add category</Button>}
       />
       {error && !showForm ? <p className="text-sm text-rose-700">{error}</p> : null}
+      <StatCards
+        items={[
+          { label: "Categories", value: rows.length },
+          { label: "Active", value: rows.filter((row) => row.is_active !== false).length },
+          { label: "Switched off", value: rows.filter((row) => row.is_active === false).length },
+          { label: "Products", value: (productsQuery.data || []).length },
+        ]}
+      />
       <DataTable
         columns={columns}
         rows={rows}
@@ -208,10 +241,19 @@ export function CategoriesPage() {
         search={{ placeholder: "Search category…", text: (row) => `${row.name} ${row.slug} ${row.category_number}` }}
         filters={[
           { key: "status", label: "Status", options: [{ value: "active", label: "Active" }, { value: "off", label: "Off" }], match: (row, value) => (row.is_active ? "active" : "off") === value },
+          ...(isAdmin && locations.length > 1
+            ? [{
+                key: "location",
+                label: "Sold at",
+                options: locations.map((row) => ({ value: row.id, label: row.name })),
+                match: (row, value) => row.location_scope !== "selected" || (row.location_ids || []).includes(value),
+              }]
+            : []),
           { key: "tax", label: "Category tax", options: [{ value: "yes", label: "With tax" }, { value: "no", label: "No tax" }], match: (row, value) => (row.tax_type ? "yes" : "no") === value },
         ]}
         dateRange={{ label: "Added on", value: (row) => row.created_at }}
         initialSort={{ key: "name", dir: "asc" }}
+        onRowClick={(row) => navigate(`/categories/${row.category_number}`)}
         emptyText="No categories yet. Create one before adding products."
       />
 
@@ -299,6 +341,19 @@ export function CategoriesPage() {
                 value={form.sort_order}
                 onChange={(e) => setForm({ ...form, sort_order: e.target.value })}
               />
+              {isAdmin ? (
+                <LocationScopeField
+                  title="Sold at"
+                  value={form}
+                  locations={locations}
+                  allHint="Every location, including new ones"
+                  onChange={(next) => setForm({ ...form, location_scope: next.location_scope, location_ids: next.location_ids })}
+                />
+              ) : editingId ? null : (
+                <p className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                  This category is added for your location.
+                </p>
+              )}
               <Checkbox
                 label="Active"
                 checked={form.is_active}

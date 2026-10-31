@@ -1,35 +1,34 @@
 import { useEffect, useMemo, useState } from "react"
-import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Search, X } from "lucide-react"
+import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, RotateCcw, Search, X } from "lucide-react"
 import { PageLoader } from "./Spinner.jsx"
 
 const PAGE_SIZES = [10, 20, 50, 100]
 
-const inputClass =
-  "w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-brand-600 focus:ring-4 focus:ring-brand-600/15"
+const fieldBase =
+  "h-10 w-full rounded-xl border px-3 text-sm font-medium outline-none transition focus:ring-4 focus:ring-slate-900/10"
+const inputClass = `${fieldBase} border-slate-200 bg-white text-slate-900 hover:border-slate-400 focus:border-brand-700`
+// A dropdown with a value turns black, so the active filters stand out.
+const selectClass = (active) =>
+  active ? `select-ui is-active ${fieldBase} border-brand-700 bg-brand-700 text-white` : `select-ui ${inputClass}`
+// A chosen date keeps a white field (readable) with a black border.
+const dateClass = (active) => (active ? `${fieldBase} border-brand-700 bg-white text-slate-950` : inputClass)
 
-// Date presets: from N back to today. "custom" shows the from / to inputs.
-const DATE_PRESETS = [
-  ["all", "All time"],
-  ["week", "Last week"],
-  ["month", "Last month"],
-  ["6months", "Last 6 months"],
-  ["year", "Last year"],
-  ["custom", "Custom range"],
-]
+const pageBase = "inline-flex h-9 items-center justify-center rounded-xl border text-sm font-semibold transition"
+// Colours are picked per state (two bg-* classes on one element would fight).
+const pageButton = `${pageBase} border-slate-200 bg-white hover:border-brand-700 hover:text-brand-700 disabled:cursor-not-allowed disabled:border-slate-100 disabled:text-slate-300 disabled:hover:border-slate-100`
+const pageButtonActive = `${pageBase} border-brand-700 bg-brand-700 text-white`
 
-function isoDay(date) {
-  const pad = (n) => String(n).padStart(2, "0")
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
-}
-
-function presetRange(preset) {
-  if (preset === "all" || preset === "custom") return null
-  const start = new Date()
-  if (preset === "week") start.setDate(start.getDate() - 7)
-  if (preset === "month") start.setMonth(start.getMonth() - 1)
-  if (preset === "6months") start.setMonth(start.getMonth() - 6)
-  if (preset === "year") start.setFullYear(start.getFullYear() - 1)
-  return { from: isoDay(start), to: isoDay(new Date()) }
+/** Page numbers to show: first, last and the ones around the current page, gaps as "…". */
+function pageList(current, pages) {
+  if (pages <= 7) return Array.from({ length: pages }, (_, index) => index + 1)
+  const list = [1]
+  const start = Math.max(2, current - 1)
+  const end = Math.min(pages - 1, current + 1)
+  if (start > 2) list.push("…")
+  for (let page = start; page <= end; page += 1) list.push(page)
+  if (end < pages - 1) list.push("…")
+  list.push(pages)
+  return list
 }
 
 function dayStart(value) {
@@ -56,7 +55,8 @@ function compare(a, b) {
  *   columns:  [{ key, header, render?(row), sortValue?(row), align?: "right" | "center", className? }]
  *   rows:     the list (client mode: every row; server mode: the current page)
  *   search:   { placeholder, text(row) }          — client mode matches text(row)
- *   filters:  [{ key, label, options: [{ value, label }], match?(row, value) }]
+ *   filters:  [{ key, label, options: [{ value, label }], match?(row, value), server? }]
+ *             server: true = the page asks the API with it (onFiltersChange) instead of matching rows here
  *   dateRange:{ label?, value(row) }              — from / to inputs (client mode filters by value(row))
  *   server:   { total, onChange({ page, limit, search, filters, from, to }) } — the API pages / filters
  *
@@ -78,12 +78,16 @@ export function DataTable({
   toolbar = null,
   onRowClick = null,
   server = null,
+  initialFilters = {},
+  onFiltersChange = null,
 }) {
   const [query, setQuery] = useState("")
-  const [filterValues, setFilterValues] = useState({})
+  const [filterValues, setFilterValues] = useState(initialFilters)
   const [from, setFrom] = useState("")
   const [to, setTo] = useState("")
-  const [preset, setPreset] = useState("all")
+  // Dates typed in the inputs; they filter only after Apply Filter.
+  const [draftFrom, setDraftFrom] = useState("")
+  const [draftTo, setDraftTo] = useState("")
   const [sort, setSort] = useState(initialSort)
   const [page, setPage] = useState(1)
   const [limit, setLimit] = useState(defaultPageSize)
@@ -99,6 +103,11 @@ export function DataTable({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, limit, query, filterValues, from, to])
 
+  useEffect(() => {
+    onFiltersChange?.(filterValues)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterValues])
+
   const visible = useMemo(() => {
     if (server) return rows
     let list = rows
@@ -107,6 +116,7 @@ export function DataTable({
       list = list.filter((row) => String(search.text(row) ?? "").toLowerCase().includes(needle))
     }
     for (const filter of filters) {
+      if (filter.server) continue
       const value = filterValues[filter.key]
       if (value === undefined || value === "") continue
       list = list.filter((row) =>
@@ -137,7 +147,7 @@ export function DataTable({
   const pageRows = server ? visible : visible.slice((current - 1) * limit, current * limit)
   const firstShown = total ? (current - 1) * limit + 1 : 0
   const lastShown = Math.min(current * limit, total)
-  const hasFilters = Boolean(query || from || to || preset !== "all" || Object.values(filterValues).some((v) => v !== "" && v != null))
+  const hasFilters = Boolean(query || from || to || draftFrom || draftTo || Object.values(filterValues).some((v) => v !== "" && v != null))
 
   function toggleSort(column) {
     if (server || column.sortable === false) return
@@ -155,83 +165,98 @@ export function DataTable({
     setFilterValues({})
     setFrom("")
     setTo("")
-    setPreset("all")
+    setDraftFrom("")
+    setDraftTo("")
   }
 
-  function choosePreset(next) {
-    setPreset(next)
-    if (next === "custom") return
-    const range = presetRange(next)
-    setFrom(range?.from || "")
-    setTo(range?.to || "")
+  function applyDates() {
+    setFrom(draftFrom)
+    setTo(draftTo)
   }
+  const datesPending = draftFrom !== from || draftTo !== to
 
   return (
     <div className="overflow-hidden rounded-[24px] border border-slate-200 bg-white">
       {search || filters.length || dateRange || toolbar ? (
-        <div className="flex flex-wrap items-end gap-3 border-b border-slate-100 px-4 py-3">
-          {search ? (
-            <label className="relative min-w-56 flex-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <input
-                className={`${inputClass} pl-9`}
-                placeholder={search.placeholder || "Search…"}
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-              />
-            </label>
+        <div className="space-y-3 border-b border-slate-100 px-4 py-4">
+          {/* Row 1: search (full width), clear and page actions. */}
+          {search || (hasFilters && !dateRange) || toolbar ? (
+            <div className="flex flex-wrap items-center gap-3">
+              {search ? (
+                <label className="relative min-w-56 flex-1">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <input
+                    className={`${inputClass} pl-9`}
+                    placeholder={search.placeholder || "Search…"}
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                  />
+                </label>
+              ) : null}
+              {hasFilters && !dateRange ? (
+                <button
+                  type="button"
+                  onClick={clearAll}
+                  className="inline-flex h-10 items-center gap-1 rounded-xl border border-slate-200 px-3 text-sm font-semibold text-slate-700 hover:border-brand-700 hover:text-brand-700"
+                >
+                  <X className="h-4 w-4" /> Clear
+                </button>
+              ) : null}
+              {toolbar ? <div className="ml-auto flex items-center gap-2">{toolbar}</div> : null}
+            </div>
           ) : null}
-          {filters.map((filter) => (
-            <label key={filter.key} className="text-xs font-medium text-slate-500">
-              <span className="mb-1 block">{filter.label}</span>
-              <select
-                className={`${inputClass} min-w-36`}
-                value={filterValues[filter.key] ?? ""}
-                onChange={(event) => setFilterValues((prev) => ({ ...prev, [filter.key]: event.target.value }))}
-              >
-                <option value="">All</option>
-                {filter.options.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ))}
-          {dateRange ? (
-            <>
-              <label className="text-xs font-medium text-slate-500">
-                <span className="mb-1 block">{dateRange.label || "Date"}</span>
-                <select className={`${inputClass} min-w-36`} value={preset} onChange={(event) => choosePreset(event.target.value)}>
-                  {DATE_PRESETS.map(([value, text]) => (
-                    <option key={value} value={value}>{text}</option>
-                  ))}
-                </select>
-              </label>
-              {preset === "custom" ? (
+          {/* Row 2+: the filters and dates, four to a row. */}
+          {filters.length || dateRange ? (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {filters.map((filter) => (
+                <label key={filter.key} className="text-xs font-medium text-slate-500">
+                  <span className="mb-1 block">{filter.label}</span>
+                  <select
+                    className={selectClass(Boolean(filterValues[filter.key]))}
+                    value={filterValues[filter.key] ?? ""}
+                    onChange={(event) => setFilterValues((prev) => ({ ...prev, [filter.key]: event.target.value }))}
+                  >
+                    <option value="">All</option>
+                    {filter.options.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ))}
+              {dateRange ? (
                 <>
                   <label className="text-xs font-medium text-slate-500">
-                    <span className="mb-1 block">From</span>
-                    <input type="date" className={inputClass} value={from} max={to || undefined} onChange={(event) => setFrom(event.target.value)} />
+                    <span className="mb-1 block">{dateRange.label ? `${dateRange.label} from` : "From"}</span>
+                    <input type="date" className={dateClass(Boolean(from))} value={draftFrom} max={draftTo || undefined} onChange={(event) => setDraftFrom(event.target.value)} />
                   </label>
                   <label className="text-xs font-medium text-slate-500">
-                    <span className="mb-1 block">To</span>
-                    <input type="date" className={inputClass} value={to} min={from || undefined} onChange={(event) => setTo(event.target.value)} />
+                    <span className="mb-1 block">{dateRange.label ? `${dateRange.label} to` : "To"}</span>
+                    <input type="date" className={dateClass(Boolean(to))} value={draftTo} min={draftFrom || undefined} onChange={(event) => setDraftTo(event.target.value)} />
                   </label>
+                  <div className="flex items-end gap-2 sm:col-span-2">
+                    <button
+                      type="button"
+                      onClick={applyDates}
+                      disabled={!datesPending}
+                      className="h-10 whitespace-nowrap rounded-xl bg-brand-700 px-5 text-sm font-semibold text-white transition hover:bg-brand-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+                    >
+                      Apply Filter
+                    </button>
+                    <button
+                      type="button"
+                      onClick={clearAll}
+                      disabled={!hasFilters}
+                      className="inline-flex h-10 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-brand-700 hover:text-brand-700 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400"
+                    >
+                      <RotateCcw className="h-4 w-4 shrink-0" /> Reset Filters
+                    </button>
+                  </div>
                 </>
               ) : null}
-            </>
+            </div>
           ) : null}
-          {hasFilters ? (
-            <button
-              type="button"
-              onClick={clearAll}
-              className="inline-flex items-center gap-1 rounded-xl px-3 py-2 text-sm font-medium text-slate-500 hover:bg-slate-100"
-            >
-              <X className="h-4 w-4" /> Clear
-            </button>
-          ) : null}
-          {toolbar ? <div className="ml-auto flex items-end gap-2">{toolbar}</div> : null}
         </div>
       ) : null}
 
@@ -239,7 +264,7 @@ export function DataTable({
 
       <div className="overflow-x-auto">
         <table className="w-full min-w-[720px] text-left text-sm">
-          <thead className="bg-slate-50 text-xs uppercase tracking-[0.12em] text-slate-500">
+          <thead className="border-b border-slate-200 bg-white text-xs uppercase tracking-[0.12em] text-slate-500">
             <tr>
               {columns.map((column) => {
                 const active = sort?.key === column.key
@@ -281,7 +306,7 @@ export function DataTable({
                   onClick={onRowClick ? () => onRowClick(row) : undefined}
                   className={[
                     "border-t border-slate-100",
-                    onRowClick ? "cursor-pointer hover:bg-brand-50/50" : "hover:bg-slate-50/60",
+                    onRowClick ? "cursor-pointer hover:bg-slate-50" : "hover:bg-slate-50/60",
                   ].join(" ")}
                 >
                   {columns.map((column) => (
@@ -309,11 +334,52 @@ export function DataTable({
         </table>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-4 py-3 text-sm text-slate-600">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-t border-slate-200 px-4 py-3 text-sm text-slate-600">
+        <p>
+          Showing <span className="font-semibold text-slate-950">{firstShown}–{lastShown}</span> of{" "}
+          <span className="font-semibold text-slate-950">{total}</span> {total === 1 ? "result" : "results"}
+        </p>
+
+        <nav className="flex items-center gap-1" aria-label="Pagination">
+          <button
+            type="button"
+            disabled={current <= 1}
+            onClick={() => setPage(current - 1)}
+            className={`${pageButton} gap-1 px-3 text-slate-700`}
+          >
+            <ChevronLeft className="h-4 w-4" />
+            Prev
+          </button>
+          {pageList(current, pages).map((item, index) =>
+            item === "…" ? (
+              <span key={`gap-${index}`} className="px-1 text-slate-400">…</span>
+            ) : (
+              <button
+                key={item}
+                type="button"
+                onClick={() => setPage(item)}
+                aria-current={item === current ? "page" : undefined}
+                className={item === current ? `${pageButtonActive} w-9` : `${pageButton} w-9 text-slate-700`}
+              >
+                {item}
+              </button>
+            )
+          )}
+          <button
+            type="button"
+            disabled={current >= pages}
+            onClick={() => setPage(current + 1)}
+            className={`${pageButton} gap-1 px-3 text-slate-700`}
+          >
+            Next
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </nav>
+
+        <label className="flex items-center gap-2">
           <span>Rows per page</span>
           <select
-            className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-sm"
+            className="select-ui h-9 rounded-xl border border-slate-200 bg-white pl-3 text-sm font-semibold text-slate-900 outline-none hover:border-slate-400 focus:border-brand-700"
             value={limit}
             onChange={(event) => setLimit(Number(event.target.value))}
           >
@@ -323,35 +389,7 @@ export function DataTable({
               </option>
             ))}
           </select>
-        </div>
-        <div className="flex items-center gap-3">
-          <span>
-            {firstShown}–{lastShown} of {total}
-          </span>
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              aria-label="Previous page"
-              disabled={current <= 1}
-              onClick={() => setPage(current - 1)}
-              className="rounded-lg border border-slate-200 p-1.5 disabled:opacity-40 enabled:hover:bg-slate-100"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-            <span className="min-w-16 text-center">
-              Page {current} / {pages}
-            </span>
-            <button
-              type="button"
-              aria-label="Next page"
-              disabled={current >= pages}
-              onClick={() => setPage(current + 1)}
-              className="rounded-lg border border-slate-200 p-1.5 disabled:opacity-40 enabled:hover:bg-slate-100"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
+        </label>
       </div>
     </div>
   )

@@ -26,6 +26,8 @@ export const emptyProductForm = {
   is_pos_visible: true,
   is_web_visible: true,
   is_active: true,
+  location_scope: "all",
+  location_ids: [],
 }
 
 export function productToForm(product) {
@@ -53,6 +55,8 @@ export function productToForm(product) {
     is_pos_visible: product.is_pos_visible !== false,
     is_web_visible: product.is_web_visible !== false,
     is_active: product.is_active !== false,
+    location_scope: product.location_scope || "all",
+    location_ids: product.location_ids || [],
   }
 }
 

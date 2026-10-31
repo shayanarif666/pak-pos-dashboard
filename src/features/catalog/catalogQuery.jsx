@@ -4,6 +4,7 @@ import {
   createProduct,
   deleteCategory,
   deleteProduct,
+  getCategory,
   getProduct,
   listBulkTiers,
   listCategories,
@@ -22,6 +23,7 @@ import { unwrap } from "../../lib/query.js"
 export const catalogKeys = {
   all: ["catalog"],
   categories: ["catalog", "categories"],
+  category: (id, locationId) => ["catalog", "category", id, locationId || null],
   locations: ["catalog", "locations"],
   products: (filters = {}) => ["catalog", "products", filters],
   product: (id, locationId) => ["catalog", "product", id, locationId || null],
@@ -34,6 +36,15 @@ export function useCategoriesQuery() {
   return useQuery({
     queryKey: catalogKeys.categories,
     queryFn: async () => unwrap(await listCategories()) || [],
+  })
+}
+
+/** Category detail: the category, its products (with stock) and totals — all from the API. */
+export function useCategoryQuery(id, { locationId } = {}) {
+  return useQuery({
+    queryKey: catalogKeys.category(id, locationId),
+    queryFn: async () => unwrap(await getCategory(id, locationId ? { location_id: locationId } : {})),
+    enabled: Boolean(id),
   })
 }
 

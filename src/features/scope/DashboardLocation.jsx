@@ -77,11 +77,11 @@ export function LocationScopeSwitcher({ className = "" }) {
     )
   }
   return (
-    <label className={`inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 ${className}`}>
+    <label className={`inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white pl-3 text-sm text-slate-700 transition hover:border-slate-400 focus-within:border-brand-700 ${className}`}>
       <MapPin className="h-4 w-4 shrink-0 text-brand-700" />
       <span className="sr-only">Location</span>
       <select
-        className="max-w-56 bg-transparent py-0.5 font-medium outline-none"
+        className="select-ui h-full max-w-56 bg-transparent pl-0 font-semibold text-slate-900 outline-none"
         value={locationId}
         onChange={(event) => setLocationId(event.target.value)}
       >

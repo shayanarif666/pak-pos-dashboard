@@ -1,3 +1,4 @@
+import { StatCards } from "../../ui/PageHeader.jsx"
 import { useState } from "react"
 import { useAuth } from "../../auth/AuthContext.jsx"
 import { resolveDashboardLocation } from "../../features/catalog/dashboardLocation.js"
@@ -189,6 +190,14 @@ export function MovementsPage() {
       </ModalCard>
       </Modal>
 
+      <StatCards
+        items={[
+          { label: "Movements", value: rows.length },
+          { label: "Stock in", value: rows.filter((row) => Number(row.qty) > 0).length },
+          { label: "Stock out", value: rows.filter((row) => Number(row.qty) < 0).length },
+          { label: "Last 24 hours", value: rows.filter((row) => new Date(row.created_at) > new Date(Date.now() - 86400000)).length },
+        ]}
+      />
       <DataTable
         columns={[
           { key: "created_at", header: "Date", sortValue: (row) => new Date(row.created_at), render: (row) => formatDateTime(row.created_at) },

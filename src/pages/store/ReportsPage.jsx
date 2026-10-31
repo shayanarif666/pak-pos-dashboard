@@ -1,11 +1,24 @@
 import { useMemo, useState } from "react"
-import { Download } from "lucide-react"
-import { useAuth } from "../../auth/AuthContext.jsx"
 import {
-  periodForPreset,
-  rangeForPreset,
-  REPORT_PRESETS,
-} from "../../features/reports/dateRange.js"
+  ArrowLeft,
+  ArrowLeftRight,
+  ArrowRight,
+  Ban,
+  BarChart3,
+  Boxes,
+  CreditCard,
+  Download,
+  FolderTree,
+  MapPin,
+  Package,
+  Percent,
+  Receipt,
+  RotateCcw,
+  UserRound,
+} from "lucide-react"
+import { useSearchParams } from "react-router-dom"
+import { useAuth } from "../../auth/AuthContext.jsx"
+import { rangeForPreset, toDateInput } from "../../features/reports/dateRange.js"
 import {
   ChartCard,
   ColumnChart,
@@ -22,18 +35,20 @@ import { PageLoader } from "../../ui/Spinner.jsx"
 import { useToast } from "../../ui/Toast.jsx"
 import { StatusBadge } from "../../ui/Pill.jsx"
 
+// One card per report; "locations" only when every location is shown together.
 const REPORT_TABS = [
-  { id: "sales", label: "Sales Summary" },
-  { id: "products", label: "By Products" },
-  { id: "categories", label: "By Categories" },
-  { id: "payments", label: "Payments" },
-  { id: "inventory", label: "Inventory" },
-  { id: "movements", label: "Stock Movements" },
-  { id: "batches", label: "Z-Reports (Batches)" },
-  { id: "refunds", label: "Refunded Orders" },
-  { id: "cancelled", label: "Cancelled Orders" },
-  { id: "cashiers", label: "By Cashier" },
-  { id: "tax", label: "Tax Breakdown" },
+  { id: "sales", label: "Sales Summary", icon: BarChart3, about: "Orders, gross and net sales, discounts, taxes, profit and the sales trend." },
+  { id: "locations", label: "By Location", icon: MapPin, about: "How much each location sold, its taxes, refunds and share.", allOnly: true },
+  { id: "products", label: "By Products", icon: Package, about: "Units and sales of every product, with discounts and taxes." },
+  { id: "categories", label: "By Categories", icon: FolderTree, about: "Sales of each category and its share of the total." },
+  { id: "payments", label: "Payments", icon: CreditCard, about: "Cash, card, JazzCash and EasyPaisa: takings, payment tax and refunds." },
+  { id: "inventory", label: "Inventory", icon: Boxes, about: "Stock on hand with what came in and went out in the range." },
+  { id: "movements", label: "Stock Movements", icon: ArrowLeftRight, about: "Every stock in / out with its reason and who did it." },
+  { id: "batches", label: "Z-Reports (Batches)", icon: Receipt, about: "Each batch: takings per method, expected vs counted cash." },
+  { id: "refunds", label: "Refunded Orders", icon: RotateCcw, about: "Complete and partial refunds with amounts and reasons." },
+  { id: "cancelled", label: "Cancelled Orders", icon: Ban, about: "Voided and cancelled sales and the sales lost." },
+  { id: "cashiers", label: "By Cashier", icon: UserRound, about: "Orders, sales, discounts and refunds per staff member." },
+  { id: "tax", label: "Tax Breakdown", icon: Percent, about: "Sales, product, category and payment-method tax collected." },
 ]
 
 const CHANNEL_TABS = [
@@ -44,9 +59,9 @@ const CHANNEL_TABS = [
 
 function StatCard({ label, value, hint }) {
   return (
-    <div className="rounded-[24px] border border-slate-200 bg-white px-5 py-4">
-      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{label}</p>
-      <p className="mt-2 text-2xl font-semibold text-slate-900">{value}</p>
+    <div className="rounded-2xl border border-slate-200 bg-slate-50/70 px-5 py-4">
+      <p className="text-xs font-medium text-slate-500">{label}</p>
+      <p className="mt-2 text-2xl font-bold tracking-tight text-slate-950">{value}</p>
       {hint ? <p className="mt-1 text-xs text-slate-500">{hint}</p> : null}
     </div>
   )
@@ -98,28 +113,6 @@ function formatDate(value) {
   return date.toLocaleString()
 }
 
-function TabBar({ tabs, value, onChange }) {
-  return (
-    <div className="flex flex-wrap gap-2">
-      {tabs.map((row) => (
-        <button
-          key={row.id}
-          type="button"
-          onClick={() => onChange(row.id)}
-          className={[
-            "rounded-2xl px-4 py-2 text-sm font-medium transition",
-            value === row.id
-              ? "bg-brand-50 text-slate-900"
-              : "text-slate-500 hover:bg-brand-50 hover:text-slate-800",
-          ].join(" ")}
-        >
-          {row.label}
-        </button>
-      ))}
-    </div>
-  )
-}
-
 function ChannelBar({ value, onChange }) {
   return (
     <div className="inline-flex rounded-2xl border border-slate-200 bg-slate-100 p-1">
@@ -142,14 +135,33 @@ function ChannelBar({ value, onChange }) {
   )
 }
 
+const monthStart = () => {
+  const now = new Date()
+  return toDateInput(new Date(now.getFullYear(), now.getMonth(), 1))
+}
+const today = () => toDateInput(new Date())
+
 export function ReportsPage() {
   const { user, store } = useAuth()
   const { toast } = useToast()
-  const [tab, setTab] = useState("sales")
+  // The open report lives in ?report= (none = the cards), so Back and reloads work.
+  const [searchParams, setSearchParams] = useSearchParams()
   const [channelTab, setChannelTab] = useState("overall")
-  const [preset, setPreset] = useState("month")
-  const [customFrom, setCustomFrom] = useState("")
-  const [customTo, setCustomTo] = useState("")
+  // Start / end date only; opens on this month so far.
+  const [customFrom, setCustomFrom] = useState(monthStart)
+  const [customTo, setCustomTo] = useState(today)
+  // The inputs; the report reloads only on Apply Filter.
+  const [draftFrom, setDraftFrom] = useState(customFrom)
+  const [draftTo, setDraftTo] = useState(customTo)
+  const datesPending = draftFrom !== customFrom || draftTo !== customTo
+  const isDefaultRange = customFrom === monthStart() && customTo === today() && !datesPending
+
+  function resetDates() {
+    setDraftFrom(monthStart())
+    setDraftTo(today())
+    setCustomFrom(monthStart())
+    setCustomTo(today())
+  }
   const [exportType, setExportType] = useState("sales")
   const [exportFormat, setExportFormat] = useState("csv")
   // The header's location: every location together (store admin) or one location.
@@ -158,23 +170,32 @@ export function ReportsPage() {
   const canExport = user?.role === "store_admin" || user?.role === "manager"
 
   const range = useMemo(
-    () => rangeForPreset(preset, { from: customFrom, to: customTo }),
-    [preset, customFrom, customTo]
+    () => rangeForPreset("custom", { from: customFrom, to: customTo }),
+    [customFrom, customTo]
   )
 
   const filters = useMemo(
     () => ({
       from: range.from || undefined,
       to: range.to || undefined,
-      period: periodForPreset(preset),
+      // Trend by month once the range is longer than about two months.
+      period: customFrom && customTo && new Date(customTo) - new Date(customFrom) > 62 * 86400000 ? "monthly" : "daily",
       channel: channelTab === "overall" ? undefined : channelTab,
       ...(scope.locationId ? { location_id: scope.locationId } : {}),
     }),
-    [range, preset, channelTab, scope.locationId]
+    [range, customFrom, customTo, channelTab, scope.locationId]
   )
 
   const reportQuery = useScopedReportQuery(filters, { allLocations: scope.isAll })
-  const tabs = scope.isAll ? [...REPORT_TABS.slice(0, 1), { id: "locations", label: "By Location" }, ...REPORT_TABS.slice(1)] : REPORT_TABS
+  const tabs = REPORT_TABS.filter((row) => !row.allOnly || scope.isAll)
+  const report = tabs.find((row) => row.id === searchParams.get("report")) || null
+  const tab = report?.id || null
+  function openReport(id) {
+    const next = new URLSearchParams(searchParams)
+    if (id) next.set("report", id)
+    else next.delete("report")
+    setSearchParams(next)
+  }
   const data = reportQuery.data
   const sales = data?.sales_summary
   const tax = data?.tax_breakdown
@@ -252,53 +273,56 @@ export function ReportsPage() {
     <section className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Commerce</p>
-          <h1 className="mt-2 text-2xl font-semibold text-slate-900">Reports</h1>
+          {report ? (
+            <button
+              type="button"
+              onClick={() => openReport(null)}
+              className="mb-3 inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:border-brand-700 hover:text-brand-700"
+            >
+              <ArrowLeft className="h-4 w-4" /> All reports
+            </button>
+          ) : null}
+          <h1 className="text-2xl font-bold tracking-tight text-slate-950">{report ? report.label : "Reporting"}</h1>
           <p className="mt-1 text-sm text-slate-500">
             {store?.name ? `${store.name} · ` : ""}
-            {scope.label} · sales, taxes, discounts, refunds and stock — after refunds, voided and cancelled sales left out.
+            {scope.label} · {report ? report.about : "Pick a report. Figures are after refunds; voided and cancelled sales are left out."}
           </p>
         </div>
         <ChannelBar value={channelTab} onChange={setChannelTab} />
       </div>
 
-      <div className="rounded-[28px] border border-slate-200 bg-white p-4">
-        <div className="flex flex-wrap gap-2">
-          {REPORT_PRESETS.map((row) => (
-            <button
-              key={row.id}
-              type="button"
-              onClick={() => setPreset(row.id)}
-              className={[
-                "rounded-full px-3 py-1.5 text-xs font-semibold transition",
-                preset === row.id
-                  ? "bg-brand-700 text-white"
-                  : "border border-slate-200 bg-slate-100 text-slate-600 hover:text-brand-700",
-              ].join(" ")}
-            >
-              {row.label}
-            </button>
-          ))}
-        </div>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {preset === "custom" ? (
-            <>
-              <Input
-                label="From"
-                type="date"
-                value={customFrom}
-                onChange={(e) => setCustomFrom(e.target.value)}
-              />
-              <Input
-                label="To"
-                type="date"
-                value={customTo}
-                onChange={(e) => setCustomTo(e.target.value)}
-              />
-            </>
-          ) : null}
+      <div className="rounded-[24px] border border-slate-200 bg-white p-4">
+        <div className="flex flex-wrap items-end gap-3">
+          <Input
+            label="Start date"
+            type="date"
+            value={draftFrom}
+            max={draftTo || undefined}
+            onChange={(e) => setDraftFrom(e.target.value)}
+          />
+          <Input
+            label="End date"
+            type="date"
+            value={draftTo}
+            min={draftFrom || undefined}
+            onChange={(e) => setDraftTo(e.target.value)}
+          />
+          <Button
+            className="h-11"
+            disabled={!datesPending}
+            onClick={() => {
+              setCustomFrom(draftFrom)
+              setCustomTo(draftTo)
+            }}
+          >
+            Apply Filter
+          </Button>
+          <Button variant="ghost" className="h-11" disabled={isDefaultRange} onClick={resetDates}>
+            <RotateCcw className="h-4 w-4" />
+            Reset Filters
+          </Button>
           {canExport ? (
-            <div className="flex items-end gap-2 sm:col-span-2 lg:col-span-2">
+            <div className="ml-auto flex items-end gap-2">
               <Select
                 label="Export type"
                 value={exportType}
@@ -317,7 +341,7 @@ export function ReportsPage() {
                 <option value="xlsx">XLSX</option>
                 <option value="pdf">PDF</option>
               </Select>
-              <Button variant="ghost" onClick={onExport} disabled={exportMutation.isPending}>
+              <Button variant="ghost" className="h-11" onClick={onExport} disabled={exportMutation.isPending}>
                 <Download className="h-4 w-4" />
                 Export
               </Button>
@@ -326,9 +350,29 @@ export function ReportsPage() {
         </div>
       </div>
 
-      <TabBar tabs={tabs} value={tab} onChange={setTab} />
+      {!report ? (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {tabs.map((row) => (
+            <button
+              key={row.id}
+              type="button"
+              onClick={() => openReport(row.id)}
+              className="group flex flex-col rounded-[24px] border border-slate-200 bg-white p-5 text-left transition hover:-translate-y-0.5 hover:border-brand-700 hover:shadow-[0_10px_30px_rgba(0,0,0,0.08)]"
+            >
+              <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-100 text-slate-900 transition group-hover:bg-brand-700 group-hover:text-white">
+                <row.icon className="h-5 w-5" />
+              </span>
+              <span className="mt-4 text-base font-semibold text-slate-950">{row.label}</span>
+              <span className="mt-1 flex-1 text-sm text-slate-500">{row.about}</span>
+              <span className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-slate-950">
+                View report <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
+              </span>
+            </button>
+          ))}
+        </div>
+      ) : null}
 
-      {reportQuery.isPending ? <PageLoader label="Loading report…" /> : null}
+      {report && reportQuery.isPending ? <PageLoader label="Loading report…" /> : null}
       {reportQuery.error ? (
         <p className="text-sm text-rose-700">{reportQuery.error.message}</p>
       ) : null}

@@ -1,3 +1,4 @@
+import { StatCards } from "../../ui/PageHeader.jsx"
 import { useMemo, useState } from "react"
 import { Pencil, Plus, X } from "lucide-react"
 import { useAuth } from "../../auth/AuthContext.jsx"
@@ -229,6 +230,14 @@ export function StoreDevicesPage() {
         </form>
       </Modal>
 
+      <StatCards
+        items={[
+          { label: "Devices", value: rows.length },
+          { label: "Active", value: rows.filter((row) => row.is_active !== false).length },
+          { label: "Inactive", value: rows.filter((row) => row.is_active === false).length },
+          { label: "Seen in 24 hours", value: rows.filter((row) => row.last_seen_at && new Date(row.last_seen_at) > new Date(Date.now() - 86400000)).length },
+        ]}
+      />
       <DataTable
         columns={[
           {

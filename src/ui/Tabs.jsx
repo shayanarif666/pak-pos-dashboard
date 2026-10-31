@@ -31,7 +31,7 @@ export function Tabs({ tabs, value, onChange, className = "" }) {
             className={[
               "rounded-xl px-4 py-2 text-sm font-semibold transition-all duration-200",
               active
-                ? "bg-brand-700 text-white shadow-[0_6px_16px_rgba(19,92,76,0.25)]"
+                ? "bg-brand-700 text-white shadow-[0_6px_16px_rgba(0,0,0,0.12)]"
                 : "text-slate-600 hover:bg-brand-50 hover:text-brand-700",
             ].join(" ")}
           >

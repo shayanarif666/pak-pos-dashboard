@@ -1,6 +1,6 @@
 const variants = {
   primary:
-    "bg-brand-700 text-white shadow-[0_8px_20px_rgba(19,92,76,0.25)] hover:bg-brand-800 disabled:bg-brand-300 disabled:shadow-none",
+    "bg-brand-700 text-white shadow-[0_8px_20px_rgba(0,0,0,0.12)] hover:bg-brand-800 disabled:bg-brand-300 disabled:shadow-none",
   ghost:
     "border border-brand-200 bg-white text-brand-700 hover:border-brand-300 hover:bg-brand-50 disabled:opacity-50",
   danger:

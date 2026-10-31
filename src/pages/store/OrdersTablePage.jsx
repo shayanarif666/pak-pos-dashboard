@@ -1,7 +1,7 @@
 import { useMemo } from "react"
 import { useNavigate } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
-import { listCancelledOrders, listCustomOrders, listOrders } from "../../api/orders.js"
+import { listOrders } from "../../api/orders.js"
 import { orderKeys } from "../../features/orders/orderQuery.js"
 import { unwrap } from "../../lib/query.js"
 import { useDashboardLocation, useLocationName } from "../../features/scope/DashboardLocation.jsx"
@@ -10,24 +10,22 @@ import { DataTable, optionsFrom } from "../../ui/DataTable.jsx"
 import { Currency } from "../../ui/Currency.jsx"
 import { StatusBadge } from "../../ui/Pill.jsx"
 import { PageHeader, StatCards } from "../../ui/PageHeader.jsx"
+import { Tabs, useTabParam } from "../../ui/Tabs.jsx"
 import { formatDateTime, PAYMENT_METHOD_OPTIONS, toNumber } from "../../ui/format.js"
 
-const MODES = {
-  history: {
-    title: "Orders History",
-    description: "Every sale with its discounts, taxes and payment. Click an order for its items, payments and refunds.",
-  },
-  custom: {
-    title: "Custom Sales",
-    description: "Sales rung up without catalog products (custom lines with their own title and price).",
-  },
-  cancelled: {
-    title: "Orders Cancelled",
-    description: "Voided and cancelled sales, with the reason and who did it.",
-  },
-}
+// Orders History tabs: [key, label, which orders, what the tab is about].
+const TABS = [
+  ["all", "All", () => true, "Every sale with its discounts, taxes and payment. Click an order for its items, payments and refunds."],
+  ["pending", "Pending", (row) => row.order_status === "pending", "Sales started but not finished yet."],
+  ["completed", "Completed", (row) => row.order_status === "completed", "Finished sales with nothing given back."],
+  ["partial_refunded", "Partial Refunded", (row) => row.order_status === "partial_refunded", "Sales where some items were refunded; the rest of the sale stands."],
+  ["refunded", "Refunded", (row) => row.order_status === "refunded", "Sales refunded in full."],
+  ["cancelled", "Cancelled", (row) => ["voided", "cancelled"].includes(row.order_status), "Voided and cancelled sales, with the reason and who did it."],
+  ["custom", "Custom", (row) => row.is_custom, "Sales rung up without catalog products (custom lines with their own title and price)."],
+]
+const NOT_SOLD = ["voided", "cancelled"]
 
-const STATUS_OPTIONS = ["completed", "pending", "refunded", "voided", "cancelled"].map((value) => ({
+const PAYMENT_STATUS_OPTIONS = ["paid", "partial", "pending", "refunded"].map((value) => ({
   value,
   label: value.charAt(0).toUpperCase() + value.slice(1),
 }))
@@ -35,29 +33,27 @@ const STATUS_OPTIONS = ["completed", "pending", "refunded", "voided", "cancelled
 const discountOf = (row) =>
   Number(row.line_discount_amount || 0) + Number(row.discount_amount || 0) + Number(row.coupon_discount_amount || 0)
 
-/** Orders History / Custom Sales / Orders Cancelled: one table, three lists. */
-export function OrdersTablePage({ mode = "history" }) {
+/** Orders History: every order, split into tabs by status (and custom sales). */
+export function OrdersTablePage() {
   const navigate = useNavigate()
   const { params, isAll } = useDashboardLocation()
   const locationName = useLocationName()
   const staffName = useStaffNames()
 
-  // Only the list of this page is fetched (same cache keys as the rest of the dashboard).
+  const [tab, setTab] = useTabParam(TABS)
   const query = useQuery({
-    queryKey: mode === "custom" ? orderKeys.custom(params) : mode === "cancelled" ? orderKeys.cancelled(params) : orderKeys.list(params),
-    queryFn: async () => {
-      const request = mode === "custom" ? listCustomOrders : mode === "cancelled" ? listCancelledOrders : listOrders
-      return unwrap(await request(params))
-    },
+    queryKey: orderKeys.list(params),
+    queryFn: async () => unwrap(await listOrders(params)),
   })
-  const rows = useMemo(() => {
-    const data = query.data
-    return (mode === "cancelled" ? data?.orders : data) || []
-  }, [query.data, mode])
+  const all = useMemo(() => query.data || [], [query.data])
+  const current = TABS.find(([key]) => key === tab) || TABS[0]
+  const cancelled = tab === "cancelled"
+  const rows = useMemo(() => all.filter(current[2]), [all, current])
+  const counts = useMemo(() => Object.fromEntries(TABS.map(([key, , match]) => [key, all.filter(match).length])), [all])
 
   const totals = useMemo(() => {
     // Voided / cancelled sales never went through: only the Cancelled list adds them up.
-    const counted = mode === "cancelled" ? rows : rows.filter((row) => !["voided", "cancelled"].includes(row.order_status))
+    const counted = cancelled ? rows : rows.filter((row) => !NOT_SOLD.includes(row.order_status))
     const sum = (fn) => counted.reduce((acc, row) => acc + Number(fn(row) || 0), 0)
     return {
       orders: counted.length,
@@ -65,7 +61,7 @@ export function OrdersTablePage({ mode = "history" }) {
       discount: sum(discountOf),
       tax: sum((row) => row.tax_amount),
     }
-  }, [rows, mode])
+  }, [rows, cancelled])
 
   const columns = [
     {
@@ -79,7 +75,7 @@ export function OrdersTablePage({ mode = "history" }) {
       ? [{ key: "location", header: "Location", sortValue: (row) => locationName(row.location_id), render: (row) => locationName(row.location_id) }]
       : []),
     { key: "cashier", header: "Cashier", sortValue: (row) => staffName(row.cashier_id), render: (row) => staffName(row.cashier_id) },
-    ...(mode === "history"
+    ...(tab === "all"
       ? [{ key: "type", header: "Type", sortValue: (row) => (row.is_custom ? 1 : 0), render: (row) => <StatusBadge value={row.is_custom ? "custom" : "catalog"} /> }]
       : []),
     { key: "payment_method", header: "Payment", render: (row) => <StatusBadge value={row.payment_method} /> },
@@ -87,7 +83,7 @@ export function OrdersTablePage({ mode = "history" }) {
     { key: "discount", header: "Discount", align: "right", sortValue: discountOf, render: (row) => <Currency value={discountOf(row)} /> },
     { key: "tax_amount", header: "Tax", align: "right", sortValue: (row) => toNumber(row.tax_amount), render: (row) => <Currency value={row.tax_amount} /> },
     { key: "total_amount", header: "Total", align: "right", sortValue: (row) => toNumber(row.total_amount), render: (row) => <span className="font-semibold"><Currency value={row.total_amount} /></span> },
-    ...(mode === "cancelled"
+    ...(cancelled
       ? [{ key: "reason", header: "Reason", sortable: false, render: (row) => row.void_reason || row.cancel_reason || "—" }]
       : [
           { key: "amount_paid", header: "Paid", align: "right", sortValue: (row) => toNumber(row.amount_paid), render: (row) => <Currency value={row.amount_paid} /> },
@@ -97,11 +93,11 @@ export function OrdersTablePage({ mode = "history" }) {
   ]
 
   const filters = [
-    ...(mode !== "cancelled" ? [{ key: "order_status", label: "Status", options: STATUS_OPTIONS }] : [
-      { key: "order_status", label: "Status", options: STATUS_OPTIONS.filter((o) => ["voided", "cancelled"].includes(o.value)) },
-    ]),
+    ...(cancelled
+      ? [{ key: "order_status", label: "Status", options: [{ value: "voided", label: "Voided" }, { value: "cancelled", label: "Cancelled" }] }]
+      : [{ key: "payment_status", label: "Payment status", options: PAYMENT_STATUS_OPTIONS }]),
     { key: "payment_method", label: "Payment", options: PAYMENT_METHOD_OPTIONS },
-    ...(mode === "history"
+    ...(tab === "all"
       ? [{ key: "type", label: "Type", options: [{ value: "catalog", label: "Catalog" }, { value: "custom", label: "Custom" }], match: (row, value) => (row.is_custom ? "custom" : "catalog") === value }]
       : []),
     {
@@ -114,11 +110,16 @@ export function OrdersTablePage({ mode = "history" }) {
 
   return (
     <section className="space-y-6">
-      <PageHeader section="Sales" title={MODES[mode].title} description={MODES[mode].description} />
+      <PageHeader section="Sales" title="Orders History" description={current[3]} />
+      <Tabs
+        tabs={TABS.map(([key, label]) => [key, `${label} (${counts[key] ?? 0})`])}
+        value={tab}
+        onChange={setTab}
+      />
       <StatCards
         items={[
-          { label: mode === "cancelled" ? "Cancelled orders" : "Orders", value: totals.orders },
-          { label: mode === "cancelled" ? "Lost sales" : "Total sales", value: <Currency value={totals.total} /> },
+          { label: cancelled ? "Cancelled orders" : "Orders", value: totals.orders },
+          { label: cancelled ? "Lost sales" : "Total sales", value: <Currency value={totals.total} /> },
           { label: "Discounts", value: <Currency value={totals.discount} /> },
           { label: "Tax", value: <Currency value={totals.tax} /> },
         ]}
@@ -133,7 +134,7 @@ export function OrdersTablePage({ mode = "history" }) {
         dateRange={{ label: "Sale date", value: (row) => row.placed_at }}
         initialSort={{ key: "placed_at", dir: "desc" }}
         onRowClick={(row) => navigate(`/orders/${row.id}`)}
-        emptyText={mode === "cancelled" ? "No cancelled or voided orders." : "No orders yet."}
+        emptyText={cancelled ? "No cancelled or voided orders." : "No orders here yet."}
       />
     </section>
   )

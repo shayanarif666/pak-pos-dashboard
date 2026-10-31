@@ -199,7 +199,7 @@ export function BillingsPage() {
                     <div className="flex min-w-[140px] items-center gap-2">
                       <StatusBadge value={row.status} />
                       <select
-                        className="rounded-xl border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-900"
+                        className="select-ui h-8 rounded-lg border border-slate-200 bg-white pl-2.5 text-xs font-medium text-slate-900 outline-none hover:border-slate-400 focus:border-brand-700"
                         value={row.status}
                         onChange={(event) => patchStatus(row, event.target.value)}
                         aria-label={`Update status for ${storeName(row)}`}

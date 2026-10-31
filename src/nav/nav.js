@@ -67,30 +67,21 @@ const superAdminNav = [
       { to: "/data", label: "Data tools", icon: Database },
     ],
   },
-  {
-    title: "Settings",
-    icon: UserCircle,
-    single: true,
-    items: [{ to: "/account", label: "My account", icon: UserCircle }],
-  },
 ]
 
 // Store admin / manager sidebar. Items with roles: ["store_admin"] are hidden from managers.
 const storeNav = [
   {
-    title: "Overview",
-    icon: LayoutDashboard,
+    title: "Reporting",
+    icon: BarChart3,
     single: true,
-    items: [{ to: "/reports", label: "Reports", icon: BarChart3 }],
+    items: [{ to: "/reports", label: "Reporting", icon: BarChart3 }],
   },
   {
     title: "Sales",
     icon: ShoppingBag,
     items: [
-      { to: "/orders", label: "Orders History", icon: History, end: true },
-      { to: "/orders/custom", label: "Custom Sales", icon: ClipboardList },
-      { to: "/refunds", label: "Orders Refunds", icon: Receipt },
-      { to: "/orders/cancelled", label: "Orders Cancelled", icon: FileWarning },
+      { to: "/orders", label: "Orders History", icon: History },
       { to: "/transactions", label: "Transactions", icon: Banknote },
     ],
   },
@@ -105,6 +96,12 @@ const storeNav = [
     ],
   },
   {
+    title: "Offers",
+    icon: BadgePercent,
+    single: true,
+    items: [{ to: "/offers", label: "Offers", icon: BadgePercent }],
+  },
+  {
     title: "Inventories",
     icon: Boxes,
     items: [
@@ -115,15 +112,14 @@ const storeNav = [
   {
     title: "Locations",
     icon: MapPin,
-    items: [
-      { to: "/locations", label: "Locations", icon: MapPin },
-      { to: "/staff", label: "Add Staff", icon: UserCog },
-    ],
+    single: true,
+    items: [{ to: "/locations", label: "Locations", icon: MapPin }],
   },
   {
     title: "Staff",
     icon: Users,
     items: [
+      { to: "/staff", label: "Staff", icon: UserCog },
       { to: "/sessions", label: "Sessions History", icon: Clock },
       { to: "/batches", label: "Batch History", icon: Layers },
       { to: "/devices", label: "Devices Registered", icon: Monitor },
@@ -147,8 +143,6 @@ const storeNav = [
     items: [
       { to: "/settings/taxes", label: "Taxes", icon: Receipt },
       { to: "/settings/currency", label: "Currency", icon: Banknote },
-      { to: "/settings/account", label: "My Account", icon: UserCircle },
-      { to: "/settings/store", label: "Store Information", icon: Store, roles: ["store_admin"] },
     ],
   },
 ]
@@ -192,5 +186,6 @@ export function labelForPath(role, pathname) {
   const best = items
     .filter((item) => matchesNavItem(pathname, item))
     .reduce((a, b) => (!a || b.to.length > a.to.length ? b : a), null)
+  if (!best && (pathname === "/profile" || pathname === "/account")) return "Profile"
   return best?.label || "Dashboard"
 }

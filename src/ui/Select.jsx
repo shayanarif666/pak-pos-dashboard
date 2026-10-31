@@ -1,7 +1,7 @@
 import { ChevronDown } from "lucide-react"
 
 const fieldClass =
-  "w-full appearance-none rounded-2xl border border-slate-200 bg-white px-4 py-3 pr-10 text-sm text-slate-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] outline-none transition focus:border-brand-600 focus:bg-white focus:ring-4 focus:ring-brand-600/15 disabled:opacity-50"
+  "h-11 w-full cursor-pointer appearance-none rounded-xl border border-slate-200 bg-white px-3.5 pr-10 text-sm font-medium text-slate-900 outline-none transition hover:border-slate-400 focus:border-brand-700 focus:ring-4 focus:ring-slate-900/10 disabled:cursor-not-allowed disabled:opacity-50"
 
 export function Select({ label, error, children, className = "", ...props }) {
   return (

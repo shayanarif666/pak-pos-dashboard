@@ -7,6 +7,7 @@ import { LoginPage } from "./pages/LoginPage.jsx"
 import { OverviewPage } from "./pages/OverviewPage.jsx"
 import { ApprovalsPage } from "./pages/store/ApprovalsPage.jsx"
 import { CategoriesPage } from "./pages/store/CategoriesPage.jsx"
+import { CategoryDetailPage } from "./pages/store/CategoryDetailPage.jsx"
 import { CouponsPage } from "./pages/store/CouponsPage.jsx"
 import { CustomersPage } from "./pages/store/CustomersPage.jsx"
 import { ExpiryPage } from "./pages/store/ExpiryPage.jsx"
@@ -29,7 +30,7 @@ import { TransfersPage } from "./pages/store/TransfersPage.jsx"
 import { WeightPage } from "./pages/store/WeightPage.jsx"
 import { StaffPage } from "./pages/store/StaffPage.jsx"
 import { BackupPage } from "./pages/store/BackupPage.jsx"
-import { AccountPage } from "./pages/AccountPage.jsx"
+import { ProfilePage } from "./pages/ProfilePage.jsx"
 import { DataToolsPage } from "./pages/superadmin/DataToolsPage.jsx"
 import { BillingsPage } from "./pages/superadmin/BillingsPage.jsx"
 import { LicensesPage } from "./pages/superadmin/LicensesPage.jsx"
@@ -40,11 +41,10 @@ import { StoresPage } from "./pages/superadmin/StoresPage.jsx"
 import { AuditPage } from "./pages/superadmin/AuditPage.jsx"
 import { DevicesPage } from "./pages/superadmin/DevicesPage.jsx"
 import { OrdersTablePage } from "./pages/store/OrdersTablePage.jsx"
-import { RefundsTablePage } from "./pages/store/RefundsTablePage.jsx"
 import { TransactionsTablePage } from "./pages/store/TransactionsTablePage.jsx"
 import { SessionsPage } from "./pages/store/SessionsPage.jsx"
 import { BatchesPage } from "./pages/store/BatchesPage.jsx"
-import { AccountSettingsPage, CurrencySettingsPage, StoreInfoPage, TaxSettingsPage } from "./pages/store/SettingsSectionPages.jsx"
+import { CurrencySettingsPage, TaxSettingsPage } from "./pages/store/SettingsSectionPages.jsx"
 
 /** Shared paths: pick platform vs store page by role (avoids duplicate-route redirect). */
 function AuditRoute() {
@@ -78,6 +78,8 @@ export default function App() {
       <Route element={<RequireAuth />}>
         <Route element={<AppShell />}>
           <Route index element={<HomeRoute />} />
+          <Route path="profile" element={<ProfilePage />} />
+          <Route path="account" element={<Navigate to="/profile" replace />} />
 
           <Route element={<RequireRole roles={["superadmin"]} />}>
             <Route path="stores/register" element={<StoreFormPage />} />
@@ -88,7 +90,6 @@ export default function App() {
             <Route path="licenses" element={<LicensesPage />} />
             <Route path="billings" element={<BillingsPage />} />
             <Route path="data" element={<DataToolsPage />} />
-            <Route path="account" element={<AccountPage />} />
           </Route>
 
           <Route
@@ -107,6 +108,7 @@ export default function App() {
             <Route path="products/:id/edit" element={<ProductFormPage />} />
             <Route path="products/:id" element={<ProductDetailPage />} />
             <Route path="products" element={<ProductsPage />} />
+            <Route path="categories/:id" element={<CategoryDetailPage />} />
             <Route path="categories" element={<CategoriesPage />} />
             <Route path="inventory" element={<InventoryPage />} />
             <Route path="movements" element={<MovementsPage />} />
@@ -115,12 +117,12 @@ export default function App() {
             <Route path="suppliers/:id" element={<SupplierDetailPage />} />
             <Route path="suppliers" element={<SuppliersPage />} />
             <Route path="customers" element={<CustomersPage />} />
-            <Route path="orders/custom" element={<OrdersTablePage mode="custom" />} />
+            <Route path="orders/custom" element={<Navigate to="/orders?tab=custom" replace />} />
             <Route path="orders/history" element={<Navigate to="/orders" replace />} />
-            <Route path="orders/cancelled" element={<OrdersTablePage mode="cancelled" />} />
+            <Route path="orders/cancelled" element={<Navigate to="/orders?tab=cancelled" replace />} />
             <Route path="orders/:id" element={<OrderDetailPage />} />
-            <Route path="orders" element={<OrdersTablePage mode="history" />} />
-            <Route path="refunds" element={<RefundsTablePage />} />
+            <Route path="orders" element={<OrdersTablePage />} />
+            <Route path="refunds" element={<Navigate to="/orders?tab=refunded" replace />} />
             <Route path="transactions" element={<TransactionsTablePage />} />
             <Route path="sessions" element={<SessionsPage />} />
             <Route path="transfers" element={<TransfersPage />} />
@@ -134,7 +136,7 @@ export default function App() {
             <Route path="tax" element={<Navigate to="/settings/taxes" replace />} />
             <Route path="settings/taxes" element={<TaxSettingsPage />} />
             <Route path="settings/currency" element={<CurrencySettingsPage />} />
-            <Route path="settings/account" element={<AccountSettingsPage />} />
+            <Route path="settings/account" element={<Navigate to="/profile" replace />} />
             <Route path="approvals" element={<ApprovalsPage />} />
             <Route path="settings" element={<Navigate to="/settings/taxes" replace />} />
           </Route>
@@ -142,7 +144,7 @@ export default function App() {
           <Route element={<RequireRole roles={["store_admin"]} />}>
             <Route path="backup" element={<BackupPage />} />
             <Route path="billing" element={<StoreBillingPage />} />
-            <Route path="settings/store" element={<StoreInfoPage />} />
+            <Route path="settings/store" element={<Navigate to="/profile" replace />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />

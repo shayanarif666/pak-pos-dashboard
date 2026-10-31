@@ -5,7 +5,7 @@ import { useDashboardLocation, useLocationName } from "../../features/scope/Dash
 import { DataTable, optionsFrom } from "../../ui/DataTable.jsx"
 import { Modal, ModalCard } from "../../ui/Modal.jsx"
 import { StatusBadge } from "../../ui/Pill.jsx"
-import { PageHeader } from "../../ui/PageHeader.jsx"
+import { PageHeader, StatCards } from "../../ui/PageHeader.jsx"
 import { formatDateTime } from "../../ui/format.js"
 
 const label = (value) => String(value || "").replaceAll("_", " ")
@@ -105,6 +105,14 @@ export function StoreAuditPage() {
         section="Audit Logs"
         title="Audit Logs"
         description="Every action in the store — sign-ins, sales, refunds, stock, staff and settings changes — with who did it, where and from which device. Click a row for all its details and the data before and after."
+      />
+      <StatCards
+        items={[
+          { label: "Entries", value: rows.length, hint: "Latest 500" },
+          { label: "Last 24 hours", value: rows.filter((row) => new Date(row.created_at) > new Date(Date.now() - 86400000)).length },
+          { label: "People", value: new Set(rows.map((row) => row.user_name).filter(Boolean)).size },
+          { label: "Actions", value: new Set(rows.map((row) => row.action).filter(Boolean)).size },
+        ]}
       />
       <DataTable
         columns={columns}

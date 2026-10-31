@@ -1,28 +1,27 @@
 @import "tailwindcss";
 
-/* Brand green built around #135c4c (brand-700), the dashboard primary colour. */
+/* White + dark green theme: "brand" is a green scale, brand-700 (#135c4c) is the primary
+   colour of buttons, active links, tabs and filters. */
 @theme {
-  --color-brand-50: #eef7f4;
-  --color-brand-100: #d5ece5;
-  --color-brand-200: #acd8ca;
-  --color-brand-300: #7bbda9;
-  --color-brand-400: #4c9c86;
-  --color-brand-500: #2d8069;
-  --color-brand-600: #1b6d59;
+  --color-brand-50: #eef8f5;
+  --color-brand-100: #d6efe7;
+  --color-brand-200: #afdecf;
+  --color-brand-300: #7cc5b0;
+  --color-brand-400: #47a68d;
+  --color-brand-500: #288a72;
+  --color-brand-600: #1b705d;
   --color-brand-700: #135c4c;
   --color-brand-800: #0f4a3e;
-  --color-brand-900: #0b3b31;
-  --color-brand-950: #06251f;
+  --color-brand-900: #0c3d33;
+  --color-brand-950: #06221d;
 }
 
-/* Diamond texture from the brand swatch, used on the sidebar header and login. */
+/* Solid dark green panel (login side panel). */
 .brand-pattern {
   background-color: #135c4c;
-  background-image: url("./assets/brand-pattern.png");
-  background-size: 105px 41px;
 }
 
-/* White + blue theme. Root font is 18px (was the browser default 16px), so every
+/* Root font is 18px (was the browser default 16px), so every
    rem-based Tailwind size (text-sm, text-xs, padding, gaps) scales up together. */
 html {
   font-size: 18px;
@@ -36,21 +35,38 @@ body,
 
 body {
   margin: 0;
-  background: #f8fafc;
+  background: #ffffff;
   color: #0f172a;
   font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   line-height: 1.5;
 }
 
-select,
+/* Dropdowns: no native arrow, a thin chevron instead (a filled black select gets a white one). */
+@layer components {
+  .select-ui {
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%2364748b%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpath d=%27m6 9 6 6 6-6%27/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.7rem center;
+    background-size: 1rem;
+    padding-right: 2.25rem;
+    cursor: pointer;
+  }
+  .select-ui.is-active {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%23ffffff%27 stroke-width=%272%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpath d=%27m6 9 6 6 6-6%27/%3E%3C/svg%3E");
+  }
+}
+
+/* Unlayered rules beat Tailwind utilities: only the options are set here. */
 select option {
   background: #ffffff;
   color: #0f172a;
 }
 
 ::selection {
-  background: #acd8ca;
+  background: #dcdcdc;
   color: #0f172a;
 }
 

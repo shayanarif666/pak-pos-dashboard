@@ -15,7 +15,7 @@ import { Input } from "../../ui/Input.jsx"
 import { Select } from "../../ui/Select.jsx"
 import { DataTable } from "../../ui/DataTable.jsx"
 import { PageLoader } from "../../ui/Spinner.jsx"
-import { PageHeader } from "../../ui/PageHeader.jsx"
+import { PageHeader, StatCards } from "../../ui/PageHeader.jsx"
 import { formatDateTime } from "../../ui/format.js"
 import { useDashboardLocation } from "../../features/scope/DashboardLocation.jsx"
 import { useToast } from "../../ui/Toast.jsx"
@@ -107,7 +107,7 @@ export function StaffPage() {
   return (
     <section className="space-y-6">
       <PageHeader
-        section="Locations"
+        section="Staff"
         title="Staff"
         description="Add managers and cashiers to a location. Cashiers are verified on the POS with their PIN; managers can also use this dashboard."
         actions={<Button onClick={openCreate}><Plus className="h-4 w-4" /> Add staff</Button>}
@@ -126,6 +126,15 @@ export function StaffPage() {
           </button>
         </div>
       ) : null}
+
+      <StatCards
+        items={[
+          { label: "Staff", value: rows.length },
+          { label: "Managers", value: rows.filter((row) => row.role === "manager").length },
+          { label: "Cashiers", value: rows.filter((row) => row.role === "cashier").length },
+          { label: "Active", value: rows.filter((row) => row.is_active).length, hint: `${rows.filter((row) => !row.is_active).length} switched off` },
+        ]}
+      />
 
       <DataTable
         columns={[

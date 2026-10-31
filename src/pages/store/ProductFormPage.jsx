@@ -10,6 +10,7 @@ import {
   useSaveProduct,
 } from "../../features/catalog/catalogQuery.jsx"
 import { resolveDashboardLocation } from "../../features/catalog/dashboardLocation.js"
+import { LocationScopeField, scopePayload } from "../../features/scope/LocationScopeField.jsx"
 import {
   PRODUCT_UNITS,
   emptyOpeningStock,
@@ -65,7 +66,14 @@ export function ProductFormPage() {
   const [stocks, setStocks] = useState([])
   const [error, setError] = useState("")
   const categories = categoriesQuery.data || []
-  const locations = locationsQuery.data || []
+  const allLocations = useMemo(() => locationsQuery.data || [], [locationsQuery.data])
+  const activeLocations = allLocations.filter((row) => row.is_active !== false)
+  // Stock is kept only where the product is sold.
+  const locations =
+    form.location_scope === "selected"
+      ? allLocations.filter((row) => form.location_ids.includes(row.id))
+      : allLocations
+  const selectedCategory = categories.find((row) => row.id === form.category_id)
   const loading =
     categoriesQuery.isPending ||
     (isAdmin && locationsQuery.isPending) ||
@@ -93,10 +101,10 @@ export function ProductFormPage() {
   }, [galleryPreviews, featuredPreview])
 
   useEffect(() => {
-    if (!isAdmin || !locations.length) return
+    if (!isAdmin || !allLocations.length) return
     setLocationStocks((current) => {
       const next = { ...current }
-      for (const location of locations) {
+      for (const location of allLocations) {
         const existing = stocks.find((row) => row.location_id === location.id)
         const prev = next[location.id]
         if (!prev) {
@@ -116,7 +124,7 @@ export function ProductFormPage() {
       }
       return next
     })
-  }, [isAdmin, locations, stocks])
+  }, [isAdmin, allLocations, stocks])
 
   useEffect(() => {
     const product = productQuery.data
@@ -229,9 +237,14 @@ export function ProductFormPage() {
   async function save(event) {
     event.preventDefault()
     setError("")
+    if (isAdmin && form.location_scope === "selected" && !form.location_ids.length) {
+      setError("Pick at least one location, or choose All locations.")
+      return
+    }
     try {
       const stockPayloads = buildStockPayloads()
-      const body = productPayload(form)
+      // Only a store admin picks locations; a manager's product is for their own location.
+      const body = { ...productPayload(form), ...(isAdmin ? scopePayload(form) : {}) }
       const existingImages = existingUrls.map((url) => ({ url }))
       if (featuredUrl && !featuredFile) {
         body.featured_image = featuredUrl
@@ -546,6 +559,26 @@ export function ProductFormPage() {
           />
         </div>
 
+        {isAdmin ? (
+          <div className="space-y-3 rounded-[28px] border border-slate-200 bg-white p-5">
+            <LocationScopeField
+              title="Sold at"
+              value={form}
+              locations={activeLocations}
+              onChange={(next) =>
+                setForm((current) => ({ ...current, location_scope: next.location_scope, location_ids: next.location_ids }))
+              }
+            />
+            {selectedCategory?.location_scope === "selected" ? (
+              <p className="text-xs text-amber-700">
+                {selectedCategory.name} is only sold at{" "}
+                {(selectedCategory.locations || []).map((row) => row.name).join(", ") || "selected locations"} — the
+                product shows only where both allow it.
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+
         {form.has_bulk_discount ? (
           <div className="space-y-3 rounded-[28px] border border-slate-200 bg-white p-5">
             <h2 className="text-sm font-semibold text-slate-900">Bulk discount tiers</h2>
@@ -614,7 +647,9 @@ export function ProductFormPage() {
             </p>
             <p className="mt-1 text-sm text-slate-600">
               {isAdmin
-                ? "Set quantity (and optional expiry) for every location. Empty quantity saves as 0."
+                ? form.location_scope === "selected"
+                  ? "Set quantity (and optional expiry) for each location the product is sold at. Empty quantity saves as 0."
+                  : "Set quantity (and optional expiry) for every location. Empty quantity saves as 0."
                 : `Managers can only manage stock at ${dashboardLocation?.name || "their login location"}.`}
             </p>
           </div>
@@ -654,7 +689,9 @@ export function ProductFormPage() {
                 )
               })}
               {!locations.length ? (
-                <p className="text-sm text-amber-700">No locations found for this store.</p>
+                <p className="text-sm text-amber-700">
+                  {form.location_scope === "selected" ? "Pick the locations above to set their stock." : "No locations found for this store."}
+                </p>
               ) : null}
             </div>
           ) : (

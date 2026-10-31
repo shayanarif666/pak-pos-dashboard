@@ -19,29 +19,23 @@ export function AccountPage() {
   )
 }
 
-export function AccountForm({ allowPin }) {
+export function AccountForm({ allowPin, plain = false }) {
   const { user } = useAuth()
   const { toast } = useToast()
   const updateMe = useUpdateMe()
   const [form, setForm] = useState({
     name: user.name || "",
     phone: user.phone || "",
-    current_password: "",
-    password: "",
     pin: "",
   })
 
   async function save(event) {
     event.preventDefault()
     const body = { name: form.name.trim(), phone: form.phone.trim() || null }
-    if (form.password) {
-      body.password = form.password
-      body.current_password = form.current_password
-    }
     if (allowPin && form.pin) body.pin = form.pin
     try {
       await updateMe.mutateAsync(body)
-      setForm({ ...form, current_password: "", password: "", pin: "" })
+      setForm({ ...form, pin: "" })
       toast("Account updated")
     } catch (err) {
       toast(err.message, "error")
@@ -49,12 +43,10 @@ export function AccountForm({ allowPin }) {
   }
 
   return (
-    <form onSubmit={save} className="rounded-[28px] border border-slate-200 bg-white p-5">
+    <form onSubmit={save} className={plain ? "" : "rounded-[28px] border border-slate-200 bg-white p-5"}>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <Input label="Name" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
         <Input label="Phone" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
-        <Input label="Current password" type="password" value={form.current_password} required={Boolean(form.password)} onChange={(e) => setForm({ ...form, current_password: e.target.value })} />
-        <Input label="New password" type="password" minLength={6} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
         {allowPin ? (
           <Input
             label="New POS PIN (4–6 digits)"
