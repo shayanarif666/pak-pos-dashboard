@@ -15,6 +15,8 @@ import { InventoryPage } from "./pages/store/InventoryPage.jsx"
 import { LocationsPage } from "./pages/store/LocationsPage.jsx"
 import { MovementsPage } from "./pages/store/MovementsPage.jsx"
 import { OffersPage } from "./pages/store/OffersPage.jsx"
+import { ForgotPasswordPage } from "./pages/auth/ForgotPasswordPage.jsx"
+import { ResetPasswordPage } from "./pages/auth/ResetPasswordPage.jsx"
 import { OrderDetailPage } from "./pages/store/OrderDetailPage.jsx"
 import { ProductDetailPage } from "./pages/store/ProductDetailPage.jsx"
 import { ProductFormPage } from "./pages/store/ProductFormPage.jsx"
@@ -74,6 +76,9 @@ export default function App() {
       <Route element={<GuestOnly />}>
         <Route path="/login" element={<LoginPage />} />
       </Route>
+      {/* Opened from the reset email, signed in or not. */}
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
 
       <Route element={<RequireAuth />}>
         <Route element={<AppShell />}>

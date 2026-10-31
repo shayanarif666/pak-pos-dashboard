@@ -5,6 +5,14 @@ export function loginRequest(body) {
   return apiPost("/api/v1/auth/login", body, { auth: false })
 }
 
+export function forgotPasswordRequest(body) {
+  return apiPost("/api/v1/auth/forgot-password", body, { auth: false })
+}
+
+export function resetPasswordRequest(body) {
+  return apiPost("/api/v1/auth/reset-password", body, { auth: false })
+}
+
 export function getMe() {
   return apiGet("/api/v1/auth/me", { auth: true })
 }
