@@ -47,8 +47,11 @@ export function TransactionsTablePage() {
   const columns = [
     { key: "id", header: "Transaction #", render: (row) => <span className="font-semibold text-slate-900">#{row.id}</span> },
     { key: "paid_at", header: "Date", render: (row) => formatDateTime(row.paid_at) },
-    { key: "orderId", header: "Order #", render: (row) => (row.orderId ? `#${row.orderId}` : "—") },
-    ...(isAll ? [{ key: "locationId", header: "Location", render: (row) => locationName(row.locationId) }] : []),
+    // The API sends order { id, status } and location { id, name }; older replies sent the ids.
+    { key: "order", header: "Order #", render: (row) => { const id = row.order?.id ?? row.orderId; return id ? `#${id}` : "—" } },
+    ...(isAll
+      ? [{ key: "location", header: "Location", render: (row) => row.location?.name || locationName(row.location?.id ?? row.locationId) }]
+      : []),
     { key: "method", header: "Method", render: (row) => <StatusBadge value={row.method} /> },
     { key: "amount", header: "Amount", align: "right", render: (row) => <span className="font-semibold"><Currency value={row.amount} /></span> },
     { key: "tax_amount", header: "Payment GST", align: "right", render: (row) => <Currency value={row.tax_amount} /> },

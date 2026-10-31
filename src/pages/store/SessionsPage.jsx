@@ -42,8 +42,11 @@ export function SessionsPage() {
 
   const columns = [
     { key: "id", header: "Session #", render: (row) => <span className="font-semibold text-slate-900">#{row.id}</span> },
-    { key: "staff", header: "Staff", render: (row) => staffName(row.staffId) },
-    ...(isAll ? [{ key: "locationId", header: "Location", render: (row) => locationName(row.locationId) }] : []),
+    // The API sends staff { id, name, role } and location { id, name }; older replies sent the ids.
+    { key: "staff", header: "Staff", render: (row) => row.staff?.name || staffName(row.staff?.id ?? row.staffId) },
+    ...(isAll
+      ? [{ key: "location", header: "Location", render: (row) => row.location?.name || locationName(row.location?.id ?? row.locationId) }]
+      : []),
     { key: "opening_at", header: "Clock in", render: (row) => formatDateTime(row.opening_at) },
     { key: "closing_at", header: "Clock out", render: (row) => formatDateTime(row.closing_at) },
     { key: "duration", header: "Worked", render: (row) => duration(row.opening_at, row.closing_at) },
