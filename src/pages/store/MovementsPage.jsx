@@ -280,7 +280,7 @@ export function MovementsPage() {
             ),
           },
           { key: "qty_after", header: "Stock after", align: "right", sortValue: (row) => Number(row.qty_after), render: (row) => row.qty_after ?? "—" },
-          { key: "staff", header: "By", sortValue: (row) => staffName(row.staff_id), render: (row) => (row.staff_id ? staffName(row.staff_id) : "System") },
+          { key: "staff", header: "By", sortValue: (row) => row.staff?.name || staffName(row.staff_id), render: (row) => (row.staff_id ? row.staff?.name || staffName(row.staff_id) : "System") },
           { key: "reason_note", header: "Note", sortable: false, className: "max-w-56 truncate", render: (row) => row.reason_note || "—" },
         ]}
         rows={rows}
