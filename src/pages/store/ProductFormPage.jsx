@@ -20,6 +20,7 @@ import {
   productFormError,
   productPayload,
   productToForm,
+  stockToForm,
 } from "../../features/catalog/productForm.js"
 import { Button } from "../../ui/Button.jsx"
 import { Checkbox } from "../../ui/Checkbox.jsx"
@@ -81,11 +82,15 @@ export function ProductFormPage() {
   const categories = categoriesQuery.data || []
   const allLocations = useMemo(() => locationsQuery.data || [], [locationsQuery.data])
   const activeLocations = allLocations.filter((row) => row.is_active !== false)
-  // Stock rows: the store admin sets every location the product is sold at; a manager their own.
+  // Sold at: every location or the selected ones. Stock is held at all of those or a few of them.
+  // A manager works with their own location only.
+  const soldLocations = form.location_scope === "selected"
+    ? activeLocations.filter((row) => form.location_ids.includes(row.id))
+    : activeLocations
   const stockLocations = isAdmin
-    ? form.location_scope === "selected"
-      ? activeLocations.filter((row) => form.location_ids.includes(row.id))
-      : activeLocations
+    ? form.stock_scope === "selected"
+      ? soldLocations.filter((row) => form.stock_location_ids.includes(row.id))
+      : soldLocations
     : ownLocation
       ? [ownLocation]
       : []
@@ -97,12 +102,7 @@ export function ProductFormPage() {
   useEffect(() => {
     if (!product) return
     setForm(productToForm(product))
-    const rows = Object.fromEntries(
-      (product.stocks || []).map((row) => [
-        row.location_id,
-        { qty: row.qty == null ? "" : String(Number(row.qty)), expiry_date: row.expiry_date ? String(row.expiry_date).slice(0, 10) : "" },
-      ])
-    )
+    const rows = stockToForm(product)
     setStock(rows)
     setInitialStock(rows)
   }, [product])
@@ -120,28 +120,35 @@ export function ProductFormPage() {
     }))
   const patchTax = (index, key, value) =>
     setForm((current) => ({ ...current, taxes: current.taxes.map((tax, i) => (i === index ? { ...tax, [key]: value } : tax)) }))
-  const patchStock = (locationId, key, value) =>
-    setStock((current) => ({ ...current, [locationId]: { ...(current[locationId] || emptyOpeningStock()), [key]: value } }))
+  const stockKey = (key, locationId) => `${key}|${locationId}`
+  const patchStock = (key, locationId, field, value) =>
+    setStock((current) => {
+      const id = stockKey(key, locationId)
+      return { ...current, [id]: { ...(current[id] || emptyOpeningStock()), [field]: value } }
+    })
 
-  function stockPayloads() {
-    const threshold = form.low_stock_threshold === "" ? null : Number(form.low_stock_threshold)
-    return stockLocations
+  /**
+   * The stock rows sent with the product for one variant (its id / key) or "product": on create
+   * (or a new variant) what was filled in, as opening stock; on edit what changed, as the count.
+   */
+  function stockFor(key, isNew) {
+    const rows = stockLocations
       .map((location) => {
-        const row = stock[location.id] || emptyOpeningStock()
-        const before = initialStock[location.id] || emptyOpeningStock()
-        // Create: only what was filled in. Edit: only what changed.
-        const changed = isEdit ? row.qty !== before.qty || row.expiry_date !== before.expiry_date : row.qty !== "" || row.expiry_date
+        const row = stock[stockKey(key, location.id)] || emptyOpeningStock()
+        const before = initialStock[stockKey(key, location.id)] || emptyOpeningStock()
+        const changed = !isNew ? row.qty !== before.qty || row.expiry_date !== before.expiry_date : row.qty !== "" || row.expiry_date
         if (!changed) return null
-        return {
-          location_id: location.id,
-          qty: Number(row.qty || 0),
-          expiry_date: row.expiry_date || null,
-          low_stock_threshold: threshold,
-          reason: isEdit ? "count" : "opening_balance",
-        }
+        return { location_id: location.id, qty: Number(row.qty || 0), ...(row.expiry_date ? { expiry_date: row.expiry_date } : {}) }
       })
       .filter(Boolean)
+    return rows.length ? rows : undefined
   }
+  const savedKeys = new Set(form.variants.filter((row) => row.id).map((row) => row.id))
+  const stockOf = (key) => stockFor(key, !isEdit || (key !== "product" && !savedKeys.has(key)))
+  // Stock rows to fill in: each variant (or the product itself).
+  const stockTargets = hasVariants
+    ? form.variants.map((row, index) => ({ key: row.id || row.key, label: row.name || `Variant ${index + 1}`, number: row.variant_number }))
+    : [{ key: "product", label: form.title || "This product" }]
 
   async function save(event) {
     event.preventDefault()
@@ -151,19 +158,22 @@ export function ProductFormPage() {
     if (isAdmin && form.location_scope === "selected" && !form.location_ids.length) {
       return setError("Pick at least one location the product is sold at, or choose All locations.")
     }
+    if (isAdmin && form.stock_scope === "selected" && !stockLocations.length) {
+      return setError("Pick at least one location that holds its stock, or choose All locations.")
+    }
     try {
       const json = await saveProduct.mutateAsync({
         id: isEdit ? id : undefined,
-        body: productPayload(form, { withScope: isAdmin }),
+        body: productPayload(form, { withScope: isAdmin, stockFor: stockOf }),
         imageFile,
         removeImage: removeImage && !imageFile,
-        stockPayloads: hasVariants ? [] : stockPayloads(),
       })
       toast(isEdit ? "Product updated" : "Product created")
       // A barcode already in use was swapped for a new one by the API.
       if (json.data?.barcode_replaced) {
         toast(`Barcode ${json.data.barcode_replaced.requested} was already in use — saved as ${json.data.barcode_replaced.used}`, "error")
       }
+      if (json.data?.stock_warnings?.length) toast(json.data.stock_warnings.join(" · "), "error")
       navigate(`/products/${json.productId}`)
     } catch (err) {
       setError(err.message)
@@ -221,6 +231,19 @@ export function ProductFormPage() {
           ) : null}
         </Section>
 
+        <Section title="Sold at" description="The branches this product (and every variant of it) is sold at.">
+          {isAdmin ? (
+            <LocationScopeField
+              title="Branches"
+              value={form}
+              locations={activeLocations}
+              onChange={(next) => setForm((current) => ({ ...current, location_scope: next.location_scope, location_ids: next.location_ids }))}
+            />
+          ) : (
+            <p className="text-sm text-slate-500">Sold and stocked at {ownLocation?.name || "your location"}.</p>
+          )}
+        </Section>
+
         <Section
           title="Variants"
           description="Sizes, colours… Each variant is sold on its own with its own SKU, barcode, prices and stock; this product groups them and is not sold itself."
@@ -235,7 +258,7 @@ export function ProductFormPage() {
               {form.variants.map((row, index) => (
                 <div key={row.id || `new-${index}`} className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
                   <div className="flex items-center justify-between gap-3">
-                    <p className="text-sm font-semibold text-slate-900">{row.name || `Variant ${index + 1}`}{row.id ? <span className="ml-2 text-xs font-normal text-slate-400">saved</span> : null}</p>
+                    <p className="text-sm font-semibold text-slate-900">{row.variant_number ? <span className="mr-2 text-xs font-normal text-slate-400">#{row.variant_number}</span> : null}{row.name || `Variant ${index + 1}`}</p>
                     <div className="flex items-center gap-2">
                       {row.id ? <Link to={`/products/${row.id}`} className="text-sm font-medium text-brand-700 hover:underline">Stock & detail →</Link> : null}
                       {row.id ? null : (
@@ -285,9 +308,6 @@ export function ProductFormPage() {
                         <Input label="Price (one unit)" type="number" min="0" step="0.01" required value={row.price} onChange={(e) => patchVariant(index, "price", e.target.value)} />
                       </>
                     )}
-                    {row.id ? null : (
-                      <Input label="Opening stock" type="number" min="0" step="1" value={row.stock} onChange={(e) => patchVariant(index, "stock", e.target.value)} />
-                    )}
                   </div>
                   <div>
                     <div className="mb-2 flex items-center justify-between gap-3">
@@ -313,7 +333,7 @@ export function ProductFormPage() {
                 </div>
               ))}
               <p className="text-xs text-slate-500">
-                A new variant's opening stock goes to {isAdmin ? "the store's default location" : ownLocation?.name || "your location"}; change stock later on the variant's page. A barcode already used by another product is replaced with a new one when you save.
+                Set each variant's stock per branch in Stock below. A barcode already used by another product is replaced with a new one when you save.
               </p>
             </div>
           ) : (
@@ -431,49 +451,62 @@ export function ProductFormPage() {
             <Checkbox label="Shown on the website" checked={form.is_web_visible} onChange={(e) => patch("is_web_visible", e.target.checked)} />
             <Checkbox label="Published on the website" checked={form.is_published} onChange={(e) => patch("is_published", e.target.checked)} />
           </div>
-          {isAdmin ? (
-            <div className="mt-5">
-              <LocationScopeField
-                title="Sold at"
-                value={form}
-                locations={activeLocations}
-                onChange={(next) => setForm((current) => ({ ...current, location_scope: next.location_scope, location_ids: next.location_ids }))}
-              />
-            </div>
-          ) : (
-            <p className="mt-4 text-sm text-slate-500">Sold at {ownLocation?.name || "your location"}.</p>
-          )}
         </Section>
 
-        {hasVariants ? null : (
         <Section
           title={isEdit ? "Stock" : "Opening stock"}
-          description={isEdit ? "Change a quantity to set the counted stock there. Untouched rows stay as they are." : "Quantity at each location it is sold at. Empty = 0."}
+          description={
+            isEdit
+              ? "Change a quantity to the counted stock; the difference is saved as a stock count. Untouched rows stay as they are."
+              : "Quantity at each branch that holds its stock (in units). Empty = 0; saved as opening balance."
+          }
         >
+          {isAdmin ? (
+            <div className="mb-4">
+              <LocationScopeField
+                title="Stock held at"
+                allHint="Every branch it is sold at"
+                value={{ location_scope: form.stock_scope, location_ids: form.stock_location_ids }}
+                locations={soldLocations}
+                onChange={(next) => setForm((current) => ({ ...current, stock_scope: next.location_scope, stock_location_ids: next.location_ids }))}
+              />
+            </div>
+          ) : null}
           <div className="mb-4 max-w-xs">
             <Input label="Low stock alert at" type="number" min="0" step="1" value={form.low_stock_threshold} onChange={(e) => patch("low_stock_threshold", e.target.value)} />
           </div>
           {stockLocations.length ? (
-            <div className="space-y-3">
-              {stockLocations.map((location) => {
-                const row = stock[location.id] || emptyOpeningStock()
-                return (
-                  <div key={location.id} className="grid items-end gap-3 rounded-2xl border border-slate-200 bg-slate-50/60 p-3 md:grid-cols-[minmax(0,1.2fr)_1fr_1fr]">
-                    <div className="pb-2.5">
-                      <p className="text-sm font-semibold text-slate-900">{location.name}</p>
-                      {location.is_default ? <p className="text-xs text-slate-500">Default location</p> : null}
-                    </div>
-                    <Input label="Quantity" type="number" min="0" step="0.01" value={row.qty} onChange={(e) => patchStock(location.id, "qty", e.target.value)} />
-                    <Input label="Expiry (optional)" type="date" value={row.expiry_date} onChange={(e) => patchStock(location.id, "expiry_date", e.target.value)} />
+            <div className="space-y-4">
+              {stockTargets.map((target) => (
+                <div key={target.key} className="rounded-2xl border border-slate-200 bg-slate-50/60 p-3">
+                  {hasVariants ? (
+                    <p className="mb-2 text-sm font-semibold text-slate-900">
+                      {target.number ? <span className="mr-2 text-xs font-normal text-slate-400">#{target.number}</span> : null}
+                      {target.label}
+                    </p>
+                  ) : null}
+                  <div className="space-y-2">
+                    {stockLocations.map((location) => {
+                      const row = stock[stockKey(target.key, location.id)] || emptyOpeningStock()
+                      return (
+                        <div key={location.id} className="grid items-end gap-3 md:grid-cols-[minmax(0,1.2fr)_1fr_1fr]">
+                          <div className="pb-2.5">
+                            <p className="text-sm font-medium text-slate-800">{location.name}</p>
+                            {location.is_default ? <p className="text-xs text-slate-500">Default location</p> : null}
+                          </div>
+                          <Input label="Quantity" type="number" min="0" step="0.01" value={row.qty} onChange={(e) => patchStock(target.key, location.id, "qty", e.target.value)} />
+                          <Input label="Expiry (optional)" type="date" value={row.expiry_date} onChange={(e) => patchStock(target.key, location.id, "expiry_date", e.target.value)} />
+                        </div>
+                      )
+                    })}
                   </div>
-                )
-              })}
+                </div>
+              ))}
             </div>
           ) : (
-            <p className="text-sm text-slate-500">Pick the locations it is sold at to set their stock.</p>
+            <p className="text-sm text-slate-500">Pick the branches it is sold at and that hold its stock to set their quantities.</p>
           )}
         </Section>
-        )}
 
         {error ? <p className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p> : null}
         <div className="flex justify-end gap-3">

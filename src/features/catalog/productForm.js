@@ -8,9 +8,12 @@ export const PRODUCT_UNITS = [
 
 export const emptyTax = () => ({ name: "GST", type: "percentage", value: "" })
 
-// A variant row: id = an existing variant's product id (edit); none = a new variant.
+// A variant row: id = an existing variant's product id (edit); none = a new variant. key keeps
+// a new row's stock inputs apart until it is saved.
 export const emptyVariant = () => ({
   id: null,
+  key: `new-${Math.random().toString(36).slice(2, 10)}`,
+  variant_number: null,
   name: "",
   sku: "",
   barcode: "",
@@ -48,6 +51,9 @@ export const emptyProductForm = {
   is_published: false,
   location_scope: "all",
   location_ids: [],
+  // Which of those locations hold its stock: all, or the ones in stock_location_ids.
+  stock_scope: "all",
+  stock_location_ids: [],
 }
 
 const text = (value) => (value == null ? "" : String(value))
@@ -76,6 +82,8 @@ export function productToForm(product) {
     })),
     variants: (product.variants || []).map((row) => ({
       id: row.id,
+      key: row.id,
+      variant_number: row.variant_number ?? null,
       name: row.name || "",
       sku: row.sku || "",
       barcode: row.barcode || "",
@@ -100,7 +108,25 @@ export function productToForm(product) {
     is_published: Boolean(product.is_published),
     location_scope: product.location_scope || "all",
     location_ids: product.location_ids || [],
+    stock_scope: product.stock_scope || "all",
+    stock_location_ids: product.stock_location_ids || [],
   }
+}
+
+/** Stock inputs of a product as { "key|locationId": { qty, expiry_date } } (key = variant id or "product"). */
+export function stockToForm(product) {
+  const rows = {}
+  const add = (key, stocks) => {
+    for (const row of stocks || []) {
+      rows[`${key}|${row.location_id}`] = {
+        qty: row.qty == null ? "" : String(Number(row.qty)),
+        expiry_date: row.expiry_date ? String(row.expiry_date).slice(0, 10) : "",
+      }
+    }
+  }
+  if (product.has_variants) for (const variant of product.variants || []) add(variant.id, variant.stocks)
+  else add("product", product.stocks)
+  return rows
 }
 
 /** Checks the form; returns an error message or "". */
@@ -143,8 +169,12 @@ export function productFormError(form) {
   return ""
 }
 
-/** The body for POST / PATCH /products (same names as the API docs: cost, price, pack_cost…). */
-export function productPayload(form, { withScope = false } = {}) {
+/**
+ * The body for POST / PATCH /products (same names as the API docs: cost, price, pack_cost…).
+ * stockFor(key) gives the stock rows of the product ("product") or a variant (its id / key):
+ * opening stock on create, the counted stock on edit.
+ */
+export function productPayload(form, { withScope = false, stockFor = () => undefined } = {}) {
   const hasVariants = form.variants.length > 0
   const body = {
     title: form.title.trim(),
@@ -180,7 +210,7 @@ export function productPayload(form, { withScope = false } = {}) {
       taxes: row.taxes
         .filter((tax) => tax.value !== "")
         .map((tax) => ({ name: tax.name.trim() || null, type: tax.type, value: Number(tax.value) })),
-      ...(!row.id && row.stock !== "" ? { stock: Number(row.stock) } : {}),
+      ...(stockFor(row.id || row.key) ? { stock: stockFor(row.id || row.key) } : {}),
     }))
   } else if (form.is_pack_product) {
     body.pack_size = Number(form.pack_size)
@@ -190,9 +220,12 @@ export function productPayload(form, { withScope = false } = {}) {
     body.cost = Number(form.cost)
     body.price = Number(form.price)
   }
+  if (!hasVariants && stockFor("product")) body.stock = stockFor("product")
   if (withScope) {
     body.location_scope = form.location_scope
     body.location_ids = form.location_scope === "selected" ? form.location_ids : []
+    body.stock_scope = form.stock_scope
+    body.stock_location_ids = form.stock_scope === "selected" ? form.stock_location_ids : []
   }
   return body
 }
@@ -205,12 +238,15 @@ export function money(value) {
   return formatCurrency(value)
 }
 
+// Reasons for a manual stock movement (opening_balance is written when a product is created).
 export const STOCK_REASONS = [
-  "opening_balance",
   "purchase",
-  "count",
-  "waste",
+  "customer_return",
+  "return_to_supplier",
   "damage",
   "expiry",
+  "waste",
+  "theft",
+  "count",
   "other",
 ]

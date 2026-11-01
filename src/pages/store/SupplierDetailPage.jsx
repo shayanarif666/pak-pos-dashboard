@@ -22,7 +22,7 @@ export function SupplierDetailPage() {
   const { toast } = useToast()
   const supplierQuery = useSupplierQuery(id)
   const ledgerQuery = useSupplierLedgerQuery(id)
-  const productsQuery = useProductsQuery()
+  const productsQuery = useProductsQuery({}, { sellable: true })
   const locationsQuery = useLocationsQuery()
   const addLedger = useAddSupplierLedger()
   const [showForm, setShowForm] = useState(false)

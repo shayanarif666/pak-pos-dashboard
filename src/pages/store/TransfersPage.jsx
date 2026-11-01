@@ -24,7 +24,7 @@ export function TransfersPage() {
   const { toast, confirmToast } = useToast()
   const transfersQuery = useStockTransfersQuery()
   const locationsQuery = useLocationsQuery()
-  const productsQuery = useProductsQuery()
+  const productsQuery = useProductsQuery({}, { sellable: true })
   const createTransfer = useCreateStockTransfer()
   const completeTransfer = useCompleteStockTransfer()
   const cancelTransfer = useCancelStockTransfer()

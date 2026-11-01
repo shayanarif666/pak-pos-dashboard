@@ -57,11 +57,39 @@ export function useLocationsQuery(options = {}) {
   })
 }
 
+/**
+ * The list shows a product with variants once, its variants inside it. sellableProducts() turns
+ * each variant into a row of its own (e.g. "Pepsi - 1L") for pages that work with what is sold.
+ */
+export function sellableProducts(products) {
+  return (products || []).flatMap((product) =>
+    product.has_variants
+      ? (product.variants || []).map((variant) => ({
+          ...variant,
+          title: variant.title || `${product.title} - ${variant.name}`,
+          parent_product_id: product.id,
+          variant_name: variant.name,
+          category_id: product.category_id,
+          category: product.category,
+          unit: product.unit,
+          image_url: product.image_url,
+          featured_image: product.featured_image,
+          low_stock_threshold: product.low_stock_threshold,
+          is_weight_based: product.is_weight_based,
+          location_scope: product.location_scope,
+          location_ids: product.location_ids,
+        }))
+      : [product]
+  )
+}
+
 export function useProductsQuery(filters = {}, options = {}) {
   return useQuery({
     queryKey: catalogKeys.products(filters),
     queryFn: async () => unwrap(await listProducts(filters)) || [],
     enabled: options.enabled !== false,
+    // sellable: every variant as a row of its own.
+    ...(options.sellable ? { select: sellableProducts } : {}),
   })
 }
 

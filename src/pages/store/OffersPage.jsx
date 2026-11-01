@@ -139,7 +139,7 @@ export function DiscountsPage() {
   const [toggling, setToggling] = useState({})
 
   const offersQuery = useOffersQuery()
-  const productsQuery = useProductsQuery()
+  const productsQuery = useProductsQuery({}, { sellable: true })
   const categoriesQuery = useCategoriesQuery()
   const locationsQuery = useLocationsQuery({ enabled: isAdmin })
   const saveOffer = useSaveOffer()

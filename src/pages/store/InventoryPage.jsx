@@ -34,7 +34,7 @@ function draftsFromProducts(products, locationId) {
       qty: stock ? String(stock.qty) : "0",
       low_stock_threshold: stock?.low_stock_threshold ?? product.low_stock_threshold ?? "",
       expiry_date: stock?.expiry_date ? String(stock.expiry_date).slice(0, 10) : "",
-      reason: stock ? "count" : "opening_balance",
+      reason: "count",
     }
   }
   return next
@@ -62,7 +62,7 @@ export function InventoryPage() {
       q: filters.q,
       categoryId: filters.categoryId,
     },
-    { enabled: Boolean(locationId) }
+    { enabled: Boolean(locationId), sellable: true }
   )
 
   const locations = locationsQuery.data || []

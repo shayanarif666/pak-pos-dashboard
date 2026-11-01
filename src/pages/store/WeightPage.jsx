@@ -18,7 +18,7 @@ export function WeightPage() {
   const { params, isAll, label } = useDashboardLocation()
   const weightQuery = useWeightQuery()
   // The catalog list carries each product's stock for the chosen location(s).
-  const productsQuery = useProductsQuery(params.location_id ? { locationId: params.location_id } : {})
+  const productsQuery = useProductsQuery(params.location_id ? { locationId: params.location_id } : {}, { sellable: true })
   const patchWeight = usePatchWeight()
   const [productId, setProductId] = useState("")
   const rows = useMemo(() => weightQuery.data || [], [weightQuery.data])
