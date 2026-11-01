@@ -37,6 +37,104 @@ function Row({ label, value, strong = false }) {
 const money = (value) => (value == null ? "—" : <Currency value={value} />)
 const yesNo = (value) => (value ? "Yes" : "No")
 
+/** Taxes as "GST 18% · Sugar tax Rs. 5 / unit". */
+function taxList(taxes) {
+  if (!taxes?.length) return "—"
+  return taxes.map((tax, index) => (
+    <span key={`${tax.name}-${index}`}>
+      {index ? " · " : ""}
+      {tax.name || `Tax ${index + 1}`} {tax.type === "percentage" ? `${Number(tax.value)}%` : <><Currency value={tax.value} /> / unit</>}
+    </span>
+  ))
+}
+
+/** Stock per location of one product or variant. */
+function StockTable({ stocks, isPack }) {
+  if (!stocks.length) return <p className="text-sm text-slate-500">No stock recorded yet.</p>
+  return (
+    <div className="-mx-5 overflow-x-auto">
+      <table className="w-full min-w-[480px] text-left text-sm">
+        <thead className="border-y border-slate-200 text-xs uppercase tracking-[0.12em] text-slate-500">
+          <tr>
+            <th className="px-5 py-2.5 font-semibold">Location</th>
+            <th className="px-3 py-2.5 text-right font-semibold">Qty</th>
+            {isPack ? <th className="px-3 py-2.5 text-right font-semibold">Packs</th> : null}
+            <th className="px-3 py-2.5 text-right font-semibold">Sold</th>
+            <th className="px-3 py-2.5 text-right font-semibold">Low at</th>
+            <th className="px-3 py-2.5 font-semibold">Expiry</th>
+            <th className="px-5 py-2.5 font-semibold">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {stocks.map((row) => (
+            <tr key={row.id || row.location_id} className="border-b border-slate-100 last:border-0">
+              <td className="px-5 py-2.5 font-medium text-slate-950">{row.location_name || `Location #${row.location_number}`}</td>
+              <td className="px-3 py-2.5 text-right tabular-nums">{row.qty}</td>
+              {isPack ? <td className="px-3 py-2.5 text-right tabular-nums">{row.number_of_packs ?? "—"}</td> : null}
+              <td className="px-3 py-2.5 text-right tabular-nums">{row.unit_sold}</td>
+              <td className="px-3 py-2.5 text-right tabular-nums">{row.effective_threshold ?? "—"}</td>
+              <td className="px-3 py-2.5">{row.expiry_date ? formatDate(row.expiry_date) : "—"}</td>
+              <td className="px-5 py-2.5"><Pill tone={row.is_low ? "rose" : "emerald"}>{row.is_low ? "Low" : "OK"}</Pill></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+/** Where its stock is held: every location it is sold at, or the selected ones. */
+const stockHeldAt = (product) => (
+  <LocationScopePills row={{ location_scope: product.stock_scope, locations: product.stock_locations || [] }} />
+)
+
+/** One variant: its own prices / pack, its own taxes and its stock per location. */
+function VariantCard({ variant }) {
+  const stocks = variant.stocks || []
+  const qty = Number(variant.total_qty ?? stocks.reduce((sum, row) => sum + Number(row.qty || 0), 0))
+  return (
+    <section className="rounded-[24px] border border-slate-200 bg-white p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 className="text-base font-semibold text-slate-950">
+            <span className="mr-2 text-xs font-normal text-slate-400">#{variant.variant_number}</span>
+            {variant.name}
+          </h3>
+          <p className="mt-0.5 text-xs text-slate-500">SKU {variant.sku} · {variant.barcode || "no barcode"}</p>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          <Pill tone={variant.is_pack_product ? "sky" : "zinc"}>{variant.is_pack_product ? `Pack of ${variant.pack_size}` : "Loose"}</Pill>
+          <Pill tone={variant.is_active === false ? "rose" : "emerald"}>{variant.is_active === false ? "Disabled" : "Active"}</Pill>
+          <Pill tone={variant.stock_status === "out" ? "rose" : variant.stock_status === "low" ? "amber" : "emerald"}>{qty} in stock</Pill>
+        </div>
+      </div>
+      <div className="mt-3 grid gap-x-8 md:grid-cols-2">
+        <div>
+          {variant.is_pack_product ? (
+            <>
+              <Row label="Pack size" value={variant.pack_size} />
+              <Row label="Pack cost" value={money(variant.pack_cost_price)} />
+              <Row label="Pack price" value={money(variant.pack_selling_price)} />
+              <Row label="Single units sold too" value={yesNo(variant.sell_loose)} />
+            </>
+          ) : null}
+          <Row label="Cost / unit" value={money(variant.cost_price)} />
+          <Row label="Price / unit" value={money(variant.selling_price)} strong />
+        </div>
+        <div>
+          <Row label="Own taxes" value={taxList(variant.variant_taxes)} />
+          <Row label="All taxes" value={taxList(variant.taxes)} />
+          <Row label="Stock value at cost" value={money(qty * Number(variant.cost_price || 0))} />
+          <Row label="Stock value at price" value={money(qty * Number(variant.selling_price || 0))} />
+        </div>
+      </div>
+      <div className="mt-3">
+        <StockTable stocks={stocks} isPack={variant.is_pack_product} />
+      </div>
+    </section>
+  )
+}
+
 /** "5%" or "Rs. 5" with its name, as set on the product / category. */
 function rule(type, value, name) {
   if (!type || value == null || value === "") return "—"
@@ -64,8 +162,8 @@ export function ProductDetailPage() {
   const featured = product.featured_image || product.image_url
   const taxes = product.taxes || []
 
-  return (
-    <div className="space-y-6">
+  const header = (
+    <>
       <Link to="/products" className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-brand-700">
         <ArrowLeft className="h-4 w-4" />
         Back to products
@@ -103,6 +201,69 @@ export function ProductDetailPage() {
           </Button>
         </Link>
       </div>
+    </>
+  )
+
+  // A product with variants: the product groups them; prices, pack and stock are each variant's.
+  if (product.has_variants) {
+    const variants = product.variants || []
+    const totalOf = (key) => variants.reduce((sum, row) => sum + Number(row.total_qty || 0) * Number(row[key] || 0), 0)
+    const totalQty = variants.reduce((sum, row) => sum + Number(row.total_qty || 0), 0)
+    return (
+      <div className="space-y-6">
+        {header}
+        <StatCards
+          items={[
+            { label: "Variants", value: variants.length, hint: `${variants.filter((row) => row.is_active !== false).length} active` },
+            { label: "In stock", value: totalQty, hint: `${variants.filter((row) => row.stock_status === "low").length} low · ${variants.filter((row) => row.stock_status === "out").length} out` },
+            { label: "Stock value (selling)", value: money(totalOf("selling_price")), hint: <>At cost <Currency value={totalOf("cost_price")} /></> },
+            { label: "Category", value: category?.name || "—", hint: product.unit },
+          ]}
+        />
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Card title="Details">
+            <Row
+              label="Category"
+              value={category ? <Link to={`/categories/${category.category_number ?? category.id}`} className="font-medium underline-offset-2 hover:underline">{category.name}</Link> : "—"}
+            />
+            <Row label="Sold at" value={<LocationScopePills row={product} />} />
+            <Row label="Stock held at" value={stockHeldAt(product)} />
+            <Row label="Slug" value={product.slug} />
+            <Row label="SKU" value={product.sku} />
+            <Row label="Barcode" value={product.barcode} />
+            <Row label="Unit" value={product.unit} />
+            <Row label="Default low stock" value={product.low_stock_threshold} />
+            <Row label="Created" value={formatDate(product.created_at)} />
+            <Row label="Updated" value={formatDate(product.updated_at)} />
+          </Card>
+          <Card title="Taxes and discount" description="The product's taxes apply to every variant; a variant may add its own.">
+            <Row label="Product taxes" value={taxList(taxes)} />
+            <Row label="Product discount" value={rule(product.discount_type, product.discount_value, product.discount_name)} />
+            <div className="mt-2 border-t border-slate-100 pt-2">
+              <Row label="Category tax" value={rule(category?.tax_type, category?.tax_value, category?.tax_name)} />
+              <Row label="Category discount" value={rule(category?.discount_type, category?.discount_value, category?.discount_name)} />
+              <Row label="Sales tax" value={pricing.sales_tax_rate ? `${pricing.sales_tax_rate}%` : "Off"} />
+            </div>
+          </Card>
+        </div>
+        <div className="space-y-4">
+          <h2 className="text-base font-semibold text-slate-950">
+            Variants{scope.isAdmin && !scope.isAll ? <span className="ml-2 text-sm font-normal text-slate-500">stock at {scope.label}</span> : null}
+          </h2>
+          {variants.map((variant) => <VariantCard key={variant.id} variant={variant} />)}
+        </div>
+        {product.description ? (
+          <Card title="Description">
+            <p className="whitespace-pre-wrap text-sm leading-6 text-slate-700">{product.description}</p>
+          </Card>
+        ) : null}
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      {header}
 
       <StatCards
         items={[
@@ -123,6 +284,7 @@ export function ProductDetailPage() {
             <Row label="Variant of" value={<Link to={`/products/${product.parent_product_id}`} className="font-medium underline-offset-2 hover:underline">{product.variant_name ? `${product.variant_name} · open parent` : "Open parent"}</Link>} />
           ) : null}
           <Row label="Sold at" value={<LocationScopePills row={product} />} />
+          {product.parent_product_id ? null : <Row label="Stock held at" value={stockHeldAt(product)} />}
           {category?.location_scope === "selected" ? (
             <Row label="Category sold at" value={<LocationScopePills row={category} />} />
           ) : null}
@@ -158,38 +320,7 @@ export function ProductDetailPage() {
         </Card>
 
         <Card title={scope.isAll || !scope.isAdmin ? "Stock" : `Stock · ${scope.label}`} description={scope.isAdmin ? "Every location, or the one picked in the top bar." : "Your location only."}>
-          {stocks.length ? (
-            <div className="-mx-5 overflow-x-auto">
-              <table className="w-full min-w-[480px] text-left text-sm">
-                <thead className="border-y border-slate-200 text-xs uppercase tracking-[0.12em] text-slate-500">
-                  <tr>
-                    <th className="px-5 py-2.5 font-semibold">Location</th>
-                    <th className="px-3 py-2.5 text-right font-semibold">Qty</th>
-                    {product.is_pack_product ? <th className="px-3 py-2.5 text-right font-semibold">Packs</th> : null}
-                    <th className="px-3 py-2.5 text-right font-semibold">Sold</th>
-                    <th className="px-3 py-2.5 text-right font-semibold">Low at</th>
-                    <th className="px-3 py-2.5 font-semibold">Expiry</th>
-                    <th className="px-5 py-2.5 font-semibold">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {stocks.map((row) => (
-                    <tr key={row.id || row.location_id} className="border-b border-slate-100 last:border-0">
-                      <td className="px-5 py-2.5 font-medium text-slate-950">{row.location_name || `Location #${row.location_number}`}</td>
-                      <td className="px-3 py-2.5 text-right tabular-nums">{row.qty}</td>
-                      {product.is_pack_product ? <td className="px-3 py-2.5 text-right tabular-nums">{row.number_of_packs ?? "—"}</td> : null}
-                      <td className="px-3 py-2.5 text-right tabular-nums">{row.unit_sold}</td>
-                      <td className="px-3 py-2.5 text-right tabular-nums">{row.effective_threshold ?? "—"}</td>
-                      <td className="px-3 py-2.5">{row.expiry_date ? formatDate(row.expiry_date) : "—"}</td>
-                      <td className="px-5 py-2.5"><Pill tone={row.is_low ? "rose" : "emerald"}>{row.is_low ? "Low" : "OK"}</Pill></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <p className="text-sm text-slate-500">No stock recorded yet.</p>
-          )}
+          <StockTable stocks={stocks} isPack={product.is_pack_product} />
           <div className="mt-3 border-t border-slate-100 pt-2">
             <Row label="Total quantity" value={stock.total_qty} strong />
             <Row label="Units sold" value={stock.unit_sold} />
@@ -197,18 +328,6 @@ export function ProductDetailPage() {
             <Row label="Stock value at selling price" value={money(stock.selling_value)} />
           </div>
         </Card>
-
-        {product.has_variants ? (
-          <Card title="Variants" description="Each is sold on its own; open one for its stock.">
-            {(product.variants || []).map((row) => (
-              <Row
-                key={row.id}
-                label={<Link to={`/products/${row.id}`} className="font-medium text-slate-900 underline-offset-2 hover:underline">{row.name}</Link>}
-                value={<span className="text-xs">{row.sku} · {row.barcode} · <Currency value={row.selling_price} />{row.is_active === false ? " · off" : ""}</span>}
-              />
-            ))}
-          </Card>
-        ) : null}
 
         <Card title="Taxes" description="Set on the product. The category tax and the store's sales tax are added at checkout.">
           {taxes.length ? (
