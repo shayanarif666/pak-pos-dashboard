@@ -376,10 +376,16 @@ function normalizeOfferForm(next) {
 }
 
 function buildOfferBody(form, isAdmin) {
+  const target = buildTarget(form)
   return {
     name: form.name.trim(),
     type: form.type,
-    apply_to: form.apply_to,
+    // What it applies to goes with the offer (the API sets apply_to from it).
+    ...(target?.product_id
+      ? { products: [{ product_id: target.product_id, promo_price: target.promo_price, free_product_id: target.free_product_id }] }
+      : target?.category_id
+        ? { categories: [target.category_id] }
+        : {}),
     // Only a store admin picks locations; a manager's offer runs at their own location.
     ...(isAdmin
       ? {
