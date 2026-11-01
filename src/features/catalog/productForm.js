@@ -9,7 +9,21 @@ export const PRODUCT_UNITS = [
 export const emptyTax = () => ({ name: "GST", type: "percentage", value: "" })
 
 // A variant row: id = an existing variant's product id (edit); none = a new variant.
-export const emptyVariant = () => ({ id: null, name: "", sku: "", barcode: "", cost: "", price: "", stock: "" })
+export const emptyVariant = () => ({
+  id: null,
+  name: "",
+  sku: "",
+  barcode: "",
+  cost: "",
+  price: "",
+  stock: "",
+  is_pack_product: false,
+  pack_size: "",
+  pack_cost: "",
+  pack_price: "",
+  sell_loose: false,
+  taxes: [],
+})
 
 export const emptyProductForm = {
   title: "",
@@ -68,6 +82,17 @@ export function productToForm(product) {
       cost: text(row.cost_price),
       price: text(row.selling_price),
       stock: "",
+      is_pack_product: Boolean(row.is_pack_product),
+      pack_size: text(row.pack_size),
+      pack_cost: text(row.pack_cost_price),
+      pack_price: text(row.pack_selling_price),
+      sell_loose: Boolean(row.sell_loose),
+      // Only the variant's own taxes; the product's taxes reach every variant anyway.
+      taxes: (row.variant_taxes || []).map((tax) => ({
+        name: tax.name || "",
+        type: tax.type === "fixed" ? "fixed" : "percentage",
+        value: text(tax.value),
+      })),
     })),
     is_active: product.is_active !== false,
     is_pos_visible: product.is_pos_visible !== false,
@@ -87,12 +112,19 @@ export function productFormError(form) {
     for (const [index, row] of form.variants.entries()) {
       const label = `Variant ${index + 1}`
       if (!row.name.trim()) return `${label}: enter its name (e.g. Size: M).`
-      if (!row.barcode.trim()) return `${label}: enter its barcode.`
-      if (row.cost === "" || Number(row.cost) < 0) return `${label}: enter its cost.`
-      if (row.price === "" || Number(row.price) < 0) return `${label}: enter its price.`
+      if (!row.barcode.trim()) return `${label}: enter its barcode (or press Generate).`
+      if (row.is_pack_product) {
+        if (!(Number(row.pack_size) >= 2)) return `${label}: pack size must be 2 or more.`
+        if (!(Number(row.pack_cost) > 0)) return `${label}: enter its pack cost.`
+        if (!(Number(row.pack_price) > 0)) return `${label}: enter its pack price.`
+      } else {
+        if (row.cost === "" || Number(row.cost) < 0) return `${label}: enter its cost.`
+        if (row.price === "" || Number(row.price) < 0) return `${label}: enter its price.`
+      }
+      for (const [t, tax] of row.taxes.entries()) {
+        if (tax.value === "" || Number(tax.value) < 0) return `${label}, tax ${t + 1}: enter its value.`
+      }
     }
-    const barcodes = form.variants.map((row) => row.barcode.trim())
-    if (new Set(barcodes).size !== barcodes.length) return "Two variants have the same barcode."
   } else if (!form.barcode.trim()) {
     return "Barcode is required."
   } else if (form.is_pack_product) {
@@ -140,8 +172,14 @@ export function productPayload(form, { withScope = false } = {}) {
       name: row.name.trim(),
       ...(row.sku.trim() ? { sku: row.sku.trim() } : {}),
       barcode: row.barcode.trim(),
-      cost: Number(row.cost),
-      price: Number(row.price),
+      is_pack_product: Boolean(row.is_pack_product),
+      ...(row.is_pack_product
+        ? { pack_size: Number(row.pack_size), pack_cost: Number(row.pack_cost), pack_price: Number(row.pack_price), sell_loose: Boolean(row.sell_loose) }
+        : { cost: Number(row.cost), price: Number(row.price) }),
+      // Its own taxes, on top of the product's taxes.
+      taxes: row.taxes
+        .filter((tax) => tax.value !== "")
+        .map((tax) => ({ name: tax.name.trim() || null, type: tax.type, value: Number(tax.value) })),
       ...(!row.id && row.stock !== "" ? { stock: Number(row.stock) } : {}),
     }))
   } else if (form.is_pack_product) {

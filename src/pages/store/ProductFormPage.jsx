@@ -10,6 +10,7 @@ import {
 } from "../../features/catalog/catalogQuery.jsx"
 import { resolveDashboardLocation } from "../../features/catalog/dashboardLocation.js"
 import { LocationScopeField } from "../../features/scope/LocationScopeField.jsx"
+import { generateBarcode } from "../../features/catalog/barcode.js"
 import {
   PRODUCT_UNITS,
   emptyOpeningStock,
@@ -27,6 +28,18 @@ import { PageHeader } from "../../ui/PageHeader.jsx"
 import { Select } from "../../ui/Select.jsx"
 import { PageLoader } from "../../ui/Spinner.jsx"
 import { useToast } from "../../ui/Toast.jsx"
+
+/** Barcode input with a Generate button (a new 13-digit barcode). */
+function BarcodeField({ label, required, value, onChange }) {
+  return (
+    <div className="flex items-end gap-2">
+      <Input label={label} required={required} value={value} onChange={(e) => onChange(e.target.value)} placeholder="Scan, type or generate" className="min-w-0 flex-1" />
+      <Button variant="ghost" type="button" className="h-11 shrink-0" onClick={() => onChange(generateBarcode())}>
+        Generate
+      </Button>
+    </div>
+  )
+}
 
 function Section({ title, description, children, actions = null }) {
   return (
@@ -98,6 +111,13 @@ export function ProductFormPage() {
   const patchVariant = (index, key, value) =>
     setForm((current) => ({ ...current, variants: current.variants.map((row, i) => (i === index ? { ...row, [key]: value } : row)) }))
   const hasVariants = form.variants.length > 0
+  const patchVariantTax = (index, t, key, value) =>
+    setForm((current) => ({
+      ...current,
+      variants: current.variants.map((row, i) =>
+        i === index ? { ...row, taxes: row.taxes.map((tax, j) => (j === t ? { ...tax, [key]: value } : tax)) } : row
+      ),
+    }))
   const patchTax = (index, key, value) =>
     setForm((current) => ({ ...current, taxes: current.taxes.map((tax, i) => (i === index ? { ...tax, [key]: value } : tax)) }))
   const patchStock = (locationId, key, value) =>
@@ -140,6 +160,10 @@ export function ProductFormPage() {
         stockPayloads: hasVariants ? [] : stockPayloads(),
       })
       toast(isEdit ? "Product updated" : "Product created")
+      // A barcode already in use was swapped for a new one by the API.
+      if (json.data?.barcode_replaced) {
+        toast(`Barcode ${json.data.barcode_replaced.requested} was already in use — saved as ${json.data.barcode_replaced.used}`, "error")
+      }
       navigate(`/products/${json.productId}`)
     } catch (err) {
       setError(err.message)
@@ -168,12 +192,11 @@ export function ProductFormPage() {
         <Section title="Product" description="What it is and where it belongs.">
           <div className="grid gap-4 md:grid-cols-2">
             <Input label="Title" required value={form.title} onChange={(e) => patch("title", e.target.value)} placeholder="1 Litre Pepsi" />
-            <Input
+            <BarcodeField
               label={hasVariants ? "Barcode (optional with variants)" : "Barcode"}
               required={!hasVariants}
               value={form.barcode}
-              onChange={(e) => patch("barcode", e.target.value)}
-              placeholder="Scan or type"
+              onChange={(value) => patch("barcode", value)}
             />
             <Select label="Category" required value={form.category_id} onChange={(e) => patch("category_id", e.target.value)}>
               <option value="">Select category</option>
@@ -208,30 +231,89 @@ export function ProductFormPage() {
           }
         >
           {hasVariants ? (
-            <div className="space-y-3">
+            <div className="space-y-4">
               {form.variants.map((row, index) => (
-                <div key={row.id || `new-${index}`} className="grid items-end gap-3 rounded-2xl border border-slate-200 bg-slate-50/60 p-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_minmax(0,0.7fr)_auto]">
-                  <Input label="Name" required value={row.name} onChange={(e) => patchVariant(index, "name", e.target.value)} placeholder="Size: M" />
-                  <Input label="SKU" value={row.sku} onChange={(e) => patchVariant(index, "sku", e.target.value)} placeholder="Auto" />
-                  <Input label="Barcode" required value={row.barcode} onChange={(e) => patchVariant(index, "barcode", e.target.value)} />
-                  <Input label="Cost" type="number" min="0" step="0.01" required value={row.cost} onChange={(e) => patchVariant(index, "cost", e.target.value)} />
-                  <Input label="Price" type="number" min="0" step="0.01" required value={row.price} onChange={(e) => patchVariant(index, "price", e.target.value)} />
-                  {row.id ? (
-                    <Link to={`/products/${row.id}`} className="pb-2.5 text-sm font-medium text-brand-700 hover:underline">Stock →</Link>
-                  ) : (
-                    <Input label="Stock" type="number" min="0" step="1" value={row.stock} onChange={(e) => patchVariant(index, "stock", e.target.value)} />
-                  )}
-                  {row.id ? (
-                    <span className="pb-2.5 text-xs text-slate-400">Saved</span>
-                  ) : (
-                    <Button variant="icon" type="button" aria-label="Remove variant" onClick={() => patch("variants", form.variants.filter((_, i) => i !== index))}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  )}
+                <div key={row.id || `new-${index}`} className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm font-semibold text-slate-900">{row.name || `Variant ${index + 1}`}{row.id ? <span className="ml-2 text-xs font-normal text-slate-400">saved</span> : null}</p>
+                    <div className="flex items-center gap-2">
+                      {row.id ? <Link to={`/products/${row.id}`} className="text-sm font-medium text-brand-700 hover:underline">Stock & detail →</Link> : null}
+                      {row.id ? null : (
+                        <Button variant="icon" type="button" aria-label="Remove variant" onClick={() => patch("variants", form.variants.filter((_, i) => i !== index))}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    <Input label="Name" required value={row.name} onChange={(e) => patchVariant(index, "name", e.target.value)} placeholder="1.5L" />
+                    <Input label="SKU" value={row.sku} onChange={(e) => patchVariant(index, "sku", e.target.value)} placeholder="Auto" />
+                    <div className="md:col-span-2">
+                      <BarcodeField label="Barcode" required value={row.barcode} onChange={(value) => patchVariant(index, "barcode", value)} />
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <div className="inline-flex rounded-xl border border-slate-200 bg-white p-1">
+                      {[
+                        { value: false, label: "Loose" },
+                        { value: true, label: "Pack" },
+                      ].map((option) => (
+                        <button
+                          key={option.label}
+                          type="button"
+                          onClick={() => patchVariant(index, "is_pack_product", option.value)}
+                          className={["rounded-lg px-3 py-1.5 text-sm font-semibold transition", row.is_pack_product === option.value ? "bg-brand-700 text-white" : "text-slate-600 hover:text-brand-700"].join(" ")}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                    {row.is_pack_product ? (
+                      <Checkbox label="Also sold as single units" checked={row.sell_loose} onChange={(e) => patchVariant(index, "sell_loose", e.target.checked)} />
+                    ) : null}
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    {row.is_pack_product ? (
+                      <>
+                        <Input label="Pack size" type="number" min="2" step="1" required value={row.pack_size} onChange={(e) => patchVariant(index, "pack_size", e.target.value)} />
+                        <Input label="Pack cost" type="number" min="0" step="0.01" required value={row.pack_cost} onChange={(e) => patchVariant(index, "pack_cost", e.target.value)} />
+                        <Input label="Pack price" type="number" min="0" step="0.01" required value={row.pack_price} onChange={(e) => patchVariant(index, "pack_price", e.target.value)} />
+                      </>
+                    ) : (
+                      <>
+                        <Input label="Cost (one unit)" type="number" min="0" step="0.01" required value={row.cost} onChange={(e) => patchVariant(index, "cost", e.target.value)} />
+                        <Input label="Price (one unit)" type="number" min="0" step="0.01" required value={row.price} onChange={(e) => patchVariant(index, "price", e.target.value)} />
+                      </>
+                    )}
+                    {row.id ? null : (
+                      <Input label="Opening stock" type="number" min="0" step="1" value={row.stock} onChange={(e) => patchVariant(index, "stock", e.target.value)} />
+                    )}
+                  </div>
+                  <div>
+                    <div className="mb-2 flex items-center justify-between gap-3">
+                      <p className="text-xs font-medium text-slate-600">Taxes on this variant only (the product's taxes apply too)</p>
+                      <button type="button" className="text-xs font-semibold text-brand-700 hover:underline" onClick={() => patchVariant(index, "taxes", [...row.taxes, emptyTax()])}>
+                        + Add tax
+                      </button>
+                    </div>
+                    {row.taxes.map((tax, t) => (
+                      <div key={t} className="mb-2 grid items-end gap-2 sm:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
+                        <Input label="Name" value={tax.name} onChange={(e) => patchVariantTax(index, t, "name", e.target.value)} />
+                        <Select label="Type" value={tax.type} onChange={(e) => patchVariantTax(index, t, "type", e.target.value)}>
+                          <option value="percentage">Percentage (%)</option>
+                          <option value="fixed">Fixed (Rs per unit)</option>
+                        </Select>
+                        <Input label="Value" type="number" min="0" step="0.01" required value={tax.value} onChange={(e) => patchVariantTax(index, t, "value", e.target.value)} />
+                        <Button variant="icon" type="button" aria-label="Remove tax" onClick={() => patchVariant(index, "taxes", row.taxes.filter((_, j) => j !== t))}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               ))}
               <p className="text-xs text-slate-500">
-                A new variant's stock goes to {isAdmin ? "the store's default location" : ownLocation?.name || "your location"}; change it later on the variant's page.
+                A new variant's opening stock goes to {isAdmin ? "the store's default location" : ownLocation?.name || "your location"}; change stock later on the variant's page. A barcode already used by another product is replaced with a new one when you save.
               </p>
             </div>
           ) : (
