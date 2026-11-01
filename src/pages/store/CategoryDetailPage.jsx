@@ -1,6 +1,8 @@
+import { useState } from "react"
 import { Link, useNavigate, useParams } from "react-router-dom"
-import { ArrowLeft, Eye, Plus } from "lucide-react"
-import { useCategoryQuery } from "../../features/catalog/catalogQuery.jsx"
+import { ArrowLeft, Eye, Pencil, Plus } from "lucide-react"
+import { useCategoriesQuery, useCategoryQuery } from "../../features/catalog/catalogQuery.jsx"
+import { CategoryFormModal } from "../../features/catalog/CategoryFormModal.jsx"
 import { useDashboardLocation } from "../../features/scope/DashboardLocation.jsx"
 import { LocationScopePills } from "../../features/scope/LocationScopeField.jsx"
 import { Button } from "../../ui/Button.jsx"
@@ -35,6 +37,8 @@ export function CategoryDetailPage() {
   const scope = useDashboardLocation()
   const query = useCategoryQuery(id, { locationId: scope.isAdmin ? scope.locationId : "" })
   const category = query.data
+  const categoriesQuery = useCategoriesQuery()
+  const [editing, setEditing] = useState(false)
   const summary = category?.summary || {}
   const products = category?.products || []
 
@@ -110,9 +114,14 @@ export function CategoryDetailPage() {
         title={category.name}
         description={category.description || `Every product in ${category.name}, with stock for ${scope.isAll || !scope.isAdmin ? scope.label.toLowerCase() : scope.label}.`}
         actions={
-          <Link to={`/products?category=${category.category_number}`}>
-            <Button variant="ghost">Open in Products</Button>
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link to={`/products?category=${category.category_number}`}>
+              <Button variant="ghost">Open in Products</Button>
+            </Link>
+            <Button onClick={() => setEditing(true)}>
+              <Pencil className="h-4 w-4" /> Edit
+            </Button>
+          </div>
         }
       />
 
@@ -133,6 +142,7 @@ export function CategoryDetailPage() {
           <Detail label="Status"><Pill tone={category.is_active ? "emerald" : "rose"}>{category.is_active ? "Active" : "Off"}</Pill></Detail>
           <Detail label="Slug">{category.slug}</Detail>
           <Detail label="Category discount">{rule(category.discount_type, category.discount_value, category.discount_name)}</Detail>
+          <Detail label="Parent">{(categoriesQuery.data || []).find((row) => row.id === category.parent_category_id)?.name || "—"}</Detail>
           <Detail label="Category tax">{rule(category.tax_type, category.tax_value, category.tax_name)}</Detail>
           <Detail label="Shown on">
             <span className="inline-flex gap-1">
@@ -166,6 +176,12 @@ export function CategoryDetailPage() {
           emptyText="No products in this category yet."
         />
       </div>
+      <CategoryFormModal
+        open={editing}
+        category={category}
+        categories={categoriesQuery.data || []}
+        onClose={() => setEditing(false)}
+      />
     </section>
   )
 }

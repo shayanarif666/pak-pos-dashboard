@@ -95,6 +95,17 @@ export function listLowProductStocks(params = {}) {
   return apiGet(withQuery("/api/v1/product-stocks/low", params), auth)
 }
 
+/** The product's one image: upload (replaces any earlier one) or remove. */
+export function uploadProductImage(productId, file) {
+  const form = new FormData()
+  form.append("image", file)
+  return apiPost(`/api/v1/products/${productId}/image`, form, auth)
+}
+
+export function removeProductImage(productId) {
+  return apiDelete(`/api/v1/products/${productId}/image`, auth)
+}
+
 export function putProductStock(productId, body) {
   return apiPut(`/api/v1/product-stocks/${productId}`, body, auth)
 }

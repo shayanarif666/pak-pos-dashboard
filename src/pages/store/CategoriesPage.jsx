@@ -1,70 +1,20 @@
 import { useNavigate } from "react-router-dom"
 import { useState } from "react"
-import { Pencil, Plus, Trash2, X } from "lucide-react"
+import { Pencil, Plus, Trash2 } from "lucide-react"
 import { useAuth } from "../../auth/AuthContext.jsx"
 import {
   useCategoriesQuery,
   useDeleteCategory,
   useLocationsQuery,
   useProductsQuery,
-  useSaveCategory,
 } from "../../features/catalog/catalogQuery.jsx"
-import { LocationScopeField, LocationScopePills, scopePayload } from "../../features/scope/LocationScopeField.jsx"
+import { CategoryFormModal } from "../../features/catalog/CategoryFormModal.jsx"
+import { LocationScopePills } from "../../features/scope/LocationScopeField.jsx"
 import { Button } from "../../ui/Button.jsx"
-import { Modal } from "../../ui/Modal.jsx"
-import { Checkbox } from "../../ui/Checkbox.jsx"
-import { Input, Textarea } from "../../ui/Input.jsx"
-
-import { Select } from "../../ui/Select.jsx"
 import { DataTable } from "../../ui/DataTable.jsx"
 import { PageHeader, StatCards } from "../../ui/PageHeader.jsx"
 import { useToast } from "../../ui/Toast.jsx"
 import { Pill } from "../../ui/Pill.jsx"
-
-const empty = {
-  name: "",
-  description: "",
-  parent_category_id: "",
-  tax_type: "",
-  tax_value: "",
-  discount_type: "",
-  discount_value: "",
-  sort_order: "0",
-  is_active: true,
-  is_pos_visible: true,
-  is_web_visible: true,
-  location_scope: "all",
-  location_ids: [],
-}
-
-function payload(form, isAdmin) {
-  const body = {
-    name: form.name.trim(),
-    description: form.description.trim() || null,
-    parent_category_id: form.parent_category_id || null,
-    sort_order: Number(form.sort_order || 0),
-    is_active: Boolean(form.is_active),
-    is_pos_visible: Boolean(form.is_pos_visible),
-    is_web_visible: Boolean(form.is_web_visible),
-    // Only a store admin picks locations; a manager's category is for their own location.
-    ...(isAdmin ? scopePayload(form) : {}),
-  }
-  if (form.tax_type) {
-    body.tax_type = form.tax_type
-    body.tax_value = Number(form.tax_value)
-  } else {
-    body.tax_type = null
-    body.tax_value = null
-  }
-  if (form.discount_type) {
-    body.discount_type = form.discount_type
-    body.discount_value = Number(form.discount_value)
-  } else {
-    body.discount_type = null
-    body.discount_value = null
-  }
-  return body
-}
 
 export function CategoriesPage() {
   const navigate = useNavigate()
@@ -74,14 +24,10 @@ export function CategoriesPage() {
   const locationsQuery = useLocationsQuery({ enabled: isAdmin })
   const locations = (locationsQuery.data || []).filter((row) => row.is_active !== false)
   const categoriesQuery = useCategoriesQuery()
-  const saveCategory = useSaveCategory()
   const deleteCategoryMutation = useDeleteCategory()
   const rows = categoriesQuery.data || []
-  const [form, setForm] = useState(empty)
-  const [imageFile, setImageFile] = useState(null)
-  const [editingId, setEditingId] = useState(null)
-  const [showForm, setShowForm] = useState(false)
-  const [error, setError] = useState("")
+  // null = closed; { category: null } = new; { category: row } = edit.
+  const [editing, setEditing] = useState(null)
   const loading = categoriesQuery.isPending
   const productsQuery = useProductsQuery({})
   const productCount = new Map()
@@ -90,57 +36,8 @@ export function CategoriesPage() {
   }
   const listError = categoriesQuery.error?.message || ""
 
-  function openCreate() {
-    setForm(empty)
-    setImageFile(null)
-    setEditingId(null)
-    setError("")
-    setShowForm(true)
-  }
-
-  function openEdit(row) {
-    setForm({
-      name: row.name || "",
-      description: row.description || "",
-      parent_category_id: row.parent_category_id || "",
-      tax_type: row.tax_type || "",
-      tax_value: row.tax_value ?? "",
-      discount_type: row.discount_type || "",
-      discount_value: row.discount_value ?? "",
-      sort_order: String(row.sort_order ?? 0),
-      is_active: row.is_active !== false,
-      is_pos_visible: row.is_pos_visible !== false,
-      is_web_visible: row.is_web_visible !== false,
-      location_scope: row.location_scope || "all",
-      location_ids: row.location_ids || [],
-    })
-    setImageFile(null)
-    setEditingId(row.id)
-    setError("")
-    setShowForm(true)
-  }
-
-  async function save(event) {
-    event.preventDefault()
-    setError("")
-    if (isAdmin && form.location_scope === "selected" && !form.location_ids.length) {
-      setError("Pick at least one location, or choose All locations.")
-      return
-    }
-    try {
-      const body = payload(form, isAdmin)
-      if (editingId) {
-        await saveCategory.mutateAsync({ id: editingId, body, imageFile })
-        toast("Category updated")
-      } else {
-        await saveCategory.mutateAsync({ body, imageFile })
-        toast("Category created")
-      }
-      setShowForm(false)
-    } catch (err) {
-      setError(err.message)
-    }
-  }
+  const openCreate = () => setEditing({ category: null })
+  const openEdit = (row) => setEditing({ category: row })
 
   async function remove(row) {
     const ok = await confirmToast({
@@ -157,7 +54,6 @@ export function CategoriesPage() {
     }
   }
 
-  const parents = rows.filter((row) => row.id !== editingId)
 
   const parentName = (id) => rows.find((row) => row.id === id)?.name || "—"
   const percentOrRs = (type, value) =>
@@ -224,7 +120,6 @@ export function CategoriesPage() {
         description="Sold at every location or only the ones you pick. A category tax and discount apply to every product in it."
         actions={<Button onClick={openCreate}><Plus className="h-4 w-4" /> Add category</Button>}
       />
-      {error && !showForm ? <p className="text-sm text-rose-700">{error}</p> : null}
       <StatCards
         items={[
           { label: "Categories", value: rows.length },
@@ -257,127 +152,7 @@ export function CategoriesPage() {
         emptyText="No categories yet. Create one before adding products."
       />
 
-      <Modal open={Boolean(showForm)} onClose={() => setShowForm(false)}>
-          <form
-            onSubmit={save}
-            className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-3xl border border-slate-300 bg-white p-6 shadow-2xl backdrop-blur-2xl"
-          >
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-slate-900">
-                {editingId ? "Edit category" : "New category"}
-              </h2>
-              <button type="button" className="text-slate-600 hover:text-brand-700" onClick={() => setShowForm(false)}>
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            {error ? <p className="mb-3 text-sm text-rose-700">{error}</p> : null}
-            <div className="grid gap-3">
-              <Input
-                label="Name"
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                required
-              />
-              <Select
-                label="Parent"
-                value={form.parent_category_id}
-                onChange={(e) => setForm({ ...form, parent_category_id: e.target.value })}
-              >
-                <option value="">None</option>
-                {parents.map((row) => (
-                  <option key={row.id} value={row.id}>
-                    {row.name}
-                  </option>
-                ))}
-              </Select>
-              <Textarea
-                label="Description"
-                value={form.description}
-                onChange={(e) => setForm({ ...form, description: e.target.value })}
-              />
-              <Input
-                label="Image"
-                type="file"
-                accept="image/*"
-                onChange={(e) => setImageFile(e.target.files?.[0] || null)}
-              />
-              <div className="grid grid-cols-2 gap-3">
-                <Select
-                  label="Tax type"
-                  value={form.tax_type}
-                  onChange={(e) => setForm({ ...form, tax_type: e.target.value })}
-                >
-                  <option value="">None</option>
-                  <option value="percentage">Percentage</option>
-                  <option value="fixed">Fixed</option>
-                </Select>
-                <Input
-                  label="Tax value"
-                  type="number"
-                  min="0"
-                  value={form.tax_value}
-                  onChange={(e) => setForm({ ...form, tax_value: e.target.value })}
-                />
-                <Select
-                  label="Discount type"
-                  value={form.discount_type}
-                  onChange={(e) => setForm({ ...form, discount_type: e.target.value })}
-                >
-                  <option value="">None</option>
-                  <option value="percentage">Percentage</option>
-                  <option value="fixed">Fixed</option>
-                </Select>
-                <Input
-                  label="Discount value"
-                  type="number"
-                  min="0"
-                  value={form.discount_value}
-                  onChange={(e) => setForm({ ...form, discount_value: e.target.value })}
-                />
-              </div>
-              <Input
-                label="Sort order"
-                type="number"
-                value={form.sort_order}
-                onChange={(e) => setForm({ ...form, sort_order: e.target.value })}
-              />
-              {isAdmin ? (
-                <LocationScopeField
-                  title="Sold at"
-                  value={form}
-                  locations={locations}
-                  allHint="Every location, including new ones"
-                  onChange={(next) => setForm({ ...form, location_scope: next.location_scope, location_ids: next.location_ids })}
-                />
-              ) : editingId ? null : (
-                <p className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                  This category is added for your location.
-                </p>
-              )}
-              <Checkbox
-                label="Active"
-                checked={form.is_active}
-                onChange={(e) => setForm({ ...form, is_active: e.target.checked })}
-              />
-              <Checkbox
-                label="Visible on POS"
-                checked={form.is_pos_visible}
-                onChange={(e) => setForm({ ...form, is_pos_visible: e.target.checked })}
-              />
-              <Checkbox
-                label="Visible on web"
-                checked={form.is_web_visible}
-                onChange={(e) => setForm({ ...form, is_web_visible: e.target.checked })}
-              />
-            </div>
-            <div className="mt-6 flex justify-end gap-3">
-              <Button variant="ghost" type="button" onClick={() => setShowForm(false)}>
-                Cancel
-              </Button>
-              <Button type="submit">{editingId ? "Save" : "Create"}</Button>
-            </div>
-          </form>
-      </Modal>
+      <CategoryFormModal open={Boolean(editing)} category={editing?.category || null} categories={rows} onClose={() => setEditing(null)} />
     </section>
   )
 }

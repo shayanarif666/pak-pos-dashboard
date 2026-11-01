@@ -13,7 +13,8 @@ import {
   listProducts,
   listWeightProducts,
   patchProductWeight,
-  putBulkTiers,
+  removeProductImage,
+  uploadProductImage,
   putProductStock,
   updateCategory,
   updateProduct,
@@ -114,33 +115,19 @@ export function useDisableProduct() {
   })
 }
 
+/**
+ * Saves a product as JSON, then its one image through the image API (imageFile = new image,
+ * removeImage = drop the current one), then the stock rows.
+ */
 export function useSaveProduct() {
   const invalidateCatalog = useInvalidateCatalog()
   return useMutation({
-    mutationFn: async ({
-      id,
-      body,
-      featuredFile,
-      imageFiles,
-      existingImages,
-      tiers,
-      stockPayload,
-      stockPayloads,
-    }) => {
-      const media = { featuredFile, imageFiles, existingImages }
-      const json = id
-        ? await updateProduct(id, body, media)
-        : await createProduct(body, media)
+    mutationFn: async ({ id, body, imageFile, removeImage, stockPayloads = [] }) => {
+      const json = id ? await updateProduct(id, body) : await createProduct(body)
       const productId = json.data?.id || id
-      await putBulkTiers(productId, tiers)
-      const rows = stockPayloads?.length
-        ? stockPayloads
-        : stockPayload
-          ? [stockPayload]
-          : []
-      for (const payload of rows) {
-        await putProductStock(productId, payload)
-      }
+      if (imageFile) await uploadProductImage(productId, imageFile)
+      else if (removeImage) await removeProductImage(productId)
+      for (const payload of stockPayloads) await putProductStock(productId, payload)
       return { ...json, productId }
     },
     onSuccess: invalidateCatalog,

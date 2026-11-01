@@ -1,6 +1,6 @@
 import { Link, useParams } from "react-router-dom"
 import { ArrowLeft, Pencil } from "lucide-react"
-import { useBulkTiersQuery, useProductQuery } from "../../features/catalog/catalogQuery.jsx"
+import { useProductQuery } from "../../features/catalog/catalogQuery.jsx"
 import { useDashboardLocation } from "../../features/scope/DashboardLocation.jsx"
 import { LocationScopePills } from "../../features/scope/LocationScopeField.jsx"
 import { Currency } from "../../ui/Currency.jsx"
@@ -50,10 +50,8 @@ export function ProductDetailPage() {
   // Store admin: the location picked in the top bar (none = every location). A manager's stock
   // is limited to their own location by the API.
   const productQuery = useProductQuery(id, scope.isAdmin ? { locationId: scope.locationId || undefined } : {})
-  const tiersQuery = useBulkTiersQuery(id)
   const product = productQuery.data
-  const tiers = tiersQuery.data || []
-  const error = productQuery.error?.message || tiersQuery.error?.message || ""
+  const error = productQuery.error?.message || ""
 
   if (error) return <p className="text-sm text-rose-700">{error}</p>
   if (productQuery.isPending || !product) return <PageLoader label="Loading product…" />
@@ -62,9 +60,9 @@ export function ProductDetailPage() {
   const stock = product.summary?.stock || {}
   const stocks = product.stocks || []
   const category = product.category
-  const gallery = (product.images || []).map((item) => item?.url).filter(Boolean)
+  // One image per product.
   const featured = product.featured_image || product.image_url
-  const images = featured && !gallery.includes(featured) ? [featured, ...gallery] : gallery
+  const taxes = product.taxes || []
 
   return (
     <div className="space-y-6">
@@ -76,9 +74,11 @@ export function ProductDetailPage() {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex min-w-0 items-start gap-4">
           {featured ? (
-            <img src={featured} alt="" className="h-20 w-20 rounded-2xl border border-slate-200 object-cover" />
+            <a href={featured} target="_blank" rel="noreferrer">
+              <img src={featured} alt="" className="h-28 w-28 rounded-2xl border border-slate-200 object-cover" />
+            </a>
           ) : (
-            <div className="flex h-20 w-20 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-xs text-slate-500">
+            <div className="flex h-28 w-28 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 text-xs text-slate-500">
               No image
             </div>
           )}
@@ -135,7 +135,9 @@ export function ProductDetailPage() {
 
         <Card title="Price of one unit" description="As a sale charges it: the product discount, then the category discount on the rest, then the taxes on that.">
           <Row label="Selling price" value={money(pricing.selling_price)} />
-          <Row label={<>Product discount <span className="text-xs">({rule(product.has_product_discount ? product.discount_type : null, product.discount_value, product.discount_name)})</span></>} value={<>−{money(pricing.product_discount_amount)}</>} />
+          {Number(pricing.product_discount_amount) > 0 ? (
+            <Row label={<>Product discount <span className="text-xs">({rule(product.discount_type, product.discount_value, product.discount_name)})</span></>} value={<>−{money(pricing.product_discount_amount)}</>} />
+          ) : null}
           <Row label={<>Category discount <span className="text-xs">({rule(category?.discount_type, category?.discount_value, category?.discount_name)})</span></>} value={<>−{money(pricing.category_discount_amount)}</>} />
           <Row label="Price after discounts" value={money(pricing.price_after_discount)} strong />
           {(pricing.product_taxes || []).map((tax) => (
@@ -149,7 +151,6 @@ export function ProductDetailPage() {
             <Row label="Cost price" value={money(pricing.cost_price)} />
             <Row label="Profit / unit" value={money(pricing.profit_per_unit)} />
             <Row label="Margin" value={`${pricing.margin_percent ?? 0}%`} />
-            <Row label="Bulk discount" value={yesNo(product.has_bulk_discount)} />
           </div>
         </Card>
 
@@ -194,6 +195,20 @@ export function ProductDetailPage() {
           </div>
         </Card>
 
+        <Card title="Taxes" description="Set on the product. The category tax and the store's sales tax are added at checkout.">
+          {taxes.length ? (
+            taxes.map((tax, index) => (
+              <Row key={`${tax.name}-${index}`} label={tax.name || `Tax ${index + 1}`} value={tax.type === "percentage" ? `${Number(tax.value)}%` : <><Currency value={tax.value} /> / unit</>} />
+            ))
+          ) : (
+            <p className="text-sm text-slate-500">No product tax.</p>
+          )}
+          <div className="mt-2 border-t border-slate-100 pt-2">
+            <Row label="Category tax" value={rule(category?.tax_type, category?.tax_value, category?.tax_name)} />
+            <Row label="Sales tax" value={pricing.sales_tax_rate ? `${pricing.sales_tax_rate}%` : "Off"} />
+          </div>
+        </Card>
+
         <Card title="Pack">
           <Row label="Pack product" value={yesNo(product.is_pack_product)} />
           {product.is_pack_product ? (
@@ -215,34 +230,12 @@ export function ProductDetailPage() {
         </Card>
       </div>
 
-      {images.length ? (
-        <Card title="Images">
-          <div className="flex flex-wrap gap-3">
-            {images.map((url) => (
-              <div key={url} className="relative">
-                <img src={url} alt="" className="h-20 w-20 rounded-2xl border border-slate-200 object-cover" />
-                {url === featured ? (
-                  <span className="absolute left-1 top-1 rounded bg-brand-700 px-1.5 text-xs font-semibold text-white">Featured</span>
-                ) : null}
-              </div>
-            ))}
-          </div>
-        </Card>
-      ) : null}
-
       {product.description ? (
         <Card title="Description">
           <p className="whitespace-pre-wrap text-sm leading-6 text-slate-700">{product.description}</p>
         </Card>
       ) : null}
 
-      {tiers.length ? (
-        <Card title="Bulk tiers">
-          {tiers.map((tier) => (
-            <Row key={`${tier.min_qty}-${tier.discount_type}`} label={`From ${tier.min_qty} units`} value={rule(tier.discount_type, tier.discount_value)} />
-          ))}
-        </Card>
-      ) : null}
     </div>
   )
 }

@@ -1,110 +1,131 @@
 import { formatCurrency } from "../../ui/Currency.jsx"
 
-export const PRODUCT_UNITS = ["piece", "kg", "gram", "liter", "packet", "box"]
+// The units the API accepts (PRODUCT_UNIT on the backend).
+export const PRODUCT_UNITS = [
+  "piece", "kg", "gram", "liter", "ml", "packet", "box", "dozen", "pair",
+  "meter", "yard", "roll", "set", "carton", "bag", "bottle", "can",
+]
+
+export const emptyTax = () => ({ name: "GST", type: "percentage", value: "" })
 
 export const emptyProductForm = {
   title: "",
-  category_id: "",
-  description: "",
   barcode: "",
+  category_id: "",
   unit: "piece",
-  cost_price: "",
-  selling_price: "",
-  has_product_discount: false,
-  discount_type: "percentage",
-  discount_value: "",
-  tax_type: "",
-  tax_value: "",
+  description: "",
   is_pack_product: false,
+  cost: "",
+  price: "",
   pack_size: "",
+  pack_cost: "",
+  pack_price: "",
   sell_loose: false,
   is_weight_based: false,
-  has_bulk_discount: false,
-  expiry_date: "",
   low_stock_threshold: "10",
-  is_published: false,
+  taxes: [],
+  is_active: true,
   is_pos_visible: true,
   is_web_visible: true,
-  is_active: true,
+  is_published: false,
   location_scope: "all",
   location_ids: [],
 }
 
+const text = (value) => (value == null ? "" : String(value))
+
+/** A product from the API as form values (edit). */
 export function productToForm(product) {
   return {
     title: product.title || "",
-    category_id: product.category_id || "",
-    description: product.description || "",
     barcode: product.barcode || "",
+    category_id: product.category_id || "",
     unit: product.unit || "piece",
-    cost_price: product.cost_price ?? "",
-    selling_price: product.selling_price ?? "",
-    has_product_discount: Boolean(product.has_product_discount),
-    discount_type: product.discount_type || "percentage",
-    discount_value: product.discount_value ?? "",
-    tax_type: product.tax_type || "",
-    tax_value: product.tax_value ?? "",
+    description: product.description || "",
     is_pack_product: Boolean(product.is_pack_product),
-    pack_size: product.pack_size ?? "",
+    cost: text(product.cost_price),
+    price: text(product.selling_price),
+    pack_size: text(product.pack_size),
+    pack_cost: text(product.pack_cost_price),
+    pack_price: text(product.pack_selling_price),
     sell_loose: Boolean(product.sell_loose),
     is_weight_based: Boolean(product.is_weight_based),
-    has_bulk_discount: Boolean(product.has_bulk_discount),
-    expiry_date: product.expiry_date ? String(product.expiry_date).slice(0, 10) : "",
-    low_stock_threshold: product.low_stock_threshold ?? "10",
-    is_published: Boolean(product.is_published),
+    low_stock_threshold: text(product.low_stock_threshold ?? 10),
+    taxes: (product.taxes || []).map((tax) => ({
+      name: tax.name || "",
+      type: tax.type === "fixed" ? "fixed" : "percentage",
+      value: text(tax.value),
+    })),
+    is_active: product.is_active !== false,
     is_pos_visible: product.is_pos_visible !== false,
     is_web_visible: product.is_web_visible !== false,
-    is_active: product.is_active !== false,
+    is_published: Boolean(product.is_published),
     location_scope: product.location_scope || "all",
     location_ids: product.location_ids || [],
   }
 }
 
-export function productPayload(form) {
+/** Checks the form; returns an error message or "". */
+export function productFormError(form) {
+  if (!form.title.trim()) return "Title is required."
+  if (!form.barcode.trim()) return "Barcode is required."
+  if (!form.category_id) return "Pick a category."
+  if (form.is_pack_product) {
+    if (!(Number(form.pack_size) >= 2)) return "Pack size must be 2 or more."
+    if (!(Number(form.pack_cost) > 0)) return "Pack cost is required."
+    if (!(Number(form.pack_price) > 0)) return "Pack price is required."
+  } else {
+    if (form.cost === "" || Number(form.cost) < 0) return "Cost is required."
+    if (form.price === "" || Number(form.price) < 0) return "Price is required."
+  }
+  for (const [index, tax] of form.taxes.entries()) {
+    if (tax.value === "" || Number(tax.value) < 0) return `Tax ${index + 1}: enter its value.`
+    if (tax.type === "percentage" && Number(tax.value) > 100) return `Tax ${index + 1}: a percentage cannot be over 100.`
+  }
+  return ""
+}
+
+/** The body for POST / PATCH /products (same names as the API docs: cost, price, pack_cost…). */
+export function productPayload(form, { withScope = false } = {}) {
   const body = {
     title: form.title.trim(),
+    barcode: form.barcode.trim(),
     category_id: form.category_id,
-    description: form.description.trim() || null,
-    barcode: form.barcode.trim() || null,
     unit: form.unit,
-    cost_price: Number(form.cost_price),
-    selling_price: Number(form.selling_price),
-    has_product_discount: Boolean(form.has_product_discount),
+    description: form.description.trim() || null,
     is_pack_product: Boolean(form.is_pack_product),
     sell_loose: Boolean(form.sell_loose),
     is_weight_based: Boolean(form.is_weight_based),
-    has_bulk_discount: Boolean(form.has_bulk_discount),
-    expiry_date: form.expiry_date || null,
     low_stock_threshold: form.low_stock_threshold === "" ? 10 : Number(form.low_stock_threshold),
-    is_published: Boolean(form.is_published),
+    taxes: form.taxes
+      .filter((tax) => tax.value !== "")
+      .map((tax) => ({ name: tax.name.trim() || null, type: tax.type, value: Number(tax.value) })),
+    is_active: Boolean(form.is_active),
     is_pos_visible: Boolean(form.is_pos_visible),
     is_web_visible: Boolean(form.is_web_visible),
-    is_active: Boolean(form.is_active),
+    is_published: Boolean(form.is_published),
   }
-
-  if (form.has_product_discount) {
-    body.discount_type = form.discount_type || "percentage"
-    body.discount_value = Number(form.discount_value)
-  } else {
-    body.discount_type = null
-    body.discount_value = null
-  }
-
-  if (form.tax_type) {
-    body.tax_type = form.tax_type
-    body.tax_value = Number(form.tax_value)
-  } else {
-    body.tax_type = null
-    body.tax_value = null
-  }
-
   if (form.is_pack_product) {
     body.pack_size = Number(form.pack_size)
+    body.pack_cost = Number(form.pack_cost)
+    body.pack_price = Number(form.pack_price)
   } else {
-    body.pack_size = null
+    body.cost = Number(form.cost)
+    body.price = Number(form.price)
   }
-
+  if (withScope) {
+    body.location_scope = form.location_scope
+    body.location_ids = form.location_scope === "selected" ? form.location_ids : []
+  }
   return body
+}
+
+export function emptyOpeningStock() {
+  return { qty: "", expiry_date: "" }
+}
+
+export function money(value) {
+  return formatCurrency(value)
 }
 
 export const STOCK_REASONS = [
@@ -116,28 +137,3 @@ export const STOCK_REASONS = [
   "expiry",
   "other",
 ]
-
-export function emptyOpeningStock() {
-  return {
-    qty: "",
-    expiry_date: "",
-  }
-}
-
-export function emptyTier() {
-  return { min_qty: "", discount_type: "percentage", discount_value: "" }
-}
-
-export function tiersPayload(rows) {
-  return rows
-    .filter((row) => row.min_qty !== "" && row.discount_value !== "")
-    .map((row) => ({
-      min_qty: Number(row.min_qty),
-      discount_type: row.discount_type,
-      discount_value: Number(row.discount_value),
-    }))
-}
-
-export function money(value) {
-  return formatCurrency(value)
-}
