@@ -15,6 +15,7 @@ import {
   emptyOpeningStock,
   emptyProductForm,
   emptyTax,
+  emptyVariant,
   productFormError,
   productPayload,
   productToForm,
@@ -94,6 +95,9 @@ export function ProductFormPage() {
   }, [product])
 
   const patch = (key, value) => setForm((current) => ({ ...current, [key]: value }))
+  const patchVariant = (index, key, value) =>
+    setForm((current) => ({ ...current, variants: current.variants.map((row, i) => (i === index ? { ...row, [key]: value } : row)) }))
+  const hasVariants = form.variants.length > 0
   const patchTax = (index, key, value) =>
     setForm((current) => ({ ...current, taxes: current.taxes.map((tax, i) => (i === index ? { ...tax, [key]: value } : tax)) }))
   const patchStock = (locationId, key, value) =>
@@ -133,7 +137,7 @@ export function ProductFormPage() {
         body: productPayload(form, { withScope: isAdmin }),
         imageFile,
         removeImage: removeImage && !imageFile,
-        stockPayloads: stockPayloads(),
+        stockPayloads: hasVariants ? [] : stockPayloads(),
       })
       toast(isEdit ? "Product updated" : "Product created")
       navigate(`/products/${json.productId}`)
@@ -164,7 +168,13 @@ export function ProductFormPage() {
         <Section title="Product" description="What it is and where it belongs.">
           <div className="grid gap-4 md:grid-cols-2">
             <Input label="Title" required value={form.title} onChange={(e) => patch("title", e.target.value)} placeholder="1 Litre Pepsi" />
-            <Input label="Barcode" required value={form.barcode} onChange={(e) => patch("barcode", e.target.value)} placeholder="Scan or type" />
+            <Input
+              label={hasVariants ? "Barcode (optional with variants)" : "Barcode"}
+              required={!hasVariants}
+              value={form.barcode}
+              onChange={(e) => patch("barcode", e.target.value)}
+              placeholder="Scan or type"
+            />
             <Select label="Category" required value={form.category_id} onChange={(e) => patch("category_id", e.target.value)}>
               <option value="">Select category</option>
               {categories.map((row) => (
@@ -188,6 +198,48 @@ export function ProductFormPage() {
           ) : null}
         </Section>
 
+        <Section
+          title="Variants"
+          description="Sizes, colours… Each variant is sold on its own with its own SKU, barcode, prices and stock; this product groups them and is not sold itself."
+          actions={
+            <Button variant="ghost" type="button" onClick={() => patch("variants", [...form.variants, emptyVariant()])}>
+              <Plus className="h-4 w-4" /> Add variant
+            </Button>
+          }
+        >
+          {hasVariants ? (
+            <div className="space-y-3">
+              {form.variants.map((row, index) => (
+                <div key={row.id || `new-${index}`} className="grid items-end gap-3 rounded-2xl border border-slate-200 bg-slate-50/60 p-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_minmax(0,0.7fr)_auto]">
+                  <Input label="Name" required value={row.name} onChange={(e) => patchVariant(index, "name", e.target.value)} placeholder="Size: M" />
+                  <Input label="SKU" value={row.sku} onChange={(e) => patchVariant(index, "sku", e.target.value)} placeholder="Auto" />
+                  <Input label="Barcode" required value={row.barcode} onChange={(e) => patchVariant(index, "barcode", e.target.value)} />
+                  <Input label="Cost" type="number" min="0" step="0.01" required value={row.cost} onChange={(e) => patchVariant(index, "cost", e.target.value)} />
+                  <Input label="Price" type="number" min="0" step="0.01" required value={row.price} onChange={(e) => patchVariant(index, "price", e.target.value)} />
+                  {row.id ? (
+                    <Link to={`/products/${row.id}`} className="pb-2.5 text-sm font-medium text-brand-700 hover:underline">Stock →</Link>
+                  ) : (
+                    <Input label="Stock" type="number" min="0" step="1" value={row.stock} onChange={(e) => patchVariant(index, "stock", e.target.value)} />
+                  )}
+                  {row.id ? (
+                    <span className="pb-2.5 text-xs text-slate-400">Saved</span>
+                  ) : (
+                    <Button variant="icon" type="button" aria-label="Remove variant" onClick={() => patch("variants", form.variants.filter((_, i) => i !== index))}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+              ))}
+              <p className="text-xs text-slate-500">
+                A new variant's stock goes to {isAdmin ? "the store's default location" : ownLocation?.name || "your location"}; change it later on the variant's page.
+              </p>
+            </div>
+          ) : (
+            <p className="rounded-2xl border border-dashed border-slate-200 px-4 py-6 text-center text-sm text-slate-500">No variants. Add them when this product comes in sizes or colours.</p>
+          )}
+        </Section>
+
+        {hasVariants ? null : (
         <Section title="Price" description="A loose item is priced per unit; a pack product by the whole pack (the unit price is pack price ÷ pack size).">
           <div className="mb-4 inline-flex rounded-xl border border-slate-200 p-1">
             {[
@@ -226,6 +278,7 @@ export function ProductFormPage() {
             <Checkbox label="Sold by weight (kg)" checked={form.is_weight_based} onChange={(e) => patch("is_weight_based", e.target.checked)} />
           </div>
         </Section>
+        )}
 
         <Section
           title="Taxes"
@@ -310,6 +363,7 @@ export function ProductFormPage() {
           )}
         </Section>
 
+        {hasVariants ? null : (
         <Section
           title={isEdit ? "Stock" : "Opening stock"}
           description={isEdit ? "Change a quantity to set the counted stock there. Untouched rows stay as they are." : "Quantity at each location it is sold at. Empty = 0."}
@@ -337,6 +391,7 @@ export function ProductFormPage() {
             <p className="text-sm text-slate-500">Pick the locations it is sold at to set their stock.</p>
           )}
         </Section>
+        )}
 
         {error ? <p className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p> : null}
         <div className="flex justify-end gap-3">

@@ -96,10 +96,10 @@ const storeNav = [
     ],
   },
   {
-    title: "Offers",
+    title: "Discounts",
     icon: BadgePercent,
     single: true,
-    items: [{ to: "/offers", label: "Offers", icon: BadgePercent }],
+    items: [{ to: "/discounts", label: "Discounts", icon: BadgePercent }],
   },
   {
     title: "Inventories",

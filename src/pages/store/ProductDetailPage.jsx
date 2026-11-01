@@ -119,6 +119,9 @@ export function ProductDetailPage() {
             label="Category"
             value={category ? <Link to={`/categories/${category.category_number ?? category.id}`} className="font-medium underline-offset-2 hover:underline">{category.name}</Link> : "—"}
           />
+          {product.parent_product_id ? (
+            <Row label="Variant of" value={<Link to={`/products/${product.parent_product_id}`} className="font-medium underline-offset-2 hover:underline">{product.variant_name ? `${product.variant_name} · open parent` : "Open parent"}</Link>} />
+          ) : null}
           <Row label="Sold at" value={<LocationScopePills row={product} />} />
           {category?.location_scope === "selected" ? (
             <Row label="Category sold at" value={<LocationScopePills row={category} />} />
@@ -194,6 +197,18 @@ export function ProductDetailPage() {
             <Row label="Stock value at selling price" value={money(stock.selling_value)} />
           </div>
         </Card>
+
+        {product.has_variants ? (
+          <Card title="Variants" description="Each is sold on its own; open one for its stock.">
+            {(product.variants || []).map((row) => (
+              <Row
+                key={row.id}
+                label={<Link to={`/products/${row.id}`} className="font-medium text-slate-900 underline-offset-2 hover:underline">{row.name}</Link>}
+                value={<span className="text-xs">{row.sku} · {row.barcode} · <Currency value={row.selling_price} />{row.is_active === false ? " · off" : ""}</span>}
+              />
+            ))}
+          </Card>
+        ) : null}
 
         <Card title="Taxes" description="Set on the product. The category tax and the store's sales tax are added at checkout.">
           {taxes.length ? (

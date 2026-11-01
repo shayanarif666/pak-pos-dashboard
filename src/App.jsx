@@ -14,7 +14,7 @@ import { ExpiryPage } from "./pages/store/ExpiryPage.jsx"
 import { InventoryPage } from "./pages/store/InventoryPage.jsx"
 import { LocationsPage } from "./pages/store/LocationsPage.jsx"
 import { MovementsPage } from "./pages/store/MovementsPage.jsx"
-import { OffersPage } from "./pages/store/OffersPage.jsx"
+import { DiscountsPage } from "./pages/store/OffersPage.jsx"
 import { ForgotPasswordPage } from "./pages/auth/ForgotPasswordPage.jsx"
 import { ResetPasswordPage } from "./pages/auth/ResetPasswordPage.jsx"
 import { OrderDetailPage } from "./pages/store/OrderDetailPage.jsx"
@@ -133,7 +133,8 @@ export default function App() {
             <Route path="transfers" element={<TransfersPage />} />
             <Route path="batches" element={<BatchesPage />} />
             <Route path="shifts" element={<Navigate to="/batches" replace />} />
-            <Route path="offers" element={<OffersPage />} />
+            <Route path="discounts" element={<DiscountsPage />} />
+            <Route path="offers" element={<Navigate to="/discounts" replace />} />
             <Route path="coupons" element={<CouponsPage />} />
             <Route path="reviews" element={<ReviewsPage />} />
             <Route path="locations" element={<LocationsPage />} />

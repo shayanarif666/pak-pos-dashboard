@@ -1,10 +1,10 @@
 import { useMemo, useState } from "react"
-import { Eye, Pencil, Plus, X } from "lucide-react"
+import { Eye, Pencil, Plus, Search, X } from "lucide-react"
 import { useAuth } from "../../auth/AuthContext.jsx"
 import { useCategoriesQuery, useLocationsQuery, useProductsQuery } from "../../features/catalog/catalogQuery.jsx"
 import { useOffersQuery, useSaveOffer } from "../../features/promotions/promotionQuery.js"
 import { LocationScopeField, LocationScopePills } from "../../features/scope/LocationScopeField.jsx"
-import { formatCurrency } from "../../ui/Currency.jsx"
+import { Currency, formatCurrency } from "../../ui/Currency.jsx"
 import { Button } from "../../ui/Button.jsx"
 import { DataTable } from "../../ui/DataTable.jsx"
 import { Modal } from "../../ui/Modal.jsx"
@@ -15,19 +15,29 @@ import { Select } from "../../ui/Select.jsx"
 import { Switch } from "../../ui/Switch.jsx"
 import { useToast } from "../../ui/Toast.jsx"
 
+/*
+ * Discounts (the API's offers): each one applies to several products and / or categories, built
+ * the same way as the Bulk Offer Creation payload: { name, type, discount_type, discount_value,
+ * products: [{ product_id, promo_price?, free_product_id? }], categories: [ids], min_qty, buy_qty,
+ * get_qty, start_at, end_at, is_active, location_scope, location_ids }.
+ */
+
 const TYPE_LABEL = {
+  promotional: "Promotional",
   flash_sale: "Flash sale",
   bulk_discount: "Bulk discount",
-  bogo: "BOGO",
-  promotional: "Promotional",
+  bogo: "Buy X get Y (BOGO)",
+}
+const TYPE_HINT = {
+  promotional: "A percentage or fixed amount off.",
+  flash_sale: "A sale price per product (or a % / amount off for categories).",
+  bulk_discount: "Off when the customer buys at least the minimum quantity.",
+  bogo: "Buy some, get some free.",
 }
 
-const emptyOffer = {
+const emptyForm = {
   name: "",
-  type: "flash_sale",
-  apply_to: "product",
-  location_scope: "all",
-  location_ids: [],
+  type: "promotional",
   discount_type: "percentage",
   discount_value: "",
   min_qty: "",
@@ -36,9 +46,10 @@ const emptyOffer = {
   start_at: "",
   end_at: "",
   is_active: true,
-  target_id: "",
-  free_product_id: "",
-  promo_price: "",
+  location_scope: "all",
+  location_ids: [],
+  products: [],
+  categories: [],
 }
 
 /** Running now: switched on and inside its start / end window. */
@@ -58,18 +69,72 @@ const STATE_PILL = {
 
 function discountText(row) {
   if (row.type === "bogo") return `Buy ${row.buy_qty ?? "?"} get ${row.get_qty ?? "?"}`
-  if (row.discount_value == null) return "—"
-  return row.discount_type === "percentage" ? `${row.discount_value}%` : formatCurrency(row.discount_value)
+  if (row.discount_value == null) return row.type === "flash_sale" ? "Sale prices" : "—"
+  const amount = row.discount_type === "percentage" ? `${row.discount_value}%` : formatCurrency(row.discount_value)
+  return row.type === "bulk_discount" ? `${amount} from ${row.min_qty}` : amount
 }
 
-export function OffersPage() {
+/** ISO date → the local value a datetime-local input shows. */
+function toLocalInput(value) {
+  if (!value) return ""
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ""
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+}
+
+function formatDate(value) {
+  return value ? new Date(value).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : "Open"
+}
+
+/** Searchable checkbox list (products / categories). */
+function MultiPick({ label, options, selected, onToggle, empty }) {
+  const [query, setQuery] = useState("")
+  const q = query.trim().toLowerCase()
+  const shown = q ? options.filter((row) => `${row.label} ${row.hint || ""}`.toLowerCase().includes(q)) : options
+  return (
+    <div className="rounded-2xl border border-slate-200">
+      <div className="flex items-center justify-between gap-2 border-b border-slate-200 px-3 py-2">
+        <span className="text-sm font-medium text-slate-700">{label}</span>
+        <span className="text-xs text-slate-500">{selected.length} selected</span>
+      </div>
+      <div className="relative border-b border-slate-100">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search…" className="h-10 w-full bg-transparent pl-9 pr-3 text-sm outline-none" />
+      </div>
+      <div className="max-h-52 overflow-y-auto p-1">
+        {shown.map((row) => {
+          const checked = selected.includes(row.id)
+          return (
+            <label key={row.id} className={["flex cursor-pointer items-center gap-3 rounded-xl px-2.5 py-2 text-sm", checked ? "bg-brand-50" : "hover:bg-slate-50"].join(" ")}>
+              <input type="checkbox" checked={checked} onChange={() => onToggle(row.id)} className="h-4 w-4 accent-[#135c4c]" />
+              <span className="min-w-0 flex-1 truncate text-slate-900">{row.label}</span>
+              {row.hint ? <span className="shrink-0 text-xs text-slate-500">{row.hint}</span> : null}
+            </label>
+          )
+        })}
+        {!shown.length ? <p className="px-3 py-4 text-center text-sm text-slate-500">{empty}</p> : null}
+      </div>
+    </div>
+  )
+}
+
+function Info({ label, children }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-4">
+      <p className="text-xs uppercase tracking-[0.14em] text-slate-500">{label}</p>
+      <div className="mt-1 text-sm font-medium text-slate-900">{children}</div>
+    </div>
+  )
+}
+
+export function DiscountsPage() {
   const { toast } = useToast()
   const { user } = useAuth()
   const isAdmin = user?.role === "store_admin"
-  const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState(null)
+  const [showForm, setShowForm] = useState(false)
   const [selected, setSelected] = useState(null)
-  const [form, setForm] = useState(emptyOffer)
+  const [form, setForm] = useState(emptyForm)
   const [error, setError] = useState("")
   const [toggling, setToggling] = useState({})
 
@@ -80,21 +145,134 @@ export function OffersPage() {
   const saveOffer = useSaveOffer()
 
   const offers = offersQuery.data || []
-  const products = productsQuery.data || []
+  // A parent with variants is not sold itself: its variants are picked instead.
+  const products = (productsQuery.data || []).filter((row) => !row.has_variants)
   const categories = categoriesQuery.data || []
   const locations = (locationsQuery.data || []).filter((row) => row.is_active !== false)
-  const productName = useMemo(() => Object.fromEntries(products.map((row) => [row.id, row.title])), [products])
-  const categoryName = useMemo(() => Object.fromEntries(categories.map((row) => [row.id, row.name])), [categories])
+  const productById = useMemo(() => new Map((productsQuery.data || []).map((row) => [row.id, row])), [productsQuery.data])
+  const categoryById = useMemo(() => new Map(categories.map((row) => [row.id, row])), [categories])
   // Offers name their locations by number; the scope picker works with location UUIDs.
   const locationIdOfNumber = useMemo(
     () => Object.fromEntries((locationsQuery.data || []).map((row) => [String(row.location_number), row.id])),
     [locationsQuery.data]
   )
 
-  function targetName(row) {
-    const target = row.targets?.[0]
-    if (!target) return "—"
-    return target.product_id ? productName[target.product_id] || "Product" : categoryName[target.category_id] || "Category"
+  const productTargets = (row) => (row.targets || []).filter((t) => t.product_id)
+  const categoryTargets = (row) => (row.targets || []).filter((t) => t.category_id)
+  function appliesTo(row) {
+    const names = [
+      ...productTargets(row).map((t) => productById.get(t.product_id)?.title || "Product"),
+      ...categoryTargets(row).map((t) => categoryById.get(t.category_id)?.name || "Category"),
+    ]
+    if (!names.length) return "—"
+    return names.length > 2 ? `${names.slice(0, 2).join(", ")} +${names.length - 2}` : names.join(", ")
+  }
+
+  const set = (key, value) => setForm((current) => ({ ...current, [key]: value }))
+  function toggleProduct(id) {
+    setForm((current) => ({
+      ...current,
+      products: current.products.some((p) => p.product_id === id)
+        ? current.products.filter((p) => p.product_id !== id)
+        : [...current.products, { product_id: id, promo_price: "", free_product_id: "" }],
+    }))
+  }
+  const patchProduct = (id, key, value) =>
+    setForm((current) => ({ ...current, products: current.products.map((p) => (p.product_id === id ? { ...p, [key]: value } : p)) }))
+  const toggleCategory = (id) =>
+    setForm((current) => ({
+      ...current,
+      categories: current.categories.includes(id) ? current.categories.filter((c) => c !== id) : [...current.categories, id],
+    }))
+
+  function openCreate() {
+    setEditingId(null)
+    setForm(emptyForm)
+    setError("")
+    setShowForm(true)
+  }
+
+  function openEdit(row) {
+    setEditingId(row.id)
+    setForm({
+      name: row.name || "",
+      type: row.type || "promotional",
+      discount_type: row.discount_type || "percentage",
+      discount_value: row.discount_value ?? "",
+      min_qty: row.min_qty ?? "",
+      buy_qty: row.buy_qty ?? "",
+      get_qty: row.get_qty ?? "",
+      start_at: toLocalInput(row.start_at),
+      end_at: toLocalInput(row.end_at),
+      is_active: row.is_active !== false,
+      location_scope: row.location_scope || "all",
+      location_ids: (row.location_ids || []).map((number) => locationIdOfNumber[String(number)]).filter(Boolean),
+      products: productTargets(row).map((t) => ({
+        product_id: t.product_id,
+        promo_price: t.promo_price ?? "",
+        free_product_id: t.free_product_id || "",
+      })),
+      categories: categoryTargets(row).map((t) => t.category_id),
+    })
+    setError("")
+    setShowForm(true)
+  }
+
+  function buildBody() {
+    const usesDiscount = form.type === "promotional" || form.type === "bulk_discount" || (form.type === "flash_sale" && form.discount_value !== "")
+    return {
+      name: form.name.trim(),
+      type: form.type,
+      discount_type: usesDiscount ? form.discount_type : null,
+      discount_value: usesDiscount ? Number(form.discount_value) : null,
+      min_qty: form.type === "bulk_discount" ? Number(form.min_qty) : null,
+      buy_qty: form.type === "bogo" ? Number(form.buy_qty) : null,
+      get_qty: form.type === "bogo" ? Number(form.get_qty) : null,
+      products: form.products.map((p) => ({
+        product_id: p.product_id,
+        ...(form.type === "flash_sale" && p.promo_price !== "" ? { promo_price: Number(p.promo_price) } : {}),
+        ...(form.type === "bogo" && p.free_product_id ? { free_product_id: p.free_product_id } : {}),
+      })),
+      categories: form.categories,
+      start_at: form.start_at ? new Date(form.start_at).toISOString() : null,
+      end_at: form.end_at ? new Date(form.end_at).toISOString() : null,
+      is_active: form.is_active,
+      // Any role may send it; a manager's new discount without it runs at their location.
+      ...(isAdmin
+        ? { location_scope: form.location_scope, location_ids: form.location_scope === "selected" ? form.location_ids : [] }
+        : {}),
+    }
+  }
+
+  function formError() {
+    if (!form.name.trim()) return "Give the discount a name."
+    if (!form.products.length && !form.categories.length) return "Pick at least one product or category."
+    if ((form.type === "promotional" || form.type === "bulk_discount") && form.discount_value === "") return "Enter the discount value."
+    if (form.type === "bulk_discount" && !(Number(form.min_qty) > 0)) return "Enter the minimum quantity."
+    if (form.type === "bogo" && !(Number(form.buy_qty) > 0 && Number(form.get_qty) > 0)) return "Enter buy and get quantities."
+    if (form.type === "flash_sale") {
+      const hasDiscount = form.discount_value !== ""
+      if (form.categories.length && !hasDiscount) return "A flash sale on categories needs a % or amount off."
+      if (form.products.some((p) => p.promo_price === "") && !hasDiscount) return "Give each product a sale price, or a % / amount off."
+    }
+    if (form.discount_type === "percentage" && Number(form.discount_value) > 100) return "A percentage cannot be over 100."
+    if (form.start_at && form.end_at && form.end_at < form.start_at) return "The end must be after the start."
+    if (isAdmin && form.location_scope === "selected" && !form.location_ids.length) return "Pick at least one location, or choose All locations."
+    return ""
+  }
+
+  async function save(event) {
+    event.preventDefault()
+    const problem = formError()
+    if (problem) return setError(problem)
+    setError("")
+    try {
+      await saveOffer.mutateAsync({ id: editingId, body: buildBody() })
+      toast(editingId ? "Discount updated" : "Discount created")
+      setShowForm(false)
+    } catch (err) {
+      setError(err.message)
+    }
   }
 
   async function toggleActive(row, next) {
@@ -109,64 +287,11 @@ export function OffersPage() {
     }
   }
 
-  function openCreate() {
-    setEditingId(null)
-    setForm(emptyOffer)
-    setError("")
-    setShowForm(true)
-  }
-
-  function openEdit(row) {
-    const target = row.targets?.[0] || {}
-    setEditingId(row.id)
-    setForm({
-      name: row.name || "",
-      type: row.type || "flash_sale",
-      apply_to: row.apply_to || "product",
-      location_scope: row.location_scope || "all",
-      location_ids: (row.location_ids || []).map((number) => locationIdOfNumber[String(number)]).filter(Boolean),
-      discount_type: row.discount_type || "percentage",
-      discount_value: row.discount_value ?? "",
-      min_qty: row.min_qty ?? "",
-      buy_qty: row.buy_qty ?? "",
-      get_qty: row.get_qty ?? "",
-      start_at: toLocalInput(row.start_at),
-      end_at: toLocalInput(row.end_at),
-      is_active: row.is_active !== false,
-      target_id: row.apply_to === "category" ? target.category_id || "" : target.product_id || "",
-      free_product_id: target.free_product_id || "",
-      promo_price: target.promo_price ?? "",
-    })
-    setError("")
-    setShowForm(true)
-  }
-
-  async function save(event) {
-    event.preventDefault()
-    setError("")
-    if (isAdmin && form.location_scope === "selected" && !form.location_ids.length) {
-      setError("Pick at least one location, or choose All locations.")
-      return
-    }
-    try {
-      const target = buildTarget(form)
-      await saveOffer.mutateAsync({
-        id: editingId,
-        body: buildOfferBody(form, isAdmin),
-        targets: target ? [target] : [],
-      })
-      toast(editingId ? "Offer updated" : "Offer created")
-      setShowForm(false)
-    } catch (err) {
-      setError(err.message)
-    }
-  }
-
   const now = Date.now()
   const columns = [
     {
       key: "name",
-      header: "Offer",
+      header: "Discount",
       render: (row) => (
         <div className="min-w-44">
           <p className="font-semibold text-slate-900">{row.name}</p>
@@ -175,27 +300,20 @@ export function OffersPage() {
       ),
     },
     {
-      key: "target",
+      key: "applies",
       header: "Applies to",
-      sortValue: (row) => targetName(row),
+      sortable: false,
       render: (row) => (
-        <div>
-          <p className="text-slate-900">{targetName(row)}</p>
-          <p className="text-xs capitalize text-slate-500">{row.apply_to}</p>
+        <div className="max-w-64">
+          <p className="truncate text-slate-900">{appliesTo(row)}</p>
+          <p className="text-xs text-slate-500">
+            {productTargets(row).length} product{productTargets(row).length === 1 ? "" : "s"} · {categoryTargets(row).length} categor{categoryTargets(row).length === 1 ? "y" : "ies"}
+          </p>
         </div>
       ),
     },
     { key: "discount", header: "Discount", sortValue: (row) => Number(row.discount_value || 0), render: (row) => discountText(row) },
-    {
-      key: "window",
-      header: "Runs",
-      sortValue: (row) => row.start_at || "",
-      render: (row) => (
-        <span className="text-xs text-slate-600">
-          {formatDate(row.start_at)} → {formatDate(row.end_at)}
-        </span>
-      ),
-    },
+    { key: "window", header: "Runs", sortValue: (row) => row.start_at || "", render: (row) => <span className="text-xs text-slate-600">{formatDate(row.start_at)} → {formatDate(row.end_at)}</span> },
     { key: "locations", header: "Locations", sortable: false, render: (row) => <LocationScopePills row={row} /> },
     {
       key: "state",
@@ -211,12 +329,7 @@ export function OffersPage() {
       header: "Active",
       sortValue: (row) => (row.is_active ? 1 : 0),
       render: (row) => (
-        <Switch
-          checked={Boolean(row.is_active)}
-          disabled={Boolean(toggling[row.id])}
-          label={row.is_active ? `Turn off ${row.name}` : `Turn on ${row.name}`}
-          onChange={(next) => toggleActive(row, next)}
-        />
+        <Switch checked={Boolean(row.is_active)} disabled={Boolean(toggling[row.id])} label={row.is_active ? `Turn off ${row.name}` : `Turn on ${row.name}`} onChange={(next) => toggleActive(row, next)} />
       ),
     },
     {
@@ -225,25 +338,29 @@ export function OffersPage() {
       sortable: false,
       render: (row) => (
         <div className="flex justify-end gap-1" onClick={(event) => event.stopPropagation()}>
-          <Button variant="icon" aria-label="View offer" onClick={() => setSelected(row)}><Eye className="h-4 w-4" /></Button>
-          <Button variant="icon" aria-label="Edit offer" onClick={() => openEdit(row)}><Pencil className="h-4 w-4" /></Button>
+          <Button variant="icon" aria-label="View discount" onClick={() => setSelected(row)}><Eye className="h-4 w-4" /></Button>
+          <Button variant="icon" aria-label="Edit discount" onClick={() => openEdit(row)}><Pencil className="h-4 w-4" /></Button>
         </div>
       ),
     },
   ]
 
+  const productOptions = products.map((row) => ({ id: row.id, label: row.title, hint: formatCurrency(row.selling_price) }))
+  const categoryOptions = categories.map((row) => ({ id: row.id, label: row.name }))
+  const usesDiscountFields = form.type !== "bogo"
+
   return (
     <section className="space-y-6">
       <PageHeader
         section="Promotions"
-        title="Offers"
-        description="Flash sales, bulk discounts, BOGO and promotions. Switch an offer off to stop it at checkout; switch it back on any time."
-        actions={<Button onClick={openCreate}><Plus className="h-4 w-4" /> Add offer</Button>}
+        title="Discounts"
+        description="Sales on several products and categories at once. Switch one off to stop it at checkout; switch it back on any time."
+        actions={<Button onClick={openCreate}><Plus className="h-4 w-4" /> Add discount</Button>}
       />
 
       <StatCards
         items={[
-          { label: "Offers", value: offers.length },
+          { label: "Discounts", value: offers.length },
           { label: "Running now", value: offers.filter((row) => offerState(row, now) === "running").length },
           { label: "Scheduled", value: offers.filter((row) => offerState(row, now) === "scheduled").length },
           { label: "Inactive", value: offers.filter((row) => !row.is_active).length, hint: `${offers.filter((row) => offerState(row, now) === "expired").length} expired` },
@@ -255,111 +372,190 @@ export function OffersPage() {
         rows={offers}
         loading={offersQuery.isPending}
         error={offersQuery.error}
-        search={{ placeholder: "Search offer, product or category…", text: (row) => `${row.name} ${row.offer_number} ${targetName(row)}` }}
+        search={{ placeholder: "Search discount, product or category…", text: (row) => `${row.name} ${row.offer_number} ${appliesTo(row)}` }}
         filters={[
           { key: "type", label: "Type", options: Object.entries(TYPE_LABEL).map(([value, label]) => ({ value, label })), match: (row, value) => row.type === value },
           { key: "status", label: "Status", options: Object.entries(STATE_PILL).map(([value, state]) => ({ value, label: state.label })), match: (row, value) => offerState(row, now) === value },
-          { key: "apply_to", label: "Applies to", options: [{ value: "product", label: "Product" }, { value: "category", label: "Category" }], match: (row, value) => row.apply_to === value },
+          { key: "apply_to", label: "Applies to", options: [{ value: "product", label: "Products" }, { value: "category", label: "Categories" }, { value: "mixed", label: "Both" }], match: (row, value) => row.apply_to === value },
         ]}
         dateRange={{ label: "Added on", value: (row) => row.created_at }}
         initialSort={{ key: "name", dir: "asc" }}
         onRowClick={(row) => setSelected(row)}
-        emptyText="No offers yet."
+        emptyText="No discounts yet."
       />
 
       <Modal open={Boolean(showForm)} onClose={() => setShowForm(false)}>
-        <form onSubmit={save} className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl border border-slate-300 bg-white p-6">
-          <ModalHeader title={editingId ? "Edit offer" : "New offer"} onClose={() => setShowForm(false)} />
-          {error ? <p className="mb-3 text-sm text-rose-700">{error}</p> : null}
-          <div className="grid gap-3 md:grid-cols-2">
-            <Input label="Name" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-            <Select label="Type" value={form.type} onChange={(e) => setForm(normalizeOfferForm({ ...form, type: e.target.value }))}>
-              {Object.entries(TYPE_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-            </Select>
-            <Select label="Apply to" value={form.apply_to} onChange={(e) => setForm({ ...form, apply_to: e.target.value, target_id: "" })}>
-              <option value="product">Product</option>
-              <option value="category">Category</option>
-            </Select>
-            <Select label={form.apply_to === "category" ? "Category" : "Product"} required value={form.target_id} onChange={(e) => setForm({ ...form, target_id: e.target.value })}>
-              <option value="">Select {form.apply_to}</option>
-              {(form.apply_to === "category" ? categories : products).map((row) => (
-                <option key={row.id} value={row.id}>{row.name || row.title}</option>
-              ))}
-            </Select>
-            {form.type !== "bogo" ? (
-              <>
-                <Select label="Discount type" value={form.discount_type} onChange={(e) => setForm({ ...form, discount_type: e.target.value })}>
-                  <option value="percentage">Percentage</option>
-                  <option value="fixed">Fixed</option>
-                </Select>
-                <Input label="Discount value" type="number" min="0" step="0.01" value={form.discount_value} onChange={(e) => setForm({ ...form, discount_value: e.target.value })} />
-              </>
+        <form onSubmit={save} className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-3xl border border-slate-300 bg-white p-6">
+          <div className="mb-5 flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-slate-900">{editingId ? `Edit ${form.name || "discount"}` : "New discount"}</h2>
+            <button type="button" className="text-slate-600 hover:text-brand-700" onClick={() => setShowForm(false)} aria-label="Close"><X className="h-5 w-5" /></button>
+          </div>
+
+          <div className="space-y-5">
+            <div className="grid gap-4 md:grid-cols-2">
+              <Input label="Name" required value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="Eid Sale 10%" />
+              <Select label="Type" value={form.type} onChange={(e) => set("type", e.target.value)}>
+                {Object.entries(TYPE_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </Select>
+            </div>
+            <p className="-mt-2 text-xs text-slate-500">{TYPE_HINT[form.type]}</p>
+
+            <div className="grid gap-4 md:grid-cols-3">
+              {usesDiscountFields ? (
+                <>
+                  <Select label="Discount type" value={form.discount_type} onChange={(e) => set("discount_type", e.target.value)}>
+                    <option value="percentage">Percentage (%)</option>
+                    <option value="fixed">Fixed (Rs off)</option>
+                  </Select>
+                  <Input
+                    label={form.type === "flash_sale" ? "Value (optional with sale prices)" : "Value"}
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.discount_value}
+                    onChange={(e) => set("discount_value", e.target.value)}
+                  />
+                </>
+              ) : null}
+              {form.type === "bulk_discount" ? (
+                <Input label="Minimum quantity" type="number" min="1" step="1" required value={form.min_qty} onChange={(e) => set("min_qty", e.target.value)} />
+              ) : null}
+              {form.type === "bogo" ? (
+                <>
+                  <Input label="Buy" type="number" min="1" step="1" required value={form.buy_qty} onChange={(e) => set("buy_qty", e.target.value)} />
+                  <Input label="Get free" type="number" min="1" step="1" required value={form.get_qty} onChange={(e) => set("get_qty", e.target.value)} />
+                </>
+              ) : null}
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-2">
+              <MultiPick label="Products" options={productOptions} selected={form.products.map((p) => p.product_id)} onToggle={toggleProduct} empty="No products." />
+              <MultiPick label="Categories" options={categoryOptions} selected={form.categories} onToggle={toggleCategory} empty="No categories." />
+            </div>
+
+            {form.products.length && (form.type === "flash_sale" || form.type === "bogo") ? (
+              <div className="rounded-2xl border border-slate-200 p-4">
+                <p className="mb-3 text-sm font-medium text-slate-700">{form.type === "flash_sale" ? "Sale price per product" : "Free item per product (empty = the same product)"}</p>
+                <div className="space-y-2">
+                  {form.products.map((p) => {
+                    const product = productById.get(p.product_id)
+                    return (
+                      <div key={p.product_id} className="grid items-center gap-3 sm:grid-cols-[minmax(0,1fr)_220px]">
+                        <p className="truncate text-sm text-slate-900">
+                          {product?.title || "Product"} <span className="text-xs text-slate-500">· now {formatCurrency(product?.selling_price)}</span>
+                        </p>
+                        {form.type === "flash_sale" ? (
+                          <Input type="number" min="0" step="0.01" placeholder="Sale price" value={p.promo_price} onChange={(e) => patchProduct(p.product_id, "promo_price", e.target.value)} />
+                        ) : (
+                          <Select value={p.free_product_id} onChange={(e) => patchProduct(p.product_id, "free_product_id", e.target.value)}>
+                            <option value="">Same product</option>
+                            {products.map((row) => <option key={row.id} value={row.id}>{row.title}</option>)}
+                          </Select>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
             ) : null}
-            {form.type === "bulk_discount" ? (
-              <Input label="Minimum quantity" type="number" min="0.01" step="0.01" value={form.min_qty} onChange={(e) => setForm({ ...form, min_qty: e.target.value })} />
-            ) : null}
-            {form.type === "bogo" ? (
-              <>
-                <Input label="Buy quantity" type="number" min="1" step="1" value={form.buy_qty} onChange={(e) => setForm({ ...form, buy_qty: e.target.value })} />
-                <Input label="Get quantity" type="number" min="1" step="1" value={form.get_qty} onChange={(e) => setForm({ ...form, get_qty: e.target.value })} />
-                <Select label="Free product" value={form.free_product_id} onChange={(e) => setForm({ ...form, free_product_id: e.target.value })}>
-                  <option value="">Same product</option>
-                  {products.map((row) => <option key={row.id} value={row.id}>{row.title}</option>)}
-                </Select>
-              </>
-            ) : null}
-            {form.type === "flash_sale" ? (
-              <Input label="Promo price" type="number" min="0" step="0.01" value={form.promo_price} onChange={(e) => setForm({ ...form, promo_price: e.target.value })} />
-            ) : null}
-            <Input label="Start" type="datetime-local" value={form.start_at} onChange={(e) => setForm({ ...form, start_at: e.target.value })} />
-            <Input label="End" type="datetime-local" value={form.end_at} onChange={(e) => setForm({ ...form, end_at: e.target.value })} />
-            <div className="flex items-center gap-3 md:col-span-2">
-              <Switch checked={form.is_active} label="Active" onChange={(next) => setForm({ ...form, is_active: next })} />
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <Input label="Starts" type="datetime-local" value={form.start_at} onChange={(e) => set("start_at", e.target.value)} />
+              <Input label="Ends" type="datetime-local" value={form.end_at} onChange={(e) => set("end_at", e.target.value)} />
+            </div>
+
+            {isAdmin ? (
+              <LocationScopeField title="Runs at" value={form} locations={locations} onChange={(next) => setForm((current) => ({ ...current, location_scope: next.location_scope, location_ids: next.location_ids }))} />
+            ) : (
+              <p className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">This discount runs at your location.</p>
+            )}
+
+            <div className="flex items-center gap-3">
+              <Switch checked={form.is_active} label="Active" onChange={(next) => set("is_active", next)} />
               <span className="text-sm text-slate-700">{form.is_active ? "Active — applies at checkout" : "Inactive — never applied"}</span>
             </div>
-            <div className="md:col-span-2">
-              {isAdmin ? (
-                <LocationScopeField
-                  title="Runs at"
-                  value={form}
-                  locations={locations}
-                  onChange={(next) => setForm({ ...form, location_scope: next.location_scope, location_ids: next.location_ids })}
-                />
-              ) : editingId ? null : (
-                <p className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">This offer runs at your location.</p>
-              )}
-            </div>
           </div>
+
+          {error ? <p className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p> : null}
           <div className="mt-6 flex justify-end gap-3">
             <Button variant="ghost" type="button" onClick={() => setShowForm(false)}>Cancel</Button>
-            <Button type="submit" disabled={saveOffer.isPending}>{editingId ? "Save" : "Create"}</Button>
+            <Button type="submit" disabled={saveOffer.isPending}>{saveOffer.isPending ? "Saving…" : editingId ? "Save" : "Create"}</Button>
           </div>
         </form>
       </Modal>
 
       <Modal open={Boolean(selected)} onClose={() => setSelected(null)}>
         {selected ? (
-          <div className="w-full max-w-2xl rounded-3xl border border-slate-300 bg-white p-6">
-            <ModalHeader title={selected.name} onClose={() => setSelected(null)} />
-            <div className="grid gap-3 md:grid-cols-2">
-              <Info label="Type" value={TYPE_LABEL[selected.type] || selected.type} />
-              <Info label="Status" value={STATE_PILL[offerState(selected)].label} />
-              <Info label="Applies to" value={`${targetName(selected)} (${selected.apply_to})`} />
-              <Info label="Discount" value={discountText(selected)} />
-              <Info label="Runs" value={`${formatDate(selected.start_at)} → ${formatDate(selected.end_at)}`} />
-              <Info label="Locations" value={<LocationScopePills row={selected} />} />
-            </div>
-            <h3 className="mb-2 mt-5 text-sm font-semibold text-slate-900">Targets</h3>
-            <div className="grid gap-2">
-              {(selected.targets || []).map((target) => (
-                <div key={target.id} className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
-                  {target.product_id ? productName[target.product_id] || "Product" : categoryName[target.category_id] || "Category"}
-                  {target.promo_price != null ? ` · Promo ${formatCurrency(target.promo_price)}` : ""}
-                  {target.free_product_id ? ` · Free ${productName[target.free_product_id] || "product"}` : ""}
+          <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-3xl border border-slate-300 bg-white p-6">
+            <div className="mb-5 flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Discount #{selected.offer_number}</p>
+                <h2 className="mt-1 text-xl font-semibold text-slate-950">{selected.name}</h2>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  <Pill tone={STATE_PILL[offerState(selected)].tone}>{STATE_PILL[offerState(selected)].label}</Pill>
+                  <Pill tone="zinc" dot={false}>{TYPE_LABEL[selected.type] || selected.type}</Pill>
                 </div>
-              ))}
-              {!(selected.targets || []).length ? <p className="text-sm text-slate-500">No targets configured.</p> : null}
+              </div>
+              <div className="flex gap-2">
+                <Button variant="ghost" onClick={() => { const row = selected; setSelected(null); openEdit(row) }}><Pencil className="h-4 w-4" /> Edit</Button>
+                <button type="button" className="text-slate-600 hover:text-brand-700" onClick={() => setSelected(null)} aria-label="Close"><X className="h-5 w-5" /></button>
+              </div>
             </div>
+
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <Info label="Discount">{discountText(selected)}</Info>
+              <Info label="Discount type">{selected.discount_type || "—"}</Info>
+              <Info label="Applies to">{selected.apply_to === "mixed" ? "Products and categories" : selected.apply_to === "product" ? "Products" : "Categories"}</Info>
+              {selected.type === "bulk_discount" ? <Info label="Minimum quantity">{selected.min_qty}</Info> : null}
+              {selected.type === "bogo" ? <Info label="Buy / get free">{selected.buy_qty} / {selected.get_qty}</Info> : null}
+              <Info label="Starts">{formatDate(selected.start_at)}</Info>
+              <Info label="Ends">{formatDate(selected.end_at)}</Info>
+              <Info label="Runs at"><LocationScopePills row={selected} /></Info>
+              <Info label="Added">{formatDate(selected.created_at)}</Info>
+              <Info label="Last changed">{formatDate(selected.updated_at)}</Info>
+            </div>
+
+            <h3 className="mb-2 mt-6 text-sm font-semibold text-slate-900">Products ({productTargets(selected).length})</h3>
+            {productTargets(selected).length ? (
+              <div className="overflow-hidden rounded-2xl border border-slate-200">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-slate-50 text-xs uppercase tracking-[0.12em] text-slate-500">
+                    <tr>
+                      <th className="px-4 py-2.5 font-semibold">Product</th>
+                      <th className="px-4 py-2.5 text-right font-semibold">Price</th>
+                      {selected.type === "flash_sale" ? <th className="px-4 py-2.5 text-right font-semibold">Sale price</th> : null}
+                      {selected.type === "bogo" ? <th className="px-4 py-2.5 font-semibold">Free item</th> : null}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {productTargets(selected).map((t) => {
+                      const product = productById.get(t.product_id)
+                      return (
+                        <tr key={t.id} className="border-t border-slate-100">
+                          <td className="px-4 py-2.5 text-slate-900">{product?.title || "Product"}</td>
+                          <td className="px-4 py-2.5 text-right">{product ? <Currency value={product.selling_price} /> : "—"}</td>
+                          {selected.type === "flash_sale" ? <td className="px-4 py-2.5 text-right font-semibold">{t.promo_price != null ? <Currency value={t.promo_price} /> : discountText(selected)}</td> : null}
+                          {selected.type === "bogo" ? <td className="px-4 py-2.5">{t.free_product_id ? productById.get(t.free_product_id)?.title || "Product" : "Same product"}</td> : null}
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="text-sm text-slate-500">No single products.</p>
+            )}
+
+            <h3 className="mb-2 mt-5 text-sm font-semibold text-slate-900">Categories ({categoryTargets(selected).length})</h3>
+            {categoryTargets(selected).length ? (
+              <div className="flex flex-wrap gap-2">
+                {categoryTargets(selected).map((t) => (
+                  <Pill key={t.id} tone="sky" dot={false}>{categoryById.get(t.category_id)?.name || "Category"}</Pill>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-slate-500">No categories.</p>
+            )}
           </div>
         ) : null}
       </Modal>
@@ -367,81 +563,5 @@ export function OffersPage() {
   )
 }
 
-function normalizeOfferForm(next) {
-  if (next.type === "bogo") {
-    return { ...next, discount_type: "", discount_value: "", min_qty: "", promo_price: "" }
-  }
-  if (next.type === "bulk_discount") return { ...next, buy_qty: "", get_qty: "", promo_price: "" }
-  return { ...next, buy_qty: "", get_qty: "", min_qty: "" }
-}
-
-function buildOfferBody(form, isAdmin) {
-  const target = buildTarget(form)
-  return {
-    name: form.name.trim(),
-    type: form.type,
-    // What it applies to goes with the offer (the API sets apply_to from it).
-    ...(target?.product_id
-      ? { products: [{ product_id: target.product_id, promo_price: target.promo_price, free_product_id: target.free_product_id }] }
-      : target?.category_id
-        ? { categories: [target.category_id] }
-        : {}),
-    // Only a store admin picks locations; a manager's offer runs at their own location.
-    ...(isAdmin
-      ? {
-          location_scope: form.location_scope,
-          location_ids: form.location_scope === "selected" ? form.location_ids : [],
-        }
-      : {}),
-    discount_type: form.type === "bogo" ? null : form.discount_type || null,
-    discount_value: form.type === "bogo" || form.discount_value === "" ? null : Number(form.discount_value),
-    min_qty: form.type === "bulk_discount" ? Number(form.min_qty) : null,
-    buy_qty: form.type === "bogo" ? Number(form.buy_qty) : null,
-    get_qty: form.type === "bogo" ? Number(form.get_qty) : null,
-    start_at: form.start_at ? new Date(form.start_at).toISOString() : null,
-    end_at: form.end_at ? new Date(form.end_at).toISOString() : null,
-    is_active: form.is_active,
-  }
-}
-
-function buildTarget(form) {
-  if (!form.target_id) return null
-  return {
-    product_id: form.apply_to === "product" ? form.target_id : null,
-    category_id: form.apply_to === "category" ? form.target_id : null,
-    free_product_id: form.type === "bogo" ? form.free_product_id || null : null,
-    promo_price: form.type === "flash_sale" && form.promo_price !== "" ? Number(form.promo_price) : null,
-  }
-}
-
-/** ISO date → the local value a datetime-local input shows. */
-function toLocalInput(value) {
-  if (!value) return ""
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return ""
-  return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
-}
-
-function formatDate(value) {
-  return value ? new Date(value).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : "Open"
-}
-
-function ModalHeader({ title, onClose }) {
-  return (
-    <div className="mb-4 flex items-center justify-between">
-      <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
-      <button type="button" className="text-slate-600 hover:text-brand-700" onClick={onClose}>
-        <X className="h-5 w-5" />
-      </button>
-    </div>
-  )
-}
-
-function Info({ label, value }) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4">
-      <p className="text-xs uppercase tracking-[0.16em] text-slate-500">{label}</p>
-      <div className="mt-1 text-sm font-medium text-slate-900">{value}</div>
-    </div>
-  )
-}
+// The old name, for any import still using it.
+export const OffersPage = DiscountsPage
