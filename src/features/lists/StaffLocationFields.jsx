@@ -35,6 +35,15 @@ export function StaffLocationFields({ value, onChange }) {
   )
 }
 
+/** Now, as the value a datetime-local input shows. */
+export function nowInput() {
+  const date = new Date()
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+}
+
+/** A datetime-local value as an ISO date (undefined when empty = the server's now). */
+export const inputToIso = (value) => (value ? new Date(value).toISOString() : undefined)
+
 /** The body fields for the action: staffId, and the location for a store admin. */
 export function staffLocationBody(value, isAdmin) {
   return { staffId: Number(value.staffId), ...(isAdmin && value.locationId ? { location_id: value.locationId } : {}) }

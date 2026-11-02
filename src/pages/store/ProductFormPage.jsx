@@ -79,7 +79,8 @@ export function ProductFormPage() {
   const [removeImage, setRemoveImage] = useState(false)
   const [error, setError] = useState("")
 
-  const categories = categoriesQuery.data || []
+  // Inactive categories are not offered (a product being edited keeps the one it is in).
+  const categories = (categoriesQuery.data || []).filter((row) => row.is_active !== false || row.id === form.category_id)
   const allLocations = useMemo(() => locationsQuery.data || [], [locationsQuery.data])
   const activeLocations = allLocations.filter((row) => row.is_active !== false)
   // Sold at: every location or the selected ones. Stock is held at all of those or a few of them.

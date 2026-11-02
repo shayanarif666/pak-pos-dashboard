@@ -2,7 +2,7 @@ import { useMemo, useState } from "react"
 import { Plus } from "lucide-react"
 import { useAuth } from "../../auth/AuthContext.jsx"
 import { useBatchesQuery, useCloseBatch, useOpenBatch } from "../../features/lists/listQueries.js"
-import { StaffLocationFields, staffLocationBody } from "../../features/lists/StaffLocationFields.jsx"
+import { StaffLocationFields, inputToIso, nowInput, staffLocationBody } from "../../features/lists/StaffLocationFields.jsx"
 import { Button } from "../../ui/Button.jsx"
 import { Input } from "../../ui/Input.jsx"
 import { Modal, ModalCard } from "../../ui/Modal.jsx"
@@ -34,7 +34,7 @@ export function BatchesPage() {
   async function submitOpen(event) {
     event.preventDefault()
     try {
-      await openBatch.mutateAsync({ ...staffLocationBody(opening, isAdmin), opening_amount: Number(opening.cash || 0) })
+      await openBatch.mutateAsync({ ...staffLocationBody(opening, isAdmin), opening_amount: Number(opening.cash || 0), opened_at: inputToIso(opening.at) })
       toast("Batch opened")
       setOpening(null)
     } catch (err) {
@@ -45,7 +45,7 @@ export function BatchesPage() {
   async function submitClose(event) {
     event.preventDefault()
     try {
-      await closeBatch.mutateAsync({ staffId: closing.row.cashier_id, batch_id: closing.row.session_number, total_cash: Number(closing.cash || 0) })
+      await closeBatch.mutateAsync({ staffId: closing.row.cashier_id, batch_id: closing.row.session_number, total_cash: Number(closing.cash || 0), closed_at: inputToIso(closing.at) })
       toast(`Batch #${closing.row.session_number} closed`)
       setClosing(null)
     } catch (err) {
@@ -101,7 +101,7 @@ export function BatchesPage() {
       sortable: false,
       render: (row) =>
         row.status === "open" ? (
-          <Button variant="ghost" onClick={() => setClosing({ row, cash: "" })}>Close batch</Button>
+          <Button variant="ghost" onClick={() => setClosing({ row, cash: "", at: nowInput() })}>Close batch</Button>
         ) : null,
     },
   ]
@@ -112,7 +112,7 @@ export function BatchesPage() {
         section="Staff"
         title="Batch History"
         description="Cash drawer batches opened and closed on the POS or here: takings per payment method, the cash expected in the drawer, what was counted and the difference."
-        actions={<Button onClick={() => setOpening({ staffId: "", locationId: locationId || "", cash: "" })}><Plus className="h-4 w-4" /> Open batch</Button>}
+        actions={<Button onClick={() => setOpening({ staffId: "", locationId: locationId || "", cash: "", at: nowInput() })}><Plus className="h-4 w-4" /> Open batch</Button>}
       />
       <StatCards
         items={[
@@ -142,7 +142,10 @@ export function BatchesPage() {
           <ModalCard as="form" title="Open a batch" onClose={() => setOpening(null)} onSubmit={submitOpen}>
             <div className="space-y-3">
               <StaffLocationFields value={opening} onChange={setOpening} />
-              <Input label="Opening cash in the drawer" type="number" min="0" step="0.01" required value={opening.cash} onChange={(e) => setOpening({ ...opening, cash: e.target.value })} />
+              <div className="grid gap-3 md:grid-cols-2">
+                <Input label="Opening cash in the drawer" type="number" min="0" step="0.01" required value={opening.cash} onChange={(e) => setOpening({ ...opening, cash: e.target.value })} />
+                <Input label="Opened at" type="datetime-local" required value={opening.at} onChange={(e) => setOpening({ ...opening, at: e.target.value })} />
+              </div>
               <p className="text-xs text-slate-500">One open batch per staff member. Sales they make go into it until it is closed.</p>
             </div>
             <div className="mt-5 flex justify-end gap-2">
@@ -165,7 +168,10 @@ export function BatchesPage() {
                 <p className="text-slate-500">Cash sales so far</p>
                 <p className="text-right font-medium text-slate-900"><Currency value={closing.row.cash_sales} /></p>
               </div>
-              <Input label="Cash counted in the drawer" type="number" min="0" step="0.01" required value={closing.cash} onChange={(e) => setClosing({ ...closing, cash: e.target.value })} />
+              <div className="grid gap-3 md:grid-cols-2">
+                <Input label="Cash counted in the drawer" type="number" min="0" step="0.01" required value={closing.cash} onChange={(e) => setClosing({ ...closing, cash: e.target.value })} />
+                <Input label="Closed at" type="datetime-local" required value={closing.at} onChange={(e) => setClosing({ ...closing, at: e.target.value })} />
+              </div>
               <p className="text-xs text-slate-500">The difference from the expected cash is saved as the variance.</p>
             </div>
             <div className="mt-5 flex justify-end gap-2">

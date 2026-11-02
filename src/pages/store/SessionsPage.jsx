@@ -2,7 +2,8 @@ import { useState } from "react"
 import { LogIn, LogOut } from "lucide-react"
 import { useAuth } from "../../auth/AuthContext.jsx"
 import { useClockIn, useClockOut, useStaffSessionsQuery } from "../../features/lists/listQueries.js"
-import { StaffLocationFields, staffLocationBody } from "../../features/lists/StaffLocationFields.jsx"
+import { StaffLocationFields, inputToIso, nowInput, staffLocationBody } from "../../features/lists/StaffLocationFields.jsx"
+import { Input } from "../../ui/Input.jsx"
 import { Button } from "../../ui/Button.jsx"
 import { Modal, ModalCard } from "../../ui/Modal.jsx"
 import { useToast } from "../../ui/Toast.jsx"
@@ -28,16 +29,17 @@ export function SessionsPage() {
   const { params: locationParams, isAll, locationId } = useDashboardLocation()
   const { user } = useAuth()
   const isAdmin = user?.role === "store_admin"
-  const { toast, confirmToast } = useToast()
+  const { toast } = useToast()
   const clockIn = useClockIn()
   const clockOut = useClockOut()
-  // Clock in: who and where.
+  // Clock in: who, where and when. Clock out: the session's row and when.
   const [clocking, setClocking] = useState(null)
+  const [leaving, setLeaving] = useState(null)
 
   async function submitClockIn(event) {
     event.preventDefault()
     try {
-      await clockIn.mutateAsync(staffLocationBody(clocking, isAdmin))
+      await clockIn.mutateAsync({ ...staffLocationBody(clocking, isAdmin), clocked_at: inputToIso(clocking.at) })
       toast("Clocked in")
       setClocking(null)
     } catch (err) {
@@ -45,12 +47,17 @@ export function SessionsPage() {
     }
   }
 
-  async function clockOutRow(row) {
-    const ok = await confirmToast({ title: "Clock out?", message: `${row.staff?.name || "This staff member"} will be clocked out now.`, confirmLabel: "Clock out" })
-    if (!ok) return
+  async function submitClockOut(event) {
+    event.preventDefault()
+    const row = leaving.row
     try {
-      await clockOut.mutateAsync({ staffId: row.staff?.id ?? row.staffId, ...(isAdmin && row.location?.id ? { location_id: row.location.id } : {}) })
+      await clockOut.mutateAsync({
+        staffId: row.staff?.id ?? row.staffId,
+        ...(isAdmin && row.location?.id ? { location_id: row.location.id } : {}),
+        clocked_at: inputToIso(leaving.at),
+      })
       toast("Clocked out")
+      setLeaving(null)
     } catch (err) {
       toast(err.message, "error")
     }
@@ -91,7 +98,7 @@ export function SessionsPage() {
       header: "",
       render: (row) =>
         row.status === "clock_in" && !row.closing_at ? (
-          <Button variant="ghost" onClick={() => clockOutRow(row)} disabled={clockOut.isPending}><LogOut className="h-4 w-4" /> Clock out</Button>
+          <Button variant="ghost" onClick={() => setLeaving({ row, at: nowInput() })}><LogOut className="h-4 w-4" /> Clock out</Button>
         ) : null,
     },
   ]
@@ -102,7 +109,7 @@ export function SessionsPage() {
         section="Staff"
         title="Sessions History"
         description="When each staff member clocked in and out on the POS or here, and how long they worked."
-        actions={<Button onClick={() => setClocking({ staffId: "", locationId: locationId || "" })}><LogIn className="h-4 w-4" /> Clock in</Button>}
+        actions={<Button onClick={() => setClocking({ staffId: "", locationId: locationId || "", at: nowInput() })}><LogIn className="h-4 w-4" /> Clock in</Button>}
       />
       <StatCards
         items={[
@@ -134,10 +141,28 @@ export function SessionsPage() {
         {clocking ? (
           <ModalCard as="form" title="Clock in" onClose={() => setClocking(null)} onSubmit={submitClockIn}>
             <StaffLocationFields value={clocking} onChange={setClocking} />
-            <p className="mt-3 text-xs text-slate-500">The session starts now; clock out from its row in the table.</p>
+            <div className="mt-3 max-w-xs">
+              <Input label="Clock in time" type="datetime-local" required value={clocking.at} onChange={(e) => setClocking({ ...clocking, at: e.target.value })} />
+            </div>
+            <p className="mt-3 text-xs text-slate-500">Clock out from the session's row in the table.</p>
             <div className="mt-5 flex justify-end gap-2">
               <Button variant="ghost" type="button" onClick={() => setClocking(null)}>Cancel</Button>
               <Button type="submit" disabled={clockIn.isPending}>{clockIn.isPending ? "Saving…" : "Clock in"}</Button>
+            </div>
+          </ModalCard>
+        ) : null}
+      </Modal>
+
+      <Modal open={Boolean(leaving)} onClose={() => setLeaving(null)} size="md">
+        {leaving ? (
+          <ModalCard as="form" title={`Clock out ${leaving.row.staff?.name || ""}`} onClose={() => setLeaving(null)} onSubmit={submitClockOut}>
+            <p className="text-sm text-slate-600">Clocked in {formatDateTime(leaving.row.opening_at)}.</p>
+            <div className="mt-3 max-w-xs">
+              <Input label="Clock out time" type="datetime-local" required value={leaving.at} onChange={(e) => setLeaving({ ...leaving, at: e.target.value })} />
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <Button variant="ghost" type="button" onClick={() => setLeaving(null)}>Cancel</Button>
+              <Button type="submit" disabled={clockOut.isPending}>{clockOut.isPending ? "Saving…" : "Clock out"}</Button>
             </div>
           </ModalCard>
         ) : null}
