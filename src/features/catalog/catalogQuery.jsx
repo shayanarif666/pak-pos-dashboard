@@ -75,7 +75,7 @@ export function sellableProducts(products) {
           image_url: product.image_url,
           featured_image: product.featured_image,
           low_stock_threshold: product.low_stock_threshold,
-          is_weight_based: product.is_weight_based,
+          is_weight_based: variant.is_weight_based ?? product.is_weight_based,
           location_scope: product.location_scope,
           location_ids: product.location_ids,
         }))

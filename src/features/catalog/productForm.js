@@ -25,6 +25,7 @@ export const emptyVariant = () => ({
   pack_cost: "",
   pack_price: "",
   sell_loose: false,
+  is_weight_based: false,
   taxes: [],
 })
 
@@ -95,6 +96,7 @@ export function productToForm(product) {
       pack_cost: text(row.pack_cost_price),
       pack_price: text(row.pack_selling_price),
       sell_loose: Boolean(row.sell_loose),
+      is_weight_based: Boolean(row.is_weight_based),
       // Only the variant's own taxes; the product's taxes reach every variant anyway.
       taxes: (row.variant_taxes || []).map((tax) => ({
         name: tax.name || "",
@@ -203,6 +205,7 @@ export function productPayload(form, { withScope = false, stockFor = () => undef
       ...(row.sku.trim() ? { sku: row.sku.trim() } : {}),
       barcode: row.barcode.trim(),
       is_pack_product: Boolean(row.is_pack_product),
+      is_weight_based: Boolean(row.is_weight_based),
       ...(row.is_pack_product
         ? { pack_size: Number(row.pack_size), pack_cost: Number(row.pack_cost), pack_price: Number(row.pack_price), sell_loose: Boolean(row.sell_loose) }
         : { cost: Number(row.cost), price: Number(row.price) }),

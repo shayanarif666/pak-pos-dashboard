@@ -294,6 +294,7 @@ export function ProductFormPage() {
                     {row.is_pack_product ? (
                       <Checkbox label="Also sold as single units" checked={row.sell_loose} onChange={(e) => patchVariant(index, "sell_loose", e.target.checked)} />
                     ) : null}
+                    <Checkbox label="Sold by weight (kg)" checked={row.is_weight_based} onChange={(e) => patchVariant(index, "is_weight_based", e.target.checked)} />
                   </div>
                   <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                     {row.is_pack_product ? (

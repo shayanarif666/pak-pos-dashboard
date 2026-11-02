@@ -104,6 +104,7 @@ function VariantCard({ variant }) {
         </div>
         <div className="flex flex-wrap gap-1.5">
           <Pill tone={variant.is_pack_product ? "sky" : "zinc"}>{variant.is_pack_product ? `Pack of ${variant.pack_size}` : "Loose"}</Pill>
+          {variant.is_weight_based ? <Pill tone="amber">By weight (kg)</Pill> : null}
           <Pill tone={variant.is_active === false ? "rose" : "emerald"}>{variant.is_active === false ? "Disabled" : "Active"}</Pill>
           <Pill tone={variant.stock_status === "out" ? "rose" : variant.stock_status === "low" ? "amber" : "emerald"}>{qty} in stock</Pill>
         </div>
