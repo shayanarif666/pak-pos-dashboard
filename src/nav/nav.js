@@ -1,6 +1,7 @@
 import {
   ArrowLeftRight,
   BadgePercent,
+  Percent,
   Banknote,
   BarChart3,
   Boxes,
@@ -100,6 +101,12 @@ const storeNav = [
     icon: BadgePercent,
     single: true,
     items: [{ to: "/discounts", label: "Discounts", icon: BadgePercent }],
+  },
+  {
+    title: "Taxes",
+    icon: Percent,
+    single: true,
+    items: [{ to: "/taxes", label: "Taxes", icon: Percent }],
   },
   {
     title: "Inventories",
