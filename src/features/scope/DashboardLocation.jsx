@@ -70,18 +70,18 @@ export function LocationScopeSwitcher({ className = "" }) {
   const { isAdmin, locations, locationId, setLocationId, label } = useDashboardLocation()
   if (!isAdmin) {
     return (
-      <span className={`inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 ${className}`}>
+      <span className={`inline-flex min-w-0 max-w-full items-center gap-2 truncate rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 ${className}`}>
         <MapPin className="h-4 w-4 text-brand-700" />
         {label}
       </span>
     )
   }
   return (
-    <label className={`inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white pl-3 text-sm text-slate-700 transition hover:border-slate-400 focus-within:border-brand-700 ${className}`}>
+    <label className={`inline-flex h-10 min-w-0 max-w-full items-center gap-2 rounded-xl border border-slate-200 bg-white pl-3 text-sm text-slate-700 transition hover:border-slate-400 focus-within:border-brand-700 ${className}`}>
       <MapPin className="h-4 w-4 shrink-0 text-brand-700" />
       <span className="sr-only">Location</span>
       <select
-        className="select-ui h-full max-w-56 bg-transparent pl-0 font-semibold text-slate-900 outline-none"
+        className="select-ui h-full w-full min-w-0 max-w-56 truncate bg-transparent pl-0 font-semibold text-slate-900 outline-none"
         value={locationId}
         onChange={(event) => setLocationId(event.target.value)}
       >

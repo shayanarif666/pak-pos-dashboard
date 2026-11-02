@@ -392,7 +392,7 @@ export function ReportsPage() {
             Reset Filters
           </Button>
           {canExport ? (
-            <div className="ml-auto flex items-end gap-2">
+            <div className="grid w-full grid-cols-2 items-end gap-2 sm:ml-auto sm:flex sm:w-auto">
               <Select
                 label="Export type"
                 value={exportType}
@@ -411,7 +411,7 @@ export function ReportsPage() {
                 <option value="xlsx">XLSX</option>
                 <option value="pdf">PDF</option>
               </Select>
-              <Button variant="ghost" className="h-11" onClick={onExport} disabled={exportMutation.isPending}>
+              <Button variant="ghost" className="col-span-2 h-11" onClick={onExport} disabled={exportMutation.isPending}>
                 <Download className="h-4 w-4" />
                 Export
               </Button>

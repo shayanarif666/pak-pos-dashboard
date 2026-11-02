@@ -294,11 +294,11 @@ export function AppShell() {
           >
             <Menu className="h-5 w-5" />
           </button>
-          <span className="text-base font-semibold text-slate-950">Dashboard</span>
+          <span className="shrink-0 text-base font-semibold text-slate-950">Dashboard</span>
           {isStoreStaff(user?.role) ? <LocationScopeSwitcher className="ml-auto" /> : null}
         </header>
         <StoreTopBar />
-        <main className="min-h-screen p-6 lg:p-8">
+        <main className="min-h-screen min-w-0 p-4 sm:p-6 lg:p-8">
           <ErrorBoundary resetKey={pathname}>
             <Outlet />
           </ErrorBoundary>

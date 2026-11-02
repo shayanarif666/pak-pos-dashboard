@@ -491,8 +491,8 @@ export function ProductFormPage() {
                     {stockLocations.map((location) => {
                       const row = stock[stockKey(target.key, location.id)] || emptyOpeningStock()
                       return (
-                        <div key={location.id} className="grid items-end gap-3 md:grid-cols-[minmax(0,1.2fr)_1fr_1fr]">
-                          <div className="pb-2.5">
+                        <div key={location.id} className="grid grid-cols-2 items-end gap-3 md:grid-cols-[minmax(0,1.2fr)_1fr_1fr]">
+                          <div className="col-span-2 md:col-span-1 md:pb-2.5">
                             <p className="text-sm font-medium text-slate-800">{location.name}</p>
                             {location.is_default ? <p className="text-xs text-slate-500">Default location</p> : null}
                           </div>

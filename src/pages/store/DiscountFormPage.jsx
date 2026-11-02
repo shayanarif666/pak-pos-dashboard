@@ -64,13 +64,13 @@ function effectiveSaleUnit(product, own, fallback) {
 /** Segmented picker: Single item / Full pack / Both. */
 function UnitPicker({ value, onChange, options = ["unit", "pack", "both"], labels = SALE_UNIT_LABEL }) {
   return (
-    <div className="inline-flex rounded-xl border border-slate-200 bg-white p-1">
+    <div className="inline-flex max-w-full rounded-xl border border-slate-200 bg-white p-1">
       {options.map((option) => (
         <button
           key={option}
           type="button"
           onClick={() => onChange(option)}
-          className={["rounded-lg px-2.5 py-1 text-xs font-semibold transition", value === option ? "bg-brand-700 text-white" : "text-slate-600 hover:text-brand-700"].join(" ")}
+          className={["whitespace-nowrap rounded-lg px-2.5 py-1 text-xs font-semibold transition", value === option ? "bg-brand-700 text-white" : "text-slate-600 hover:text-brand-700"].join(" ")}
         >
           {labels[option]}
         </button>
@@ -101,8 +101,10 @@ function MultiPick({ label, options, selected, onToggle, empty }) {
           return (
             <label key={row.id} className={["flex cursor-pointer items-center gap-3 rounded-xl px-2.5 py-2 text-sm", checked ? "bg-brand-50" : "hover:bg-slate-50"].join(" ")}>
               <input type="checkbox" checked={checked} onChange={() => onToggle(row.id)} className="h-4 w-4 accent-[#135c4c]" />
-              <span className="min-w-0 flex-1 truncate text-slate-900">{row.label}</span>
-              {row.hint ? <span className="shrink-0 text-xs text-slate-500">{row.hint}</span> : null}
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-slate-900">{row.label}</span>
+                {row.hint ? <span className="block truncate text-xs text-slate-500">{row.hint}</span> : null}
+              </span>
             </label>
           )
         })}
@@ -127,7 +129,7 @@ function Section({ title, description, children }) {
         <h2 className="text-base font-semibold text-slate-950">{title}</h2>
         {description ? <p className="mt-0.5 text-sm text-slate-500">{description}</p> : null}
       </div>
-      {children}
+      <div className="space-y-4">{children}</div>
     </section>
   )
 }
@@ -331,7 +333,7 @@ export function DiscountFormPage() {
             {Object.entries(TYPE_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
           </Select>
         </div>
-        <p className="-mt-2 text-xs text-slate-500">{TYPE_HINT[form.type]}</p>
+        <p className="text-xs text-slate-500">{TYPE_HINT[form.type]}</p>
 
         <div className="grid gap-4 md:grid-cols-3">
           {usesDiscountFields ? (
@@ -379,11 +381,11 @@ export function DiscountFormPage() {
           ) : null}
         </div>
         {form.type === "bogo" ? (
-          <p className="-mt-2 text-xs text-slate-500">
+          <p className="text-xs text-slate-500">
             e.g. buy 1 pack, get 1 single item free. Packs only count on pack products; others use single items.
           </p>
         ) : form.discount_type === "fixed" && usesDiscountFields ? (
-          <p className="-mt-2 text-xs text-slate-500">A fixed amount comes off each single item, or each pack when a pack is sold.</p>
+          <p className="text-xs text-slate-500">A fixed amount comes off each single item, or each pack when a pack is sold.</p>
         ) : null}
 
         </Section>

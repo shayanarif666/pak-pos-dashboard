@@ -145,8 +145,10 @@ export function TransferFormPage() {
                   return (
                     <label key={row.id} className={["flex cursor-pointer items-center gap-3 rounded-xl px-2.5 py-2 text-sm", checked ? "bg-brand-50" : "hover:bg-slate-50"].join(" ")}>
                       <input type="checkbox" checked={checked} onChange={() => toggle(productIds, setProductIds, row.id)} className="h-4 w-4 accent-[#135c4c]" />
-                      <span className="min-w-0 flex-1 truncate text-slate-900">{row.title}</span>
-                      {fromId ? <span className="shrink-0 text-xs text-slate-500">{stockAt(row, fromId)} in stock</span> : null}
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-slate-900">{row.title}</span>
+                        {fromId ? <span className="block text-xs text-slate-500">{stockAt(row, fromId)} in stock</span> : null}
+                      </span>
                     </label>
                   )
                 })}
@@ -170,7 +172,39 @@ export function TransferFormPage() {
 
         <Section title="Quantities" description="How much of each product goes to each location. Empty = none to that location.">
           {picked.length && pickedDestinations.length ? (
-            <div className="-mx-5 overflow-x-auto sm:-mx-6">
+            <>
+            {/* Phone: one card per product, a qty per location. */}
+            <div className="space-y-3 sm:hidden">
+              {picked.map((product) => {
+                const have = stockAt(product, fromId)
+                const total = totalOf(product.id)
+                return (
+                  <div key={product.id} className="rounded-2xl border border-slate-200 bg-slate-50/60 p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="min-w-0 text-sm font-semibold text-slate-900">{product.title}</p>
+                      <p className="shrink-0 text-xs text-slate-500">{fromId ? `${have} at source` : ""}</p>
+                    </div>
+                    <div className="mt-2 space-y-2">
+                      {pickedDestinations.map((location) => (
+                        <label key={location.id} className="flex items-center justify-between gap-3 text-sm text-slate-700">
+                          <span className="min-w-0 truncate">{location.name}</span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={qtys[key(product.id, location.id)] ?? ""}
+                            onChange={(e) => setQtys((current) => ({ ...current, [key(product.id, location.id)]: e.target.value }))}
+                            className="h-10 w-24 shrink-0 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-brand-600"
+                          />
+                        </label>
+                      ))}
+                    </div>
+                    <p className={["mt-2 text-right text-xs font-semibold", fromId && total > have ? "text-rose-700" : "text-slate-700"].join(" ")}>Sending {total}</p>
+                  </div>
+                )
+              })}
+            </div>
+            <div className="-mx-5 hidden overflow-x-auto sm:-mx-6 sm:block">
               <table className="w-full min-w-[560px] text-left text-sm">
                 <thead className="border-y border-slate-200 text-xs uppercase tracking-[0.12em] text-slate-500">
                   <tr>
@@ -210,6 +244,7 @@ export function TransferFormPage() {
                 </tbody>
               </table>
             </div>
+            </>
           ) : (
             <p className="text-sm text-slate-500">Pick products and the locations to send to.</p>
           )}

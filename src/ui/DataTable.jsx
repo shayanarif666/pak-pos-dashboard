@@ -207,9 +207,9 @@ export function DataTable({
           ) : null}
           {/* Row 2+: the filters and dates, four to a row. */}
           {filters.length || dateRange ? (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
               {filters.map((filter) => (
-                <label key={filter.key} className="text-xs font-medium text-slate-500">
+                <label key={filter.key} className="min-w-0 text-xs font-medium text-slate-500">
                   <span className="mb-1 block">{filter.label}</span>
                   <select
                     className={selectClass(Boolean(filterValues[filter.key]))}
@@ -227,15 +227,15 @@ export function DataTable({
               ))}
               {dateRange ? (
                 <>
-                  <label className="text-xs font-medium text-slate-500">
+                  <label className="min-w-0 text-xs font-medium text-slate-500">
                     <span className="mb-1 block">{dateRange.label ? `${dateRange.label} from` : "From"}</span>
                     <input type="date" className={dateClass(Boolean(from))} value={draftFrom} max={draftTo || undefined} onChange={(event) => setDraftFrom(event.target.value)} />
                   </label>
-                  <label className="text-xs font-medium text-slate-500">
+                  <label className="min-w-0 text-xs font-medium text-slate-500">
                     <span className="mb-1 block">{dateRange.label ? `${dateRange.label} to` : "To"}</span>
                     <input type="date" className={dateClass(Boolean(to))} value={draftTo} min={draftFrom || undefined} onChange={(event) => setDraftTo(event.target.value)} />
                   </label>
-                  <div className="flex items-end gap-2 sm:col-span-2">
+                  <div className="col-span-2 flex items-end gap-2 [&>button]:flex-1 sm:[&>button]:flex-none">
                     <button
                       type="button"
                       onClick={applyDates}

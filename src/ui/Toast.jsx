@@ -40,7 +40,7 @@ export function ToastProvider({ children }) {
   return (
     <ToastContext.Provider value={value}>
       {children}
-      <div className="pointer-events-none fixed right-4 top-4 z-[80] flex w-full max-w-sm flex-col gap-2">
+      <div className="pointer-events-none fixed left-4 right-4 top-4 z-[80] flex flex-col gap-2 sm:left-auto sm:w-full sm:max-w-sm">
         {toasts.map((row) => (
           <ToastMessage
             key={row.id}

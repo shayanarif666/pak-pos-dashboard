@@ -16,9 +16,9 @@ export function PageHeader({ section, title, description, actions = null, childr
 /** A row of summary cards above a table: { label, value, hint?, icon? }. */
 export function StatCards({ items }) {
   return (
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
       {items.map((item) => (
-        <div key={item.label} className="rounded-2xl border border-slate-200 bg-slate-50/70 px-5 py-4">
+        <div key={item.label} className="min-w-0 rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3 sm:px-5 sm:py-4">
           <div className="flex items-center justify-between gap-2">
             <p className="text-xs font-medium text-slate-500">{item.label}</p>
             {item.icon ? (
@@ -27,7 +27,7 @@ export function StatCards({ items }) {
               </span>
             ) : null}
           </div>
-          <p className="mt-2 text-2xl font-bold tracking-tight text-slate-950">{item.value}</p>
+          <p className="mt-2 truncate text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">{item.value}</p>
           {item.hint ? <p className="mt-1 text-xs text-slate-500">{item.hint}</p> : null}
         </div>
       ))}
