@@ -180,7 +180,7 @@ export function TaxesPage() {
   return (
     <section className="space-y-6">
       <PageHeader
-        section="Catalog"
+        section="Settings"
         title="Taxes"
         description="A tax set once and charged on every product, or only on the products you pick. Charged on the discounted price, with each product's own taxes; a fixed amount is per unit."
         actions={canEdit ? <Button onClick={openCreate}><Plus className="h-4 w-4" /> Add tax</Button> : null}

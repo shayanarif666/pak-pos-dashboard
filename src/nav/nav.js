@@ -1,6 +1,7 @@
 import {
   ArrowLeftRight,
   BadgePercent,
+  CreditCard,
   Percent,
   Banknote,
   BarChart3,
@@ -103,12 +104,6 @@ const storeNav = [
     items: [{ to: "/discounts", label: "Discounts", icon: BadgePercent }],
   },
   {
-    title: "Taxes",
-    icon: Percent,
-    single: true,
-    items: [{ to: "/taxes", label: "Taxes", icon: Percent }],
-  },
-  {
     title: "Inventories",
     icon: Boxes,
     items: [
@@ -148,7 +143,8 @@ const storeNav = [
     title: "Settings",
     icon: Settings,
     items: [
-      { to: "/settings/taxes", label: "Taxes", icon: Receipt },
+      { to: "/settings/taxes", label: "Taxes", icon: Percent },
+      { to: "/settings/surcharges", label: "Payment Method Surcharges", icon: CreditCard },
       { to: "/settings/currency", label: "Currency", icon: Banknote },
     ],
   },

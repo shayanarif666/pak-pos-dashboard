@@ -14,13 +14,7 @@ import { useToast } from "../../ui/Toast.jsx"
 import { StatusBadge } from "../../ui/Pill.jsx"
 import { PageHeader } from "../../ui/PageHeader.jsx"
 import { formatDate } from "../../ui/format.js"
-
-const METHODS = [
-  ["cash", "Cash"],
-  ["card", "Card"],
-  ["jazzcash", "JazzCash"],
-  ["easypaisa", "EasyPaisa"],
-]
+import { TaxesPage } from "./TaxesPage.jsx"
 
 function Card({ title, description, children }) {
   return (
@@ -32,8 +26,22 @@ function Card({ title, description, children }) {
   )
 }
 
-/** Settings › Taxes: sales tax, payment-method GST and the master switch (PUT /tax-rates). */
+/**
+ * Settings › Taxes: the Taxes page taxes (every product or the selected ones), and the store's tax
+ * registration (NTN, STRN, FBR invoice) printed on receipts. The old store-wide sales tax and
+ * payment-method GST are no longer used (payment surcharges replace the GST).
+ */
 export function TaxSettingsPage() {
+  return (
+    <div className="space-y-8">
+      <TaxesPage />
+      <TaxRegistrationCard />
+    </div>
+  )
+}
+
+/** NTN / STRN / FBR invoice (PUT /tax-rates with only these fields). */
+function TaxRegistrationCard() {
   const { toast } = useToast()
   const { user } = useAuth()
   const canEdit = user?.role === "store_admin" || user?.role === "manager"
@@ -44,97 +52,38 @@ export function TaxSettingsPage() {
   useEffect(() => {
     const data = taxQuery.data
     if (!data) return
-    const rates = Object.fromEntries((data.rates || []).map((row) => [row.payment_method, String(Number(row.gst_percent))]))
-    setForm({
-      ntn: data.ntn || "",
-      strn: data.strn || "",
-      charge_tax_on_sales: Boolean(data.charge_tax_on_sales),
-      sales_tax_enabled: data.sales_tax_enabled !== false,
-      sales_tax_rate: data.sales_tax_rate == null ? "18" : String(Number(data.sales_tax_rate)),
-      payment_tax_enabled: data.payment_tax_enabled !== false,
-      fbr_invoice_enabled: Boolean(data.fbr_invoice_enabled),
-      rates: Object.fromEntries(METHODS.map(([method]) => [method, rates[method] ?? "0"])),
-    })
+    setForm({ ntn: data.ntn || "", strn: data.strn || "", fbr_invoice_enabled: Boolean(data.fbr_invoice_enabled) })
   }, [taxQuery.data])
 
   async function save(event) {
     event.preventDefault()
     try {
-      await saveTax.mutateAsync({
-        ntn: form.ntn.trim() || null,
-        strn: form.strn.trim() || null,
-        charge_tax_on_sales: form.charge_tax_on_sales,
-        sales_tax_enabled: form.sales_tax_enabled,
-        sales_tax_rate: Number(form.sales_tax_rate || 0),
-        payment_tax_enabled: form.payment_tax_enabled,
-        fbr_invoice_enabled: form.fbr_invoice_enabled,
-        rates: METHODS.map(([method]) => ({ payment_method: method, gst_percent: Number(form.rates[method] || 0) })),
-      })
-      toast("Tax settings saved")
+      await saveTax.mutateAsync({ ntn: form.ntn.trim() || null, strn: form.strn.trim() || null, fbr_invoice_enabled: form.fbr_invoice_enabled })
+      toast("Tax registration saved")
     } catch (err) {
       toast(err.message, "error")
     }
   }
 
-  const set = (patch) => setForm((prev) => ({ ...prev, ...patch }))
-
+  if (taxQuery.isPending || !form) return <PageLoader label="Loading tax registration…" />
   return (
-    <section className="space-y-6">
-      <PageHeader
-        section="Settings"
-        title="Taxes"
-        description="Each tax is worked out on the line amount after discounts: product taxes (set on each product), the category tax (on each category), the store's sales tax, and GST on the payment method."
-      />
-      {taxQuery.isPending || !form ? <PageLoader label="Loading taxes…" /> : null}
-      {taxQuery.error ? <p className="text-sm text-rose-700">{taxQuery.error.message}</p> : null}
-      {form ? (
-        <form onSubmit={save} className="grid gap-5">
-          <Card title="Tax on sales" description="The master switch: when off, no tax of any kind is added to sales.">
-            <Checkbox label="Charge tax on sales" checked={form.charge_tax_on_sales} onChange={(e) => set({ charge_tax_on_sales: e.target.checked })} disabled={!canEdit} />
-          </Card>
-          <Card title="Sales tax" description="One store-wide rate added to every taxable line. Switch it off when each product carries its own sales tax.">
-            <div className="grid gap-4 sm:grid-cols-2 sm:items-end lg:grid-cols-4">
-              <Checkbox label="Sales tax on" checked={form.sales_tax_enabled} onChange={(e) => set({ sales_tax_enabled: e.target.checked })} disabled={!canEdit} />
-              <Input label="Sales tax %" type="number" min="0" max="100" step="0.01" value={form.sales_tax_rate} onChange={(e) => set({ sales_tax_rate: e.target.value })} disabled={!canEdit || !form.sales_tax_enabled} />
-            </div>
-          </Card>
-          <Card title="Payment method tax (GST)" description="Added on top of the bill for the payment method used; a mixed payment pays each method's rate on its share.">
-            <Checkbox label="Payment method tax on" checked={form.payment_tax_enabled} onChange={(e) => set({ payment_tax_enabled: e.target.checked })} disabled={!canEdit} />
-            <div className="mt-4 grid gap-3 sm:grid-cols-4">
-              {METHODS.map(([method, text]) => (
-                <Input
-                  key={method}
-                  label={`${text} %`}
-                  type="number"
-                  min="0"
-                  max="100"
-                  step="0.01"
-                  value={form.rates[method]}
-                  onChange={(e) => set({ rates: { ...form.rates, [method]: e.target.value } })}
-                  disabled={!canEdit || !form.payment_tax_enabled}
-                />
-              ))}
-            </div>
-          </Card>
-          <Card title="Tax registration & FBR">
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Input label="NTN" value={form.ntn} onChange={(e) => set({ ntn: e.target.value })} disabled={!canEdit} />
-              <Input label="STRN" value={form.strn} onChange={(e) => set({ strn: e.target.value })} disabled={!canEdit} />
-            </div>
-            <Checkbox className="mt-4" label="FBR invoice enabled" checked={form.fbr_invoice_enabled} onChange={(e) => set({ fbr_invoice_enabled: e.target.checked })} disabled={!canEdit} />
-          </Card>
-          {canEdit ? (
-            <div>
-              <Button type="submit" disabled={saveTax.isPending}>{saveTax.isPending ? "Saving…" : "Save tax settings"}</Button>
-            </div>
-          ) : null}
-        </form>
-      ) : null}
-    </section>
+    <form onSubmit={save}>
+      <Card title="Tax registration & FBR" description="Printed on receipts.">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Input label="NTN" value={form.ntn} onChange={(e) => setForm({ ...form, ntn: e.target.value })} disabled={!canEdit} />
+          <Input label="STRN" value={form.strn} onChange={(e) => setForm({ ...form, strn: e.target.value })} disabled={!canEdit} />
+        </div>
+        <Checkbox className="mt-4" label="FBR invoice enabled" checked={form.fbr_invoice_enabled} onChange={(e) => setForm({ ...form, fbr_invoice_enabled: e.target.checked })} disabled={!canEdit} />
+        {canEdit ? (
+          <div className="mt-4 flex justify-end">
+            <Button type="submit" disabled={saveTax.isPending}>{saveTax.isPending ? "Saving…" : "Save tax registration"}</Button>
+          </div>
+        ) : null}
+      </Card>
+    </form>
   )
 }
 
-/** Settings › Currency (GET / PUT /currency). */
 export function CurrencySettingsPage() {
   const { toast } = useToast()
   const currencyQuery = useCurrencyQuery()
