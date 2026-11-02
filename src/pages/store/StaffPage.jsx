@@ -20,6 +20,7 @@ import { formatDateTime } from "../../ui/format.js"
 import { useDashboardLocation } from "../../features/scope/DashboardLocation.jsx"
 import { useToast } from "../../ui/Toast.jsx"
 import { Pill, StatusBadge, statusTone } from "../../ui/Pill.jsx"
+import { Switch } from "../../ui/Switch.jsx"
 
 const empty = {
   name: "",
@@ -49,6 +50,21 @@ export function StaffPage() {
   const [error, setError] = useState("")
   const [created, setCreated] = useState(null)
   const [salesFor, setSalesFor] = useState(null)
+  const [toggling, setToggling] = useState({})
+  // A cashier works on the POS with the PIN only: no password.
+  const needsPassword = form.role !== "cashier"
+
+  async function setActive(row, next) {
+    setToggling((current) => ({ ...current, [row.id]: true }))
+    try {
+      await saveStaff.mutateAsync({ id: row.id, body: { is_active: next } })
+      toast(next ? `${row.name} is active again` : `${row.name} is suspended`)
+    } catch (err) {
+      toast(err.message, "error")
+    } finally {
+      setToggling((current) => ({ ...current, [row.id]: false }))
+    }
+  }
 
   const locationName = useMemo(() => {
     const map = new Map(locations.map((row) => [row.id, row.name]))
@@ -86,7 +102,7 @@ export function StaffPage() {
       ...(isAdmin && form.location_id ? { location_id: form.location_id } : {}),
     }
     if (form.pin) body.pin = form.pin.trim()
-    if (form.password) body.password = form.password
+    if (form.password && needsPassword) body.password = form.password
     if (editingId) {
       body.is_active = form.is_active
       if (isAdmin) body.role = form.role
@@ -153,7 +169,24 @@ export function StaffPage() {
           { key: "phone", header: "Phone", render: (row) => row.phone || "—" },
           { key: "pin", header: "PIN", render: (row) => (row.pin ? <span className="font-mono">{row.pin}</span> : "—") },
           { key: "last_login_at", header: "Last login", sortValue: (row) => (row.last_login_at ? new Date(row.last_login_at) : null), render: (row) => formatDateTime(row.last_login_at) },
-          { key: "is_active", header: "Status", sortValue: (row) => (row.is_active ? 1 : 0), render: (row) => <Pill tone={row.is_active ? "emerald" : "rose"}>{row.is_active ? "Active" : "Off"}</Pill> },
+          {
+            key: "is_active",
+            header: "Status",
+            sortValue: (row) => (row.is_active ? 1 : 0),
+            render: (row) => (
+              <div className="flex items-center gap-2">
+                {row.role !== "store_admin" ? (
+                  <Switch
+                    checked={Boolean(row.is_active)}
+                    disabled={Boolean(toggling[row.id])}
+                    label={row.is_active ? `Suspend ${row.name}` : `Activate ${row.name}`}
+                    onChange={(next) => setActive(row, next)}
+                  />
+                ) : null}
+                <Pill tone={row.is_active ? "emerald" : "rose"}>{row.is_active ? "Active" : "Suspended"}</Pill>
+              </div>
+            ),
+          },
           {
             key: "actions",
             header: "",
@@ -174,7 +207,7 @@ export function StaffPage() {
         search={{ placeholder: "Search name, email or phone…", text: (row) => `${row.name} ${row.email} ${row.phone || ""} ${row.user_number}` }}
         filters={[
           { key: "role", label: "Role", options: [{ value: "store_admin", label: "Store admin" }, { value: "manager", label: "Manager" }, { value: "cashier", label: "Cashier" }] },
-          { key: "status", label: "Status", options: [{ value: "active", label: "Active" }, { value: "off", label: "Off" }], match: (row, value) => (row.is_active ? "active" : "off") === value },
+          { key: "status", label: "Status", options: [{ value: "active", label: "Active" }, { value: "off", label: "Suspended" }], match: (row, value) => (row.is_active ? "active" : "off") === value },
         ]}
         dateRange={{ label: "Added on", value: (row) => row.created_at }}
         initialSort={{ key: "role", dir: "asc" }}
@@ -196,14 +229,18 @@ export function StaffPage() {
                 <Input label="Email" type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
               ) : null}
               <Input label="Phone" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
-              <Input
-                label={editingId ? "New password (optional)" : "Password"}
-                type="password"
-                required={!editingId}
-                minLength={6}
-                value={form.password}
-                onChange={(e) => setForm({ ...form, password: e.target.value })}
-              />
+              {needsPassword ? (
+                <Input
+                  label={editingId ? "New password (optional)" : "Password (dashboard sign-in)"}
+                  type="password"
+                  required={!editingId}
+                  minLength={6}
+                  value={form.password}
+                  onChange={(e) => setForm({ ...form, password: e.target.value })}
+                />
+              ) : (
+                <p className="rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-500">A cashier signs in on the POS with the PIN only; no password is needed.</p>
+              )}
               <Input
                 label={editingId ? "New PIN (optional)" : "POS PIN (4–6 digits)"}
                 inputMode="numeric"

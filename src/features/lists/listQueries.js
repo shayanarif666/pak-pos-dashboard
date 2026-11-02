@@ -1,5 +1,5 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { listBatches, listStaffSessions } from "../../api/operations.js"
+import { clockIn, clockOut, closeBatch, listBatches, listStaffSessions, openBatch } from "../../api/operations.js"
 import { listTransactions } from "../../api/orders.js"
 import { getCurrency, putCurrency } from "../../api/settings.js"
 import { unwrap } from "../../lib/query.js"
@@ -37,6 +37,20 @@ export function useBatchesQuery(params = {}) {
     ...live,
   })
 }
+
+/** A dashboard action on batches / attendance; every list reloads after it. */
+function useListAction(request) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (body) => unwrap(await request(body)),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["lists"] }),
+  })
+}
+
+export const useOpenBatch = () => useListAction(openBatch)
+export const useCloseBatch = () => useListAction(closeBatch)
+export const useClockIn = () => useListAction(clockIn)
+export const useClockOut = () => useListAction(clockOut)
 
 export function useCurrencyQuery() {
   return useQuery({ queryKey: ["settings", "currency"], queryFn: async () => unwrap(await getCurrency()) })

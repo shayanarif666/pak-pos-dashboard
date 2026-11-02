@@ -6,6 +6,7 @@ import {
   Ban,
   BarChart3,
   Boxes,
+  Clock,
   CreditCard,
   Download,
   FolderTree,
@@ -27,6 +28,7 @@ import {
 } from "../../features/reports/ReportCharts.jsx"
 import { useExportReport, useScopedReportQuery } from "../../features/reports/reportQuery.js"
 import { useDashboardLocation } from "../../features/scope/DashboardLocation.jsx"
+import { useStaffSessionsQuery } from "../../features/lists/listQueries.js"
 import { formatCurrency, formatNumber } from "../../ui/Currency.jsx"
 import { Button } from "../../ui/Button.jsx"
 import { Input } from "../../ui/Input.jsx"
@@ -45,6 +47,7 @@ const REPORT_TABS = [
   { id: "inventory", label: "Inventory", icon: Boxes, about: "Stock on hand with what came in and went out in the range." },
   { id: "movements", label: "Stock Movements", icon: ArrowLeftRight, about: "Every stock in / out with its reason and who did it." },
   { id: "batches", label: "Z-Reports (Batches)", icon: Receipt, about: "Each batch: takings per method, expected vs counted cash." },
+  { id: "sessions", label: "Sessions History", icon: Clock, about: "Staff clock in / clock out and hours worked, per session and per staff member." },
   { id: "refunds", label: "Refunded Orders", icon: RotateCcw, about: "Complete and partial refunds with amounts and reasons." },
   { id: "cancelled", label: "Cancelled Orders", icon: Ban, about: "Voided and cancelled sales and the sales lost." },
   { id: "cashiers", label: "By Cashier", icon: UserRound, about: "Orders, sales, discounts and refunds per staff member." },
@@ -56,6 +59,73 @@ const CHANNEL_TABS = [
   { id: "web", label: "By Web" },
   { id: "pos", label: "By POS" },
 ]
+
+/** "7h 05m" from milliseconds. */
+function hoursText(ms) {
+  if (!(ms > 0)) return "0h 00m"
+  const minutes = Math.round(ms / 60000)
+  return `${Math.floor(minutes / 60)}h ${String(minutes % 60).padStart(2, "0")}m`
+}
+
+const workedMs = (row) => (row.opening_at ? (row.closing_at ? new Date(row.closing_at) : new Date()) - new Date(row.opening_at) : 0)
+
+/** Sessions History for the range: totals per staff member, then every session. */
+function SessionsReport({ from, to, locationId }) {
+  const query = useStaffSessionsQuery({
+    page: 1,
+    limit: 200,
+    ...(from ? { from } : {}),
+    ...(to ? { to } : {}),
+    ...(locationId ? { location_id: locationId } : {}),
+  })
+  const rows = query.data?.rows || []
+  const byStaff = new Map()
+  for (const row of rows) {
+    const key = row.staff?.id ?? "—"
+    const entry = byStaff.get(key) || { staff: row.staff?.name || "—", role: row.staff?.role || "", sessions: 0, ms: 0, onDuty: false }
+    entry.sessions += 1
+    entry.ms += workedMs(row)
+    entry.onDuty = entry.onDuty || !row.closing_at
+    byStaff.set(key, entry)
+  }
+  const total = query.data?.pagination?.total ?? rows.length
+  if (query.isPending) return <PageLoader label="Loading sessions…" />
+  if (query.error) return <p className="text-sm text-rose-700">{query.error.message}</p>
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-3 sm:grid-cols-3">
+        <StatCard label="Sessions" value={formatNumber(total)} hint={total > rows.length ? `First ${rows.length} shown` : undefined} />
+        <StatCard label="Hours worked" value={hoursText(rows.reduce((sum, row) => sum + workedMs(row), 0))} />
+        <StatCard label="On duty now" value={rows.filter((row) => !row.closing_at).length} />
+      </div>
+      <DataTable
+        columns={[
+          { key: "staff", label: "Staff", render: (row) => <span className="font-medium text-slate-900">{row.staff}</span> },
+          { key: "role", label: "Role", render: (row) => String(row.role).replace("_", " ") || "—" },
+          { key: "sessions", label: "Sessions" },
+          { key: "ms", label: "Hours worked", render: (row) => hoursText(row.ms) },
+          { key: "avg", label: "Avg per session", render: (row) => hoursText(row.sessions ? row.ms / row.sessions : 0) },
+          { key: "onDuty", label: "Now", render: (row) => <StatusBadge value={row.onDuty ? "clock_in" : "clock_out"} /> },
+        ]}
+        rows={[...byStaff.values()]}
+        empty="No sessions in this range"
+      />
+      <DataTable
+        columns={[
+          { key: "id", label: "Session #", render: (row) => `#${row.id}` },
+          { key: "staff", label: "Staff", render: (row) => row.staff?.name || "—" },
+          { key: "location", label: "Location", render: (row) => row.location?.name || "—" },
+          { key: "opening_at", label: "Clock in", render: (row) => (row.opening_at ? new Date(row.opening_at).toLocaleString() : "—") },
+          { key: "closing_at", label: "Clock out", render: (row) => (row.closing_at ? new Date(row.closing_at).toLocaleString() : "—") },
+          { key: "worked", label: "Worked", render: (row) => hoursText(workedMs(row)) },
+          { key: "status", label: "Status", render: (row) => <StatusBadge value={row.status} /> },
+        ]}
+        rows={rows}
+        empty="No sessions in this range"
+      />
+    </div>
+  )
+}
 
 function StatCard({ label, value, hint }) {
   return (
@@ -664,6 +734,8 @@ export function ReportsPage() {
           />
         </div>
       ) : null}
+
+      {tab === "sessions" ? <SessionsReport from={customFrom} to={customTo} locationId={scope.locationId} /> : null}
 
       {data && tab === "cashiers" ? (
         <DataTable

@@ -7,7 +7,9 @@ import {
   useDeleteCategory,
   useLocationsQuery,
   useProductsQuery,
+  useSaveCategory,
 } from "../../features/catalog/catalogQuery.jsx"
+import { Switch } from "../../ui/Switch.jsx"
 import { CategoryFormModal } from "../../features/catalog/CategoryFormModal.jsx"
 import { LocationScopePills } from "../../features/scope/LocationScopeField.jsx"
 import { Button } from "../../ui/Button.jsx"
@@ -25,6 +27,20 @@ export function CategoriesPage() {
   const locations = (locationsQuery.data || []).filter((row) => row.is_active !== false)
   const categoriesQuery = useCategoriesQuery()
   const deleteCategoryMutation = useDeleteCategory()
+  const saveCategory = useSaveCategory()
+  const [toggling, setToggling] = useState({})
+
+  async function setActive(row, next) {
+    setToggling((current) => ({ ...current, [row.id]: true }))
+    try {
+      await saveCategory.mutateAsync({ id: row.id, body: { is_active: next } })
+      toast(next ? `${row.name} is active` : `${row.name} is switched off`)
+    } catch (err) {
+      toast(err.message, "error")
+    } finally {
+      setToggling((current) => ({ ...current, [row.id]: false }))
+    }
+  }
   const rows = categoriesQuery.data || []
   // null = closed; { category: null } = new; { category: row } = edit.
   const [editing, setEditing] = useState(null)
@@ -98,7 +114,22 @@ export function CategoriesPage() {
       sortValue: (row) => (row.location_scope === "selected" ? (row.locations || []).length : 0),
       render: (row) => <LocationScopePills row={row} />,
     },
-    { key: "is_active", header: "Status", sortValue: (row) => (row.is_active ? 1 : 0), render: (row) => <Pill tone={row.is_active ? "emerald" : "rose"}>{row.is_active ? "Active" : "Off"}</Pill> },
+    {
+      key: "is_active",
+      header: "Active",
+      sortValue: (row) => (row.is_active ? 1 : 0),
+      render: (row) => (
+        <div className="flex items-center gap-2" onClick={(event) => event.stopPropagation()}>
+          <Switch
+            checked={row.is_active !== false}
+            disabled={Boolean(toggling[row.id])}
+            label={row.is_active !== false ? `Switch off ${row.name}` : `Switch on ${row.name}`}
+            onChange={(next) => setActive(row, next)}
+          />
+          <Pill tone={row.is_active !== false ? "emerald" : "rose"}>{row.is_active !== false ? "Active" : "Off"}</Pill>
+        </div>
+      ),
+    },
     {
       key: "actions",
       header: "",

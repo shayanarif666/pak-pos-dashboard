@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react"
 import { Link, useNavigate, useSearchParams } from "react-router-dom"
-import { Eye, Pencil, Plus, Trash2 } from "lucide-react"
-import { useCategoriesQuery, useDisableProduct, useProductsQuery } from "../../features/catalog/catalogQuery.jsx"
+import { Eye, Pencil, Plus, RotateCcw, Trash2 } from "lucide-react"
+import { useCategoriesQuery, useDisableProduct, useProductsQuery, useSetProductActive } from "../../features/catalog/catalogQuery.jsx"
 import { useDashboardLocation } from "../../features/scope/DashboardLocation.jsx"
 import { LocationScopePills } from "../../features/scope/LocationScopeField.jsx"
 import { DataTable } from "../../ui/DataTable.jsx"
@@ -35,6 +35,7 @@ export function ProductsPage() {
   const { toast, confirmToast } = useToast()
   const { params, isAll, label } = useDashboardLocation()
   const disableProduct = useDisableProduct()
+  const setProductActive = useSetProductActive()
   const categoriesQuery = useCategoriesQuery()
   const [searchParams] = useSearchParams()
   // Category filter is sent to the API as category_id (?category= opens the page filtered).
@@ -56,16 +57,26 @@ export function ProductsPage() {
     }
   }, [rows])
 
+  // Delete is a soft delete: the product is switched off (is_active false) and can come back.
   async function remove(product) {
     const ok = await confirmToast({
-      title: "Disable product?",
-      message: `${product.title} will be hidden store-wide. Stock at each location is kept.`,
-      confirmLabel: "Disable",
+      title: "Delete product?",
+      message: `${product.title}${product.has_variants ? " and its variants" : ""} will be switched off: no longer sold anywhere. Its stock and sales history are kept, and you can switch it back on.`,
+      confirmLabel: "Delete",
     })
     if (!ok) return
     try {
       await disableProduct.mutateAsync(product.id)
-      toast("Product disabled")
+      toast(`${product.title} deleted (switched off)`)
+    } catch (err) {
+      toast(err.message, "error")
+    }
+  }
+
+  async function restore(product) {
+    try {
+      await setProductActive.mutateAsync({ id: product.id, is_active: true })
+      toast(`${product.title} is active again`)
     } catch (err) {
       toast(err.message, "error")
     }
@@ -144,8 +155,10 @@ export function ProductsPage() {
           <Link to={`/products/${row.id}`}><Button variant="icon" aria-label="View product"><Eye className="h-4 w-4" /></Button></Link>
           <Link to={`/products/${row.id}/edit`}><Button variant="icon" aria-label="Edit product"><Pencil className="h-4 w-4" /></Button></Link>
           {row.is_active ? (
-            <Button variant="icon" aria-label="Disable product" onClick={() => remove(row)}><Trash2 className="h-4 w-4" /></Button>
-          ) : null}
+            <Button variant="icon" aria-label="Delete product" onClick={() => remove(row)}><Trash2 className="h-4 w-4 text-rose-600" /></Button>
+          ) : (
+            <Button variant="icon" aria-label="Switch product back on" onClick={() => restore(row)}><RotateCcw className="h-4 w-4" /></Button>
+          )}
         </div>
       ),
     },

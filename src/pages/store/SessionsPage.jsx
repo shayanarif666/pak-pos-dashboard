@@ -1,5 +1,11 @@
 import { useState } from "react"
-import { useStaffSessionsQuery } from "../../features/lists/listQueries.js"
+import { LogIn, LogOut } from "lucide-react"
+import { useAuth } from "../../auth/AuthContext.jsx"
+import { useClockIn, useClockOut, useStaffSessionsQuery } from "../../features/lists/listQueries.js"
+import { StaffLocationFields, staffLocationBody } from "../../features/lists/StaffLocationFields.jsx"
+import { Button } from "../../ui/Button.jsx"
+import { Modal, ModalCard } from "../../ui/Modal.jsx"
+import { useToast } from "../../ui/Toast.jsx"
 import { useDashboardLocation, useLocationName } from "../../features/scope/DashboardLocation.jsx"
 import { useStaffQuery } from "../../features/operations/operationsQuery.js"
 import { useStaffNames } from "../../features/lists/useStaffNames.js"
@@ -19,7 +25,36 @@ function duration(start, end) {
 
 /** Sessions History: staff attendance (clock in / clock out), paged by the API. */
 export function SessionsPage() {
-  const { params: locationParams, isAll } = useDashboardLocation()
+  const { params: locationParams, isAll, locationId } = useDashboardLocation()
+  const { user } = useAuth()
+  const isAdmin = user?.role === "store_admin"
+  const { toast, confirmToast } = useToast()
+  const clockIn = useClockIn()
+  const clockOut = useClockOut()
+  // Clock in: who and where.
+  const [clocking, setClocking] = useState(null)
+
+  async function submitClockIn(event) {
+    event.preventDefault()
+    try {
+      await clockIn.mutateAsync(staffLocationBody(clocking, isAdmin))
+      toast("Clocked in")
+      setClocking(null)
+    } catch (err) {
+      toast(err.message, "error")
+    }
+  }
+
+  async function clockOutRow(row) {
+    const ok = await confirmToast({ title: "Clock out?", message: `${row.staff?.name || "This staff member"} will be clocked out now.`, confirmLabel: "Clock out" })
+    if (!ok) return
+    try {
+      await clockOut.mutateAsync({ staffId: row.staff?.id ?? row.staffId, ...(isAdmin && row.location?.id ? { location_id: row.location.id } : {}) })
+      toast("Clocked out")
+    } catch (err) {
+      toast(err.message, "error")
+    }
+  }
   const locationName = useLocationName()
   const staffName = useStaffNames()
   const staff = useStaffQuery().data || []
@@ -51,11 +86,24 @@ export function SessionsPage() {
     { key: "closing_at", header: "Clock out", render: (row) => formatDateTime(row.closing_at) },
     { key: "duration", header: "Worked", render: (row) => duration(row.opening_at, row.closing_at) },
     { key: "status", header: "Status", render: (row) => <StatusBadge value={row.status} /> },
+    {
+      key: "actions",
+      header: "",
+      render: (row) =>
+        row.status === "clock_in" && !row.closing_at ? (
+          <Button variant="ghost" onClick={() => clockOutRow(row)} disabled={clockOut.isPending}><LogOut className="h-4 w-4" /> Clock out</Button>
+        ) : null,
+    },
   ]
 
   return (
     <section className="space-y-6">
-      <PageHeader section="Staff" title="Sessions History" description="When each staff member clocked in and out on the POS, and how long they worked." />
+      <PageHeader
+        section="Staff"
+        title="Sessions History"
+        description="When each staff member clocked in and out on the POS or here, and how long they worked."
+        actions={<Button onClick={() => setClocking({ staffId: "", locationId: locationId || "" })}><LogIn className="h-4 w-4" /> Clock in</Button>}
+      />
       <StatCards
         items={[
           { label: "Sessions", value: query.data?.pagination?.total ?? "—", hint: "With the filters below" },
@@ -81,6 +129,19 @@ export function SessionsPage() {
         server={{ total: query.data?.pagination?.total || 0, onChange: setTable }}
         emptyText="No clock-ins yet."
       />
+
+      <Modal open={Boolean(clocking)} onClose={() => setClocking(null)} size="md">
+        {clocking ? (
+          <ModalCard as="form" title="Clock in" onClose={() => setClocking(null)} onSubmit={submitClockIn}>
+            <StaffLocationFields value={clocking} onChange={setClocking} />
+            <p className="mt-3 text-xs text-slate-500">The session starts now; clock out from its row in the table.</p>
+            <div className="mt-5 flex justify-end gap-2">
+              <Button variant="ghost" type="button" onClick={() => setClocking(null)}>Cancel</Button>
+              <Button type="submit" disabled={clockIn.isPending}>{clockIn.isPending ? "Saving…" : "Clock in"}</Button>
+            </div>
+          </ModalCard>
+        ) : null}
+      </Modal>
     </section>
   )
 }

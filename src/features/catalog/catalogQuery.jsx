@@ -127,6 +127,15 @@ export function useSaveCategory() {
   })
 }
 
+/** Switches a product (and, for a product with variants, its variants) on or off. */
+export function useSetProductActive() {
+  const invalidateCatalog = useInvalidateCatalog()
+  return useMutation({
+    mutationFn: ({ id, is_active }) => updateProduct(id, { is_active }),
+    onSuccess: invalidateCatalog,
+  })
+}
+
 export function useDeleteCategory() {
   const invalidateCatalog = useInvalidateCatalog()
   return useMutation({
