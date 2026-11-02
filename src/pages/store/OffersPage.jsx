@@ -18,9 +18,43 @@ import { useToast } from "../../ui/Toast.jsx"
 /*
  * Discounts (the API's offers): each one applies to several products and / or categories, built
  * the same way as the Bulk Offer Creation payload: { name, type, discount_type, discount_value,
- * products: [{ product_id, promo_price?, free_product_id? }], categories: [ids], min_qty, buy_qty,
- * get_qty, start_at, end_at, is_active, location_scope, location_ids }.
+ * products: [{ product_id, sale_unit?, promo_price?, promo_pack_price?, free_product_id? }],
+ * categories: [ids], sale_unit, min_qty + min_qty_unit, buy_qty + buy_unit, get_qty + get_unit,
+ * start_at, end_at, is_active, location_scope, location_ids }.
+ *
+ * Pack products: each one says whether the discount is for a single item, the whole pack or both
+ * (sale_unit); categories use the discount's own sale_unit. A fixed amount is per item or per pack.
  */
+
+// On a pack product: what the discount applies to.
+const SALE_UNIT_LABEL = { unit: "Single item", pack: "Full pack", both: "Both" }
+const COUNT_UNIT_LABEL = { unit: "Single items", pack: "Packs" }
+
+const isPack = (product) => Boolean(product?.is_pack_product) && Number(product?.pack_size) >= 2
+/** unit | pack | both for this product (a pack sold only whole: pack). */
+function effectiveSaleUnit(product, own, fallback) {
+  if (!isPack(product)) return "unit"
+  if (!product.sell_loose) return "pack"
+  return own || fallback || "both"
+}
+
+/** Segmented picker: Single item / Full pack / Both. */
+function UnitPicker({ value, onChange, options = ["unit", "pack", "both"], labels = SALE_UNIT_LABEL }) {
+  return (
+    <div className="inline-flex rounded-xl border border-slate-200 bg-white p-1">
+      {options.map((option) => (
+        <button
+          key={option}
+          type="button"
+          onClick={() => onChange(option)}
+          className={["rounded-lg px-2.5 py-1 text-xs font-semibold transition", value === option ? "bg-brand-700 text-white" : "text-slate-600 hover:text-brand-700"].join(" ")}
+        >
+          {labels[option]}
+        </button>
+      ))}
+    </div>
+  )
+}
 
 const TYPE_LABEL = {
   promotional: "Promotional",
@@ -43,6 +77,11 @@ const emptyForm = {
   min_qty: "",
   buy_qty: "",
   get_qty: "",
+  // Pack products: the discount's default (categories), and how min / buy / get are counted.
+  sale_unit: "both",
+  min_qty_unit: "unit",
+  buy_unit: "unit",
+  get_unit: "unit",
   start_at: "",
   end_at: "",
   is_active: true,
@@ -67,11 +106,13 @@ const STATE_PILL = {
   inactive: { tone: "zinc", label: "Inactive" },
 }
 
+const countText = (qty, unit) => `${qty ?? "?"}${unit === "pack" ? ` pack${Number(qty) === 1 ? "" : "s"}` : ""}`
+
 function discountText(row) {
-  if (row.type === "bogo") return `Buy ${row.buy_qty ?? "?"} get ${row.get_qty ?? "?"}`
+  if (row.type === "bogo") return `Buy ${countText(row.buy_qty, row.buy_unit)} get ${countText(row.get_qty, row.get_unit)}`
   if (row.discount_value == null) return row.type === "flash_sale" ? "Sale prices" : "—"
   const amount = row.discount_type === "percentage" ? `${row.discount_value}%` : formatCurrency(row.discount_value)
-  return row.type === "bulk_discount" ? `${amount} from ${row.min_qty}` : amount
+  return row.type === "bulk_discount" ? `${amount} from ${countText(row.min_qty, row.min_qty_unit)}` : amount
 }
 
 /** ISO date → the local value a datetime-local input shows. */
@@ -174,7 +215,7 @@ export function DiscountsPage() {
       ...current,
       products: current.products.some((p) => p.product_id === id)
         ? current.products.filter((p) => p.product_id !== id)
-        : [...current.products, { product_id: id, promo_price: "", free_product_id: "" }],
+        : [...current.products, { product_id: id, sale_unit: "", promo_price: "", promo_pack_price: "", free_product_id: "" }],
     }))
   }
   const patchProduct = (id, key, value) =>
@@ -202,6 +243,10 @@ export function DiscountsPage() {
       min_qty: row.min_qty ?? "",
       buy_qty: row.buy_qty ?? "",
       get_qty: row.get_qty ?? "",
+      sale_unit: row.sale_unit || "both",
+      min_qty_unit: row.min_qty_unit || "unit",
+      buy_unit: row.buy_unit || "unit",
+      get_unit: row.get_unit || "unit",
       start_at: toLocalInput(row.start_at),
       end_at: toLocalInput(row.end_at),
       is_active: row.is_active !== false,
@@ -209,7 +254,9 @@ export function DiscountsPage() {
       location_ids: (row.location_ids || []).map((number) => locationIdOfNumber[String(number)]).filter(Boolean),
       products: productTargets(row).map((t) => ({
         product_id: t.product_id,
+        sale_unit: t.sale_unit || "",
         promo_price: t.promo_price ?? "",
+        promo_pack_price: t.promo_pack_price ?? "",
         free_product_id: t.free_product_id || "",
       })),
       categories: categoryTargets(row).map((t) => t.category_id),
@@ -226,13 +273,24 @@ export function DiscountsPage() {
       discount_type: usesDiscount ? form.discount_type : null,
       discount_value: usesDiscount ? Number(form.discount_value) : null,
       min_qty: form.type === "bulk_discount" ? Number(form.min_qty) : null,
+      min_qty_unit: form.type === "bulk_discount" ? form.min_qty_unit : "unit",
       buy_qty: form.type === "bogo" ? Number(form.buy_qty) : null,
+      buy_unit: form.type === "bogo" ? form.buy_unit : "unit",
       get_qty: form.type === "bogo" ? Number(form.get_qty) : null,
-      products: form.products.map((p) => ({
-        product_id: p.product_id,
-        ...(form.type === "flash_sale" && p.promo_price !== "" ? { promo_price: Number(p.promo_price) } : {}),
-        ...(form.type === "bogo" && p.free_product_id ? { free_product_id: p.free_product_id } : {}),
-      })),
+      get_unit: form.type === "bogo" ? form.get_unit : "unit",
+      sale_unit: form.sale_unit,
+      products: form.products.map((p) => {
+        const product = productById.get(p.product_id)
+        const unit = effectiveSaleUnit(product, p.sale_unit, form.sale_unit)
+        return {
+          product_id: p.product_id,
+          // A pack product: single item, full pack or both.
+          ...(isPack(product) ? { sale_unit: unit } : {}),
+          ...(form.type === "flash_sale" && p.promo_price !== "" && unit !== "pack" ? { promo_price: Number(p.promo_price) } : {}),
+          ...(form.type === "flash_sale" && p.promo_pack_price !== "" && unit !== "unit" ? { promo_pack_price: Number(p.promo_pack_price) } : {}),
+          ...(form.type === "bogo" && p.free_product_id ? { free_product_id: p.free_product_id } : {}),
+        }
+      }),
       categories: form.categories,
       start_at: form.start_at ? new Date(form.start_at).toISOString() : null,
       end_at: form.end_at ? new Date(form.end_at).toISOString() : null,
@@ -253,7 +311,15 @@ export function DiscountsPage() {
     if (form.type === "flash_sale") {
       const hasDiscount = form.discount_value !== ""
       if (form.categories.length && !hasDiscount) return "A flash sale on categories needs a % or amount off."
-      if (form.products.some((p) => p.promo_price === "") && !hasDiscount) return "Give each product a sale price, or a % / amount off."
+      if (!hasDiscount) {
+        for (const p of form.products) {
+          const product = productById.get(p.product_id)
+          const unit = effectiveSaleUnit(product, p.sale_unit, form.sale_unit)
+          const name = product?.title || "A product"
+          if (unit !== "pack" && p.promo_price === "") return `${name}: give its sale price (single item), or a % / amount off.`
+          if (unit !== "unit" && p.promo_pack_price === "") return `${name}: give its pack sale price, or a % / amount off.`
+        }
+      }
     }
     if (form.discount_type === "percentage" && Number(form.discount_value) > 100) return "A percentage cannot be over 100."
     if (form.start_at && form.end_at && form.end_at < form.start_at) return "The end must be after the start."
@@ -345,7 +411,13 @@ export function DiscountsPage() {
     },
   ]
 
-  const productOptions = products.map((row) => ({ id: row.id, label: row.title, hint: formatCurrency(row.selling_price) }))
+  const productOptions = products.map((row) => ({
+    id: row.id,
+    label: row.title,
+    hint: isPack(row) ? `${formatCurrency(row.selling_price)} · pack of ${row.pack_size} ${formatCurrency(row.pack_selling_price)}` : formatCurrency(row.selling_price),
+  }))
+  // The discount's own unit / pack / both matters for categories (their pack products).
+  const selectedPack = form.products.some((p) => isPack(productById.get(p.product_id)))
   const categoryOptions = categories.map((row) => ({ id: row.id, label: row.name }))
   const usesDiscountFields = form.type !== "bogo"
 
@@ -418,40 +490,105 @@ export function DiscountsPage() {
                 </>
               ) : null}
               {form.type === "bulk_discount" ? (
-                <Input label="Minimum quantity" type="number" min="1" step="1" required value={form.min_qty} onChange={(e) => set("min_qty", e.target.value)} />
+                <div className="flex items-end gap-2">
+                  <Input label="Minimum quantity" type="number" min="1" step="1" required value={form.min_qty} onChange={(e) => set("min_qty", e.target.value)} className="min-w-0 flex-1" />
+                  <Select label="Counted in" value={form.min_qty_unit} onChange={(e) => set("min_qty_unit", e.target.value)}>
+                    <option value="unit">Single items</option>
+                    <option value="pack">Packs</option>
+                  </Select>
+                </div>
               ) : null}
               {form.type === "bogo" ? (
                 <>
-                  <Input label="Buy" type="number" min="1" step="1" required value={form.buy_qty} onChange={(e) => set("buy_qty", e.target.value)} />
-                  <Input label="Get free" type="number" min="1" step="1" required value={form.get_qty} onChange={(e) => set("get_qty", e.target.value)} />
+                  <div className="flex items-end gap-2">
+                    <Input label="Buy" type="number" min="1" step="1" required value={form.buy_qty} onChange={(e) => set("buy_qty", e.target.value)} className="min-w-0 flex-1" />
+                    <Select label="Of" value={form.buy_unit} onChange={(e) => set("buy_unit", e.target.value)}>
+                      <option value="unit">Single items</option>
+                      <option value="pack">Packs</option>
+                    </Select>
+                  </div>
+                  <div className="flex items-end gap-2">
+                    <Input label="Get free" type="number" min="1" step="1" required value={form.get_qty} onChange={(e) => set("get_qty", e.target.value)} className="min-w-0 flex-1" />
+                    <Select label="Of" value={form.get_unit} onChange={(e) => set("get_unit", e.target.value)}>
+                      <option value="unit">Single items</option>
+                      <option value="pack">Packs</option>
+                    </Select>
+                  </div>
                 </>
               ) : null}
             </div>
+            {form.type === "bogo" ? (
+              <p className="-mt-2 text-xs text-slate-500">
+                e.g. buy 1 pack, get 1 single item free. Packs only count on pack products; others use single items.
+              </p>
+            ) : form.discount_type === "fixed" && usesDiscountFields ? (
+              <p className="-mt-2 text-xs text-slate-500">A fixed amount comes off each single item, or each pack when a pack is sold.</p>
+            ) : null}
 
             <div className="grid gap-4 lg:grid-cols-2">
               <MultiPick label="Products" options={productOptions} selected={form.products.map((p) => p.product_id)} onToggle={toggleProduct} empty="No products." />
               <MultiPick label="Categories" options={categoryOptions} selected={form.categories} onToggle={toggleCategory} empty="No categories." />
             </div>
 
-            {form.products.length && (form.type === "flash_sale" || form.type === "bogo") ? (
+            {form.categories.length || selectedPack ? (
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50/60 px-4 py-3">
+                <div>
+                  <p className="text-sm font-medium text-slate-800">On pack products</p>
+                  <p className="text-xs text-slate-500">The default for pack products in the selected categories (and products left on default).</p>
+                </div>
+                <UnitPicker value={form.sale_unit} onChange={(value) => set("sale_unit", value)} />
+              </div>
+            ) : null}
+
+            {form.products.length ? (
               <div className="rounded-2xl border border-slate-200 p-4">
-                <p className="mb-3 text-sm font-medium text-slate-700">{form.type === "flash_sale" ? "Sale price per product" : "Free item per product (empty = the same product)"}</p>
-                <div className="space-y-2">
+                <p className="mb-3 text-sm font-medium text-slate-700">
+                  Selected products{form.type === "flash_sale" ? " · sale prices" : form.type === "bogo" ? " · free item (empty = the same product)" : ""}
+                </p>
+                <div className="space-y-3">
                   {form.products.map((p) => {
                     const product = productById.get(p.product_id)
+                    const pack = isPack(product)
+                    const unit = effectiveSaleUnit(product, p.sale_unit, form.sale_unit)
                     return (
-                      <div key={p.product_id} className="grid items-center gap-3 sm:grid-cols-[minmax(0,1fr)_220px]">
-                        <p className="truncate text-sm text-slate-900">
-                          {product?.title || "Product"} <span className="text-xs text-slate-500">· now {formatCurrency(product?.selling_price)}</span>
-                        </p>
+                      <div key={p.product_id} className="rounded-xl border border-slate-100 bg-slate-50/50 p-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="min-w-0 truncate text-sm font-medium text-slate-900">
+                            {product?.title || "Product"}{" "}
+                            <span className="text-xs font-normal text-slate-500">
+                              · {formatCurrency(product?.selling_price)}{pack ? ` · pack of ${product.pack_size} ${formatCurrency(product.pack_selling_price)}` : ""}
+                            </span>
+                          </p>
+                          <button type="button" className="text-xs font-semibold text-rose-600 hover:underline" onClick={() => toggleProduct(p.product_id)}>Remove</button>
+                        </div>
+                        {pack ? (
+                          <div className="mt-2 flex flex-wrap items-center gap-2">
+                            <span className="text-xs text-slate-600">This discount is for:</span>
+                            {product.sell_loose ? (
+                              <UnitPicker value={unit} onChange={(value) => patchProduct(p.product_id, "sale_unit", value)} />
+                            ) : (
+                              <Pill tone="sky" dot={false}>Full pack only (not sold loose)</Pill>
+                            )}
+                          </div>
+                        ) : null}
                         {form.type === "flash_sale" ? (
-                          <Input type="number" min="0" step="0.01" placeholder="Sale price" value={p.promo_price} onChange={(e) => patchProduct(p.product_id, "promo_price", e.target.value)} />
-                        ) : (
-                          <Select value={p.free_product_id} onChange={(e) => patchProduct(p.product_id, "free_product_id", e.target.value)}>
-                            <option value="">Same product</option>
-                            {products.map((row) => <option key={row.id} value={row.id}>{row.title}</option>)}
-                          </Select>
-                        )}
+                          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                            {unit !== "pack" ? (
+                              <Input label="Sale price (single item)" type="number" min="0" step="0.01" value={p.promo_price} onChange={(e) => patchProduct(p.product_id, "promo_price", e.target.value)} />
+                            ) : null}
+                            {pack && unit !== "unit" ? (
+                              <Input label={`Sale price (pack of ${product.pack_size})`} type="number" min="0" step="0.01" value={p.promo_pack_price} onChange={(e) => patchProduct(p.product_id, "promo_pack_price", e.target.value)} />
+                            ) : null}
+                          </div>
+                        ) : null}
+                        {form.type === "bogo" ? (
+                          <div className="mt-2 max-w-sm">
+                            <Select label="Free item" value={p.free_product_id} onChange={(e) => patchProduct(p.product_id, "free_product_id", e.target.value)}>
+                              <option value="">Same product</option>
+                              {products.map((row) => <option key={row.id} value={row.id}>{row.title}</option>)}
+                            </Select>
+                          </div>
+                        ) : null}
                       </div>
                     )
                   })}
@@ -506,8 +643,13 @@ export function DiscountsPage() {
               <Info label="Discount">{discountText(selected)}</Info>
               <Info label="Discount type">{selected.discount_type || "—"}</Info>
               <Info label="Applies to">{selected.apply_to === "mixed" ? "Products and categories" : selected.apply_to === "product" ? "Products" : "Categories"}</Info>
-              {selected.type === "bulk_discount" ? <Info label="Minimum quantity">{selected.min_qty}</Info> : null}
-              {selected.type === "bogo" ? <Info label="Buy / get free">{selected.buy_qty} / {selected.get_qty}</Info> : null}
+              {selected.type === "bulk_discount" ? <Info label="Minimum quantity">{selected.min_qty} {COUNT_UNIT_LABEL[selected.min_qty_unit || "unit"].toLowerCase()}</Info> : null}
+              {selected.type === "bogo" ? (
+                <Info label="Buy / get free">
+                  {selected.buy_qty} {COUNT_UNIT_LABEL[selected.buy_unit || "unit"].toLowerCase()} / {selected.get_qty} {COUNT_UNIT_LABEL[selected.get_unit || "unit"].toLowerCase()}
+                </Info>
+              ) : null}
+              <Info label="On pack products">{SALE_UNIT_LABEL[selected.sale_unit || "both"]}</Info>
               <Info label="Starts">{formatDate(selected.start_at)}</Info>
               <Info label="Ends">{formatDate(selected.end_at)}</Info>
               <Info label="Runs at"><LocationScopePills row={selected} /></Info>
@@ -523,6 +665,7 @@ export function DiscountsPage() {
                     <tr>
                       <th className="px-4 py-2.5 font-semibold">Product</th>
                       <th className="px-4 py-2.5 text-right font-semibold">Price</th>
+                      <th className="px-4 py-2.5 font-semibold">For</th>
                       {selected.type === "flash_sale" ? <th className="px-4 py-2.5 text-right font-semibold">Sale price</th> : null}
                       {selected.type === "bogo" ? <th className="px-4 py-2.5 font-semibold">Free item</th> : null}
                     </tr>
@@ -533,8 +676,18 @@ export function DiscountsPage() {
                       return (
                         <tr key={t.id} className="border-t border-slate-100">
                           <td className="px-4 py-2.5 text-slate-900">{product?.title || "Product"}</td>
-                          <td className="px-4 py-2.5 text-right">{product ? <Currency value={product.selling_price} /> : "—"}</td>
-                          {selected.type === "flash_sale" ? <td className="px-4 py-2.5 text-right font-semibold">{t.promo_price != null ? <Currency value={t.promo_price} /> : discountText(selected)}</td> : null}
+                          <td className="px-4 py-2.5 text-right">
+                            {product ? <Currency value={product.selling_price} /> : "—"}
+                            {isPack(product) ? <span className="block text-xs text-slate-500">pack {formatCurrency(product.pack_selling_price)}</span> : null}
+                          </td>
+                          <td className="px-4 py-2.5 text-xs">{isPack(product) ? SALE_UNIT_LABEL[effectiveSaleUnit(product, t.sale_unit, selected.sale_unit)] : "Single item"}</td>
+                          {selected.type === "flash_sale" ? (
+                            <td className="px-4 py-2.5 text-right font-semibold">
+                              {t.promo_price == null && t.promo_pack_price == null ? discountText(selected) : null}
+                              {t.promo_price != null ? <span className="block"><Currency value={t.promo_price} /></span> : null}
+                              {t.promo_pack_price != null ? <span className="block text-xs">pack <Currency value={t.promo_pack_price} /></span> : null}
+                            </td>
+                          ) : null}
                           {selected.type === "bogo" ? <td className="px-4 py-2.5">{t.free_product_id ? productById.get(t.free_product_id)?.title || "Product" : "Same product"}</td> : null}
                         </tr>
                       )
