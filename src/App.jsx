@@ -16,6 +16,7 @@ import { LocationsPage } from "./pages/store/LocationsPage.jsx"
 import { MovementsPage } from "./pages/store/MovementsPage.jsx"
 import { DiscountsPage } from "./pages/store/OffersPage.jsx"
 import { DiscountFormPage } from "./pages/store/DiscountFormPage.jsx"
+import { TransferFormPage } from "./pages/store/TransferFormPage.jsx"
 import { ForgotPasswordPage } from "./pages/auth/ForgotPasswordPage.jsx"
 import { ResetPasswordPage } from "./pages/auth/ResetPasswordPage.jsx"
 import { OrderDetailPage } from "./pages/store/OrderDetailPage.jsx"
@@ -132,6 +133,7 @@ export default function App() {
             <Route path="transactions" element={<TransactionsTablePage />} />
             <Route path="sessions" element={<SessionsPage />} />
             <Route path="transfers" element={<TransfersPage />} />
+            <Route path="transfers/new" element={<TransferFormPage />} />
             <Route path="batches" element={<BatchesPage />} />
             <Route path="shifts" element={<Navigate to="/batches" replace />} />
             <Route path="discounts" element={<DiscountsPage />} />

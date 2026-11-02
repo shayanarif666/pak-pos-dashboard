@@ -1,18 +1,13 @@
 import { StatCards } from "../../ui/PageHeader.jsx"
-import { useState } from "react"
+import { useNavigate } from "react-router-dom"
 import {
   useCancelStockTransfer,
   useCompleteStockTransfer,
-  useCreateStockTransfer,
   useStockTransfersQuery,
 } from "../../features/inventory/inventoryQuery.js"
 import { useLocationsQuery, useProductsQuery } from "../../features/catalog/catalogQuery.jsx"
 import { Plus } from "lucide-react"
 import { Button } from "../../ui/Button.jsx"
-import { Modal, ModalCard } from "../../ui/Modal.jsx"
-import { Input } from "../../ui/Input.jsx"
-
-import { Select } from "../../ui/Select.jsx"
 import { DataTable } from "../../ui/DataTable.jsx"
 import { formatDateTime } from "../../ui/format.js"
 import { useDashboardLocation } from "../../features/scope/DashboardLocation.jsx"
@@ -20,30 +15,23 @@ import { useStaffNames } from "../../features/lists/useStaffNames.js"
 import { useToast } from "../../ui/Toast.jsx"
 import { StatusBadge } from "../../ui/Pill.jsx"
 
+/** Every location a transfer goes to. */
+const destinationIds = (row) => (row.destinations || []).map((dest) => dest.to_location_id)
+
 export function TransfersPage() {
+  const navigate = useNavigate()
   const { toast, confirmToast } = useToast()
   const transfersQuery = useStockTransfersQuery()
   const locationsQuery = useLocationsQuery()
   const productsQuery = useProductsQuery({}, { sellable: true })
-  const createTransfer = useCreateStockTransfer()
   const completeTransfer = useCompleteStockTransfer()
   const cancelTransfer = useCancelStockTransfer()
-  const [form, setForm] = useState({
-    product_id: "",
-    from_location_id: "",
-    to_location_id: "",
-    qty: "",
-    note: "",
-  })
-  const [error, setError] = useState("")
-  const [showForm, setShowForm] = useState(false)
-  const closeForm = () => setShowForm(false)
 
   const scope = useDashboardLocation()
   const staffName = useStaffNames()
   // A transfer belongs to both ends: the chosen location sees what it sent and what it receives.
   const rows = (transfersQuery.data || []).filter(
-    (row) => !scope.locationId || row.from_location_id === scope.locationId || row.to_location_id === scope.locationId
+    (row) => !scope.locationId || row.from_location_id === scope.locationId || destinationIds(row).includes(scope.locationId)
   )
   const canManage = scope.isAdmin
   const isOpen = (row) => row.status === "on_the_way" || row.status === "pending"
@@ -51,25 +39,14 @@ export function TransfersPage() {
   const products = productsQuery.data || []
   const productName = Object.fromEntries(products.map((row) => [row.id, row.title]))
   const locationName = Object.fromEntries(locations.map((row) => [row.id, row.name]))
-
-  async function save(event) {
-    event.preventDefault()
-    setError("")
-    try {
-      await createTransfer.mutateAsync({
-        product_id: form.product_id,
-        from_location_id: form.from_location_id,
-        to_location_id: form.to_location_id,
-        qty: Number(form.qty),
-        note: form.note || null,
-      })
-      toast("Transfer created")
-      setShowForm(false)
-      setForm({ product_id: "", from_location_id: "", to_location_id: "", qty: "", note: "" })
-    } catch (err) {
-      setError(err.message)
-    }
-  }
+  // Each destination with its products and qty, e.g. "Branch 2: Pepsi - 1L × 20, Lux × 12".
+  const lines = (row) =>
+    (row.destinations || []).map((dest) => ({
+      to: locationName[dest.to_location_id] || "—",
+      status: dest.status,
+      products: dest.products.map((line) => `${productName[line.product_id] || "Product"} × ${Number(line.qty)}`),
+    }))
+  const totalQty = (row) => (row.destinations || []).reduce((sum, dest) => sum + dest.products.reduce((s, line) => s + Number(line.qty || 0), 0), 0)
 
   async function complete(row) {
     try {
@@ -106,79 +83,12 @@ export function TransfersPage() {
         </p>
       </div>
         {canManage ? (
-          <Button onClick={() => { setError(""); setShowForm(true) }}>
+          <Button onClick={() => navigate("/transfers/new")}>
             <Plus className="h-4 w-4" />
             New transfer
           </Button>
         ) : null}
       </div>
-
-      <Modal open={showForm} onClose={closeForm} size="lg">
-      <ModalCard as="form" title="New stock transfer" onClose={closeForm} onSubmit={save}>
-      <div className="grid gap-3 md:grid-cols-2">
-        <Select
-          label="Product"
-          required
-          value={form.product_id}
-          onChange={(e) => setForm({ ...form, product_id: e.target.value })}
-        >
-          <option value="">Select product</option>
-          {products.map((row) => (
-            <option key={row.id} value={row.id}>
-              {row.title}
-            </option>
-          ))}
-        </Select>
-        <Input
-          label="Quantity"
-          type="number"
-          min="0.01"
-          step="0.01"
-          required
-          value={form.qty}
-          onChange={(e) => setForm({ ...form, qty: e.target.value })}
-        />
-        <Select
-          label="From location"
-          required
-          value={form.from_location_id}
-          onChange={(e) => setForm({ ...form, from_location_id: e.target.value })}
-        >
-          <option value="">Select source</option>
-          {locations.map((row) => (
-            <option key={row.id} value={row.id}>
-              {row.name}
-            </option>
-          ))}
-        </Select>
-        <Select
-          label="To location"
-          required
-          value={form.to_location_id}
-          onChange={(e) => setForm({ ...form, to_location_id: e.target.value })}
-        >
-          <option value="">Select destination</option>
-          {locations.map((row) => (
-            <option key={row.id} value={row.id}>
-              {row.name}
-            </option>
-          ))}
-        </Select>
-        <Input
-          className="md:col-span-2"
-          label="Note"
-          value={form.note}
-          onChange={(e) => setForm({ ...form, note: e.target.value })}
-        />
-        {error ? <p className="md:col-span-2 text-sm text-rose-700">{error}</p> : null}
-        <div>
-          <Button type="submit" disabled={createTransfer.isPending}>
-            Create transfer
-          </Button>
-        </div>
-      </div>
-      </ModalCard>
-      </Modal>
 
       <StatCards
         items={[
@@ -192,10 +102,25 @@ export function TransfersPage() {
         columns={[
           { key: "transfer_number", header: "Transfer #", sortValue: (row) => Number(row.transfer_number), render: (row) => <span className="font-semibold text-slate-900">#{row.transfer_number}</span> },
           { key: "created_at", header: "Date", sortValue: (row) => new Date(row.created_at), render: (row) => formatDateTime(row.created_at) },
-          { key: "product", header: "Product", sortValue: (row) => productName[row.product_id], render: (row) => productName[row.product_id] || "—" },
           { key: "from", header: "From", sortValue: (row) => locationName[row.from_location_id], render: (row) => locationName[row.from_location_id] || "—" },
-          { key: "to", header: "To", sortValue: (row) => locationName[row.to_location_id], render: (row) => locationName[row.to_location_id] || "—" },
-          { key: "qty", header: "Qty", align: "right", sortValue: (row) => Number(row.qty), render: (row) => Number(row.qty) },
+          {
+            key: "to",
+            header: "To · products",
+            sortable: false,
+            render: (row) => (
+              <div className="min-w-56 space-y-1.5">
+                {lines(row).map((dest, index) => (
+                  <div key={index}>
+                    <p className="text-sm font-medium text-slate-900">
+                      {dest.to} {dest.status ? <StatusBadge value={dest.status} /> : null}
+                    </p>
+                    <p className="text-xs text-slate-500">{dest.products.join(", ")}</p>
+                  </div>
+                ))}
+              </div>
+            ),
+          },
+          { key: "qty", header: "Qty", align: "right", sortValue: (row) => totalQty(row), render: (row) => totalQty(row) },
           { key: "by", header: "By", sortValue: (row) => staffName(row.created_by), render: (row) => staffName(row.created_by) },
           { key: "note", header: "Note", sortable: false, className: "max-w-48 truncate", render: (row) => row.note || "—" },
           { key: "status", header: "Status", render: (row) => <StatusBadge value={row.status} /> },
@@ -217,11 +142,11 @@ export function TransfersPage() {
         rows={rows}
         loading={transfersQuery.isPending}
         error={transfersQuery.error}
-        search={{ placeholder: "Search product or note…", text: (row) => `${productName[row.product_id] || ""} ${row.note || ""} #${row.transfer_number}` }}
+        search={{ placeholder: "Search product, location or note…", text: (row) => `${lines(row).map((dest) => `${dest.to} ${dest.products.join(" ")}`).join(" ")} ${row.note || ""} #${row.transfer_number}` }}
         filters={[
           { key: "status", label: "Status", options: [{ value: "on_the_way", label: "On the way" }, { value: "completed", label: "Completed" }, { value: "cancelled", label: "Cancelled" }] },
           ...(scope.locationId
-            ? [{ key: "direction", label: "Direction", options: [{ value: "out", label: "Sent" }, { value: "in", label: "Received" }], match: (row, value) => (value === "out" ? row.from_location_id : row.to_location_id) === scope.locationId }]
+            ? [{ key: "direction", label: "Direction", options: [{ value: "out", label: "Sent" }, { value: "in", label: "Received" }], match: (row, value) => (value === "out" ? row.from_location_id === scope.locationId : destinationIds(row).includes(scope.locationId)) }]
             : []),
         ]}
         dateRange={{ value: (row) => row.created_at }}
