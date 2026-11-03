@@ -3,6 +3,7 @@ import {
   ArrowLeft,
   ArrowLeftRight,
   ArrowRight,
+  BadgePercent,
   Ban,
   BarChart3,
   Boxes,
@@ -15,6 +16,7 @@ import {
   Percent,
   Receipt,
   RotateCcw,
+  Truck,
   UserRound,
 } from "lucide-react"
 import { useSearchParams } from "react-router-dom"
@@ -45,7 +47,9 @@ const REPORT_TABS = [
   { id: "categories", label: "By Categories", icon: FolderTree, about: "Sales of each category and its share of the total." },
   { id: "payments", label: "Payments", icon: CreditCard, about: "Cash, card, JazzCash and EasyPaisa: takings, payment tax and refunds." },
   { id: "inventory", label: "Inventory", icon: Boxes, about: "Stock on hand with what came in and went out in the range." },
-  { id: "movements", label: "Stock Movements", icon: ArrowLeftRight, about: "Every stock in / out with its reason and who did it." },
+  { id: "movements", label: "Stock Movements", icon: ArrowLeftRight, about: "Every stock in / out with its location, reason and who did it." },
+  { id: "transfers", label: "Stock Transfers", icon: Truck, about: "Stock sent between locations: what left, what arrived and what is on the way." },
+  { id: "discounts", label: "Discounts", icon: BadgePercent, about: "Every discount given on the sales, as it was at the sale: product, category, offer, order and coupon." },
   { id: "batches", label: "Z-Reports (Batches)", icon: Receipt, about: "Each batch: takings per method, expected vs counted cash." },
   { id: "sessions", label: "Sessions History", icon: Clock, about: "Staff clock in / clock out and hours worked, per session and per staff member." },
   { id: "refunds", label: "Refunded Orders", icon: RotateCcw, about: "Complete and partial refunds with amounts and reasons." },
@@ -617,6 +621,7 @@ export function ReportsPage() {
               { key: "product", label: "Product" },
               { key: "sku", label: "SKU" },
               { key: "category", label: "Category" },
+              { key: "location", label: "Location" },
               { key: "stock_in", label: "In", render: (row) => formatNumber(row.stock_in) },
               { key: "stock_out", label: "Out", render: (row) => formatNumber(row.stock_out) },
               {
@@ -641,6 +646,7 @@ export function ReportsPage() {
                 render: (row) => formatDate(row.date),
               },
               { key: "product", label: "Product" },
+              { key: "location", label: "Location" },
               { key: "type", label: "Type" },
               { key: "qty", label: "Qty", render: (row) => formatNumber(row.qty) },
               { key: "reason", label: "Reason" },
@@ -652,6 +658,71 @@ export function ReportsPage() {
               { key: "cashier", label: "Staff" },
             ]}
             rows={data.stock_movement?.rows || []}
+          />
+        </div>
+      ) : null}
+
+      {data && tab === "transfers" ? (
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            <StatCard label="Transfers" value={formatNumber(data.stock_transfers?.summary?.transfers || 0)} hint={`${data.stock_transfers?.summary?.lines || 0} product lines`} />
+            <StatCard label="Units sent" value={formatNumber(data.stock_transfers?.summary?.units_sent || 0)} />
+            <StatCard label="Units received" value={formatNumber(data.stock_transfers?.summary?.units_received || 0)} />
+            <StatCard label="On the way" value={formatNumber(data.stock_transfers?.summary?.units_on_the_way || 0)} hint={`${formatNumber(data.stock_transfers?.summary?.units_cancelled || 0)} cancelled`} />
+          </div>
+          <DataTable
+            columns={[
+              { key: "transfer", label: "Transfer #", render: (row) => `#${row.transfer}` },
+              { key: "date", label: "Date", render: (row) => formatDate(row.date) },
+              { key: "from", label: "From" },
+              { key: "to", label: "To" },
+              { key: "product", label: "Product" },
+              { key: "qty", label: "Sent", render: (row) => formatNumber(row.qty) },
+              { key: "received_qty", label: "Received", render: (row) => (row.received_qty == null ? "—" : formatNumber(row.received_qty)) },
+              { key: "status", label: "Status", render: (row) => <StatusBadge value={row.status} /> },
+              { key: "staff", label: "Sent by" },
+            ]}
+            rows={data.stock_transfers?.rows || []}
+            empty="No transfers in this range"
+          />
+        </div>
+      ) : null}
+
+      {data && tab === "discounts" ? (
+        <div className="space-y-4">
+          <p className="text-sm text-slate-500">Every discount given on the sales in this range, as it was at the sale — still shown when the discount was changed or removed since. Refunded units leave it.</p>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            <StatCard label="Discounts given" value={formatCurrency(data.discounts?.total || 0)} />
+            <StatCard label="Orders with a discount" value={formatNumber(data.discounts?.orders || 0)} />
+            {(data.discounts?.by_source || []).slice(0, 2).map((row) => (
+              <StatCard key={row.source} label={row.label} value={formatCurrency(row.amount)} hint={`${row.lines} lines · ${row.orders} orders`} />
+            ))}
+          </div>
+          <DataTable
+            columns={[
+              { key: "label", label: "Source" },
+              { key: "orders", label: "Orders" },
+              { key: "lines", label: "Lines" },
+              { key: "amount", label: "Discount", render: (row) => formatCurrency(row.amount) },
+            ]}
+            rows={data.discounts?.by_source || []}
+            empty="No discounts in this range"
+          />
+          <DataTable
+            columns={[
+              { key: "date", label: "Date", render: (row) => formatDate(row.date) },
+              { key: "order", label: "Order #", render: (row) => `#${row.order}` },
+              { key: "location", label: "Location" },
+              { key: "product", label: "Product" },
+              { key: "qty", label: "Qty", render: (row) => (row.qty == null ? "—" : formatNumber(row.qty)) },
+              { key: "source_label", label: "Source" },
+              { key: "name", label: "Discount", render: (row) => row.name || "—" },
+              { key: "gross", label: "Before discount", render: (row) => formatCurrency(row.gross) },
+              { key: "amount", label: "Discount given", render: (row) => formatCurrency(row.amount) },
+              { key: "cashier", label: "Staff" },
+            ]}
+            rows={data.discounts?.rows || []}
+            empty="No discounts in this range"
           />
         </div>
       ) : null}
