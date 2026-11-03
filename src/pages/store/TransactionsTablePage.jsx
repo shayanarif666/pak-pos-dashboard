@@ -6,14 +6,9 @@ import { Currency } from "../../ui/Currency.jsx"
 import { StatusBadge } from "../../ui/Pill.jsx"
 import { PageHeader, StatCards } from "../../ui/PageHeader.jsx"
 import { useScopedReportQuery } from "../../features/reports/reportQuery.js"
-import { formatDateTime } from "../../ui/format.js"
+import { formatDateTime, PAYMENT_METHODS } from "../../ui/format.js"
 
-const METHODS = [
-  { value: "cash", label: "Cash" },
-  { value: "card", label: "Card" },
-  { value: "jazzcash", label: "JazzCash" },
-  { value: "easypaisa", label: "EasyPaisa" },
-]
+const METHODS = PAYMENT_METHODS
 const STATUSES = ["success", "initiated", "pending", "failed", "refunded"].map((value) => ({
   value,
   label: value.charAt(0).toUpperCase() + value.slice(1),

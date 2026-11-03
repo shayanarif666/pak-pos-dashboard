@@ -14,6 +14,7 @@ import { Input } from "../../ui/Input.jsx"
 import { Select } from "../../ui/Select.jsx"
 import { PageLoader } from "../../ui/Spinner.jsx"
 import { Pill, StatusBadge } from "../../ui/Pill.jsx"
+import { PAYMENT_METHOD_OPTIONS } from "../../ui/format.js"
 
 const titles = {
   all: {
@@ -96,12 +97,7 @@ export function OrdersPage({ mode = "all", status = "", embedded = false, locati
         </Select>
         <Select label="Payment method" value={form.payment_method} onChange={(e) => setForm({ ...form, payment_method: e.target.value })}>
           <option value="">All</option>
-          <option value="cash">Cash</option>
-          <option value="card">Card</option>
-          <option value="jazzcash">JazzCash</option>
-          <option value="easypaisa">Easypaisa</option>
-          <option value="cod">COD</option>
-          <option value="mixed">Mixed</option>
+          {PAYMENT_METHOD_OPTIONS.map((row) => <option key={row.value} value={row.value}>{row.label}</option>)}
         </Select>
         <Input label="From" type="date" value={form.from} onChange={(e) => setForm({ ...form, from: e.target.value })} />
         <Input label="To" type="date" value={form.to} onChange={(e) => setForm({ ...form, to: e.target.value })} />

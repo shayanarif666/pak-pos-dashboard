@@ -12,6 +12,7 @@ import { Pill } from "../../ui/Pill.jsx"
 import { Select } from "../../ui/Select.jsx"
 import { Switch } from "../../ui/Switch.jsx"
 import { useToast } from "../../ui/Toast.jsx"
+import { PAYMENT_METHOD_LABEL } from "../../ui/format.js"
 
 /*
  * Settings › Payment Method Surcharges: what paying by a method adds to the bill —
@@ -19,7 +20,8 @@ import { useToast } from "../../ui/Toast.jsx"
  * One per method. They replace the old payment-method GST rates.
  */
 
-const METHOD_LABEL = { cash: "Cash", card: "Card", jazzcash: "JazzCash", easypaisa: "EasyPaisa", cod: "Cash on delivery" }
+// Every payment method: cash, card, the wallets, bank transfer, Raast, cheque…
+const METHOD_LABEL = PAYMENT_METHOD_LABEL
 const emptyForm = { method: "card", type: "percentage", charges: "", is_active: true }
 
 const chargeText = (row) => (row.type === "percentage" ? `${Number(row.charges)}%` : `${formatCurrency(row.charges)} per payment`)

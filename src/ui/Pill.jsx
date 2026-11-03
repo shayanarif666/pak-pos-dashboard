@@ -67,7 +67,7 @@ export function statusTone(value) {
   if (RED.includes(key)) return "rose"
   if (VIOLET.includes(key)) return "violet"
   if (BRAND.includes(key)) return "brand"
-  if (["card", "jazzcash", "easypaisa", "cod", "cashier"].includes(key)) return "cyan"
+  if (["card", "jazzcash", "easypaisa", "cod", "cashier", "bank_transfer", "raast", "sadapay", "nayapay", "upaisa", "digital_wallet", "cheque", "online"].includes(key)) return "cyan"
   if (["grocery", "supermarket", "convenience"].includes(key)) return "brand"
   if (["boutique", "manager", "fashion", "clothing", "beauty", "jewelry"].includes(key)) return "fuchsia"
   if (["retail", "electronics", "wholesale"].includes(key)) return "blue"

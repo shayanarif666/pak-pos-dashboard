@@ -16,10 +16,26 @@ export function formatDate(value) {
 
 export const toNumber = (value) => (value === null || value === undefined || value === "" ? null : Number(value))
 
-export const PAYMENT_METHOD_OPTIONS = [
-  { value: "cash", label: "Cash" },
-  { value: "card", label: "Card" },
-  { value: "jazzcash", label: "JazzCash" },
-  { value: "easypaisa", label: "EasyPaisa" },
-  { value: "mixed", label: "Mixed" },
-]
+/** Every payment method the API takes (PAYMENT_METHOD on the backend), as shown. */
+export const PAYMENT_METHOD_LABEL = {
+  cash: "Cash",
+  card: "Card",
+  jazzcash: "JazzCash",
+  easypaisa: "EasyPaisa",
+  cod: "Cash on delivery",
+  bank_transfer: "Bank transfer",
+  raast: "Raast",
+  sadapay: "SadaPay",
+  nayapay: "NayaPay",
+  upaisa: "UPaisa",
+  digital_wallet: "Other digital wallet",
+  cheque: "Cheque",
+  online: "Online payment",
+  other: "Other",
+}
+
+/** The methods one payment can be made with (no "mixed"). */
+export const PAYMENT_METHODS = Object.entries(PAYMENT_METHOD_LABEL).map(([value, label]) => ({ value, label }))
+
+/** Order filters: every method, plus mixed (a split payment). */
+export const PAYMENT_METHOD_OPTIONS = [...PAYMENT_METHODS, { value: "mixed", label: "Mixed" }]

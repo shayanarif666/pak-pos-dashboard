@@ -16,6 +16,7 @@ import { PageLoader } from "../../ui/Spinner.jsx"
 import { useToast } from "../../ui/Toast.jsx"
 import { StatusBadge } from "../../ui/Pill.jsx"
 import { LocationSelect } from "../../features/orders/LocationSales.jsx"
+import { PAYMENT_METHODS } from "../../ui/format.js"
 
 const emptyPayment = {
   method: "cash",
@@ -129,11 +130,7 @@ export function TransactionsPage() {
 
               <form onSubmit={savePayment} className="mb-5 grid gap-3">
                 <Select label="Payment method" value={form.method} onChange={(e) => setForm({ ...form, method: e.target.value })}>
-                  <option value="cash">Cash</option>
-                  <option value="card">Card</option>
-                  <option value="jazzcash">JazzCash</option>
-                  <option value="easypaisa">Easypaisa</option>
-                  <option value="cod">COD</option>
+                  {PAYMENT_METHODS.map((row) => <option key={row.value} value={row.value}>{row.label}</option>)}
                 </Select>
                 <Input label="Amount" type="number" min="0.01" step="0.01" required value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
                 <Button type="submit" disabled={addPayment.isPending}>Add payment</Button>
