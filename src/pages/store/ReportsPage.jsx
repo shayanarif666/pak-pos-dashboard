@@ -131,6 +131,118 @@ function SessionsReport({ from, to, locationId }) {
   )
 }
 
+const DISCOUNT_KIND = { offer: "Offer", product: "Product", category: "Category", coupon: "Coupon" }
+const DISCOUNT_STATUS = { running: "Running", scheduled: "Scheduled", expired: "Expired", inactive: "Inactive" }
+
+/**
+ * Discounts: every discount entered in the system (with what it gave in the range), the
+ * discounted sales with their calculation, and the totals per source.
+ */
+function DiscountsReport({ report }) {
+  const [shown, setShown] = useState(20)
+  const catalog = report?.catalog || []
+  const sales = report?.sales || []
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <StatCard label="Discounts given" value={formatCurrency(report?.total || 0)} hint="In this range" />
+        <StatCard label="Discounted sales" value={formatNumber(report?.orders || 0)} />
+        <StatCard label="Discounts in the system" value={formatNumber(catalog.length)} hint={`${catalog.filter((row) => row.status === "running").length} running`} />
+        <StatCard label="Used in this range" value={formatNumber(catalog.filter((row) => row.discount_given > 0).length)} />
+      </div>
+
+      <div className="space-y-2">
+        <h2 className="text-sm font-semibold text-slate-900">Discounts in the system</h2>
+        <p className="text-xs text-slate-500">Every offer, product discount, category discount and coupon entered — running or not — and what it gave on the sales in this range.</p>
+        <DataTable
+          columns={[
+            { key: "kind", label: "Kind", render: (row) => DISCOUNT_KIND[row.kind] || row.kind },
+            { key: "name", label: "Discount", render: (row) => <span className="font-medium text-slate-900">{row.name}</span> },
+            { key: "amount", label: "Amount", render: (row) => row.amount || "—" },
+            { key: "applies_to", label: "Applies to" },
+            { key: "window", label: "Runs", render: (row) => (row.start_at || row.end_at ? `${row.start_at ? formatDate(row.start_at) : "Open"} → ${row.end_at ? formatDate(row.end_at) : "Open"}` : "Always") },
+            { key: "status", label: "Status", render: (row) => DISCOUNT_STATUS[row.status] || row.status },
+            { key: "used_orders", label: "Orders", render: (row) => formatNumber(row.used_orders) },
+            { key: "discount_given", label: "Given", render: (row) => formatCurrency(row.discount_given) },
+          ]}
+          rows={catalog}
+          empty="No discounts entered yet"
+        />
+      </div>
+
+      <div className="space-y-2">
+        <h2 className="text-sm font-semibold text-slate-900">Discount by source</h2>
+        <DataTable
+          columns={[
+            { key: "label", label: "Source" },
+            { key: "orders", label: "Orders" },
+            { key: "lines", label: "Lines" },
+            { key: "amount", label: "Discount", render: (row) => formatCurrency(row.amount) },
+          ]}
+          rows={report?.by_source || []}
+          empty="No discounts in this range"
+        />
+      </div>
+
+      <div className="space-y-3">
+        <h2 className="text-sm font-semibold text-slate-900">Discounted sales ({formatNumber(sales.length)})</h2>
+        <p className="text-xs text-slate-500">Each line: price × qty = gross, less its discount = net. The sale: gross − line discounts − order discount − coupon = net, + tax = total. Refunded units are left out.</p>
+        {!sales.length ? <p className="py-8 text-center text-sm text-slate-500">No discounted sales in this range</p> : null}
+        {sales.slice(0, shown).map((sale) => (
+          <div key={sale.id} className="rounded-[24px] border border-slate-200 bg-white p-4">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <p className="text-sm font-semibold text-slate-950">
+                Order #{sale.order} <span className="font-normal text-slate-500">· {formatDate(sale.date)} · {sale.location} · {sale.cashier}</span>
+              </p>
+              <p className="text-sm font-semibold text-emerald-700">−{formatCurrency(sale.discount)}</p>
+            </div>
+            <div className="-mx-4 mt-3 overflow-x-auto">
+              <table className="w-full min-w-[560px] text-left text-sm">
+                <thead className="border-y border-slate-100 text-xs uppercase tracking-[0.1em] text-slate-500">
+                  <tr>
+                    <th className="px-4 py-2 font-semibold">Product</th>
+                    <th className="px-3 py-2 text-right font-semibold">Qty × price</th>
+                    <th className="px-3 py-2 text-right font-semibold">Gross</th>
+                    <th className="px-3 py-2 font-semibold">Discount</th>
+                    <th className="px-3 py-2 text-right font-semibold">Off</th>
+                    <th className="px-4 py-2 text-right font-semibold">Net</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sale.lines.map((line, index) => (
+                    <tr key={index} className="border-b border-slate-50 last:border-0">
+                      <td className="px-4 py-2 text-slate-900">{line.product}</td>
+                      <td className="px-3 py-2 text-right tabular-nums text-slate-600">{formatNumber(line.qty)} × {formatCurrency(line.unit_price)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(line.gross)}</td>
+                      <td className="px-3 py-2 text-xs text-slate-600">{line.discount > 0 ? `${line.source_label || ""}${line.name ? ` · ${line.name}` : ""}` : "—"}</td>
+                      <td className="px-3 py-2 text-right tabular-nums text-emerald-700">{line.discount > 0 ? `−${formatCurrency(line.discount)}` : "—"}</td>
+                      <td className="px-4 py-2 text-right font-medium tabular-nums">{formatCurrency(line.net)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="mt-3 grid gap-1 border-t border-slate-100 pt-3 text-sm sm:ml-auto sm:max-w-xs">
+              <div className="flex justify-between"><span className="text-slate-500">Gross</span><span className="tabular-nums">{formatCurrency(sale.gross)}</span></div>
+              {sale.line_discount > 0 ? <div className="flex justify-between"><span className="text-slate-500">Line discounts</span><span className="tabular-nums text-emerald-700">−{formatCurrency(sale.line_discount)}</span></div> : null}
+              {sale.order_discount > 0 ? <div className="flex justify-between"><span className="text-slate-500">Order discount</span><span className="tabular-nums text-emerald-700">−{formatCurrency(sale.order_discount)}</span></div> : null}
+              {sale.coupon_discount > 0 ? <div className="flex justify-between"><span className="text-slate-500">Coupon{sale.coupon_code ? ` (${sale.coupon_code})` : ""}</span><span className="tabular-nums text-emerald-700">−{formatCurrency(sale.coupon_discount)}</span></div> : null}
+              <div className="flex justify-between font-medium"><span className="text-slate-700">Net</span><span className="tabular-nums">{formatCurrency(sale.net)}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Tax</span><span className="tabular-nums">+{formatCurrency(sale.tax)}</span></div>
+              <div className="flex justify-between font-semibold"><span className="text-slate-900">Total</span><span className="tabular-nums">{formatCurrency(sale.total)}</span></div>
+            </div>
+          </div>
+        ))}
+        {sales.length > shown ? (
+          <div className="flex justify-center">
+            <Button variant="ghost" onClick={() => setShown((n) => n + 20)}>Show more ({formatNumber(sales.length - shown)} left)</Button>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  )
+}
+
 function StatCard({ label, value, hint }) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-slate-50/70 px-5 py-4">
@@ -688,44 +800,7 @@ export function ReportsPage() {
         </div>
       ) : null}
 
-      {data && tab === "discounts" ? (
-        <div className="space-y-4">
-          <p className="text-sm text-slate-500">Every discount given on the sales in this range, as it was at the sale — still shown when the discount was changed or removed since. Refunded units leave it.</p>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <StatCard label="Discounts given" value={formatCurrency(data.discounts?.total || 0)} />
-            <StatCard label="Orders with a discount" value={formatNumber(data.discounts?.orders || 0)} />
-            {(data.discounts?.by_source || []).slice(0, 2).map((row) => (
-              <StatCard key={row.source} label={row.label} value={formatCurrency(row.amount)} hint={`${row.lines} lines · ${row.orders} orders`} />
-            ))}
-          </div>
-          <DataTable
-            columns={[
-              { key: "label", label: "Source" },
-              { key: "orders", label: "Orders" },
-              { key: "lines", label: "Lines" },
-              { key: "amount", label: "Discount", render: (row) => formatCurrency(row.amount) },
-            ]}
-            rows={data.discounts?.by_source || []}
-            empty="No discounts in this range"
-          />
-          <DataTable
-            columns={[
-              { key: "date", label: "Date", render: (row) => formatDate(row.date) },
-              { key: "order", label: "Order #", render: (row) => `#${row.order}` },
-              { key: "location", label: "Location" },
-              { key: "product", label: "Product" },
-              { key: "qty", label: "Qty", render: (row) => (row.qty == null ? "—" : formatNumber(row.qty)) },
-              { key: "source_label", label: "Source" },
-              { key: "name", label: "Discount", render: (row) => row.name || "—" },
-              { key: "gross", label: "Before discount", render: (row) => formatCurrency(row.gross) },
-              { key: "amount", label: "Discount given", render: (row) => formatCurrency(row.amount) },
-              { key: "cashier", label: "Staff" },
-            ]}
-            rows={data.discounts?.rows || []}
-            empty="No discounts in this range"
-          />
-        </div>
-      ) : null}
+      {data && tab === "discounts" ? <DiscountsReport report={data.discounts} /> : null}
 
       {data && tab === "refunds" ? (
         <div className="space-y-6">
