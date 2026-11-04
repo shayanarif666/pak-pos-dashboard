@@ -59,6 +59,7 @@ export function RefundsTablePage() {
         ]}
       />
       <DataTable
+        title="Refunds"
         columns={columns}
         rows={rows}
         loading={query.isPending}

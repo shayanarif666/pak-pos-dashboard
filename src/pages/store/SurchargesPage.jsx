@@ -112,6 +112,7 @@ export function SurchargesPage() {
         ]}
       />
       <DataTable
+        title="Surcharges"
         columns={[
           { key: "id", header: "#", sortValue: (row) => row.id, render: (row) => <span className="font-semibold text-slate-900">#{row.id}</span> },
           { key: "method", header: "Payment method", render: (row) => <span className="font-medium text-slate-900">{METHOD_LABEL[row.method] || row.method}</span> },

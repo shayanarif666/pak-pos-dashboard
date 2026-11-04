@@ -54,3 +54,8 @@ export function listSupplierLedger(id) {
 export function addSupplierLedger(id, body) {
   return apiPost(`/api/v1/suppliers/${id}/ledger`, body, auth)
 }
+
+/** Bulk Stock Movements: { staffId?, items: [{ product_id, movement_type, reason, variants | stock, … }] }. */
+export function createStockMovementsBulk(body) {
+  return apiPost("/api/v1/stock-movements/bulk", body, auth)
+}

@@ -203,6 +203,7 @@ export function DiscountsPage() {
       />
 
       <DataTable
+        title="Discounts"
         columns={columns}
         rows={offers}
         loading={offersQuery.isPending}
@@ -258,7 +259,7 @@ export function DiscountsPage() {
             <h3 className="mb-2 mt-6 text-sm font-semibold text-slate-900">Products ({productTargets(selected).length})</h3>
             {productTargets(selected).length ? (
               <div className="overflow-hidden rounded-2xl border border-slate-200">
-                <table className="w-full text-left text-sm">
+                <table className="ui-table w-full text-left text-sm">
                   <thead className="bg-slate-50 text-xs uppercase tracking-[0.12em] text-slate-500">
                     <tr>
                       <th className="px-4 py-2.5 font-semibold">Product</th>

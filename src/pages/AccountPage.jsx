@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { PageHeader } from "../ui/PageHeader.jsx"
 import { useAuth } from "../auth/AuthContext.jsx"
 import { useUpdateMe } from "../features/settings/settingsQuery.js"
 import { Button } from "../ui/Button.jsx"
@@ -9,11 +10,11 @@ export function AccountPage() {
   const { user } = useAuth()
   return (
     <section className="space-y-6">
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Account</p>
-        <h1 className="mt-2 text-2xl font-semibold text-slate-900">My account</h1>
-        <p className="mt-1 text-sm text-slate-500">{user.email}</p>
-      </div>
+      <PageHeader
+        section="Account"
+        title="My account"
+        description={user.email}
+      />
       <AccountForm allowPin={user.role !== "superadmin"} />
     </section>
   )

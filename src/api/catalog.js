@@ -126,7 +126,7 @@ export function patchProductWeight(id, is_weight_based) {
   return apiPatch(`/api/v1/products/${id}/weight`, { is_weight_based }, auth)
 }
 
-function objectToForm(body) {
+export function objectToForm(body) {
   const form = new FormData()
   for (const [key, value] of Object.entries(body || {})) {
     if (value === undefined) continue

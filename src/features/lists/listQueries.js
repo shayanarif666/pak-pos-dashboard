@@ -1,5 +1,16 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { clockIn, clockOut, closeBatch, listBatches, listStaffSessions, openBatch } from "../../api/operations.js"
+import {
+  clockIn,
+  clockOut,
+  closeBatch,
+  deleteBatch,
+  deleteStaffSession,
+  listBatches,
+  listStaffSessions,
+  openBatch,
+  updateBatch,
+  updateStaffSession,
+} from "../../api/operations.js"
 import { listTransactions } from "../../api/orders.js"
 import { getCurrency, putCurrency } from "../../api/settings.js"
 import { unwrap } from "../../lib/query.js"
@@ -51,6 +62,10 @@ export const useOpenBatch = () => useListAction(openBatch)
 export const useCloseBatch = () => useListAction(closeBatch)
 export const useClockIn = () => useListAction(clockIn)
 export const useClockOut = () => useListAction(clockOut)
+export const useUpdateStaffSession = () => useListAction(({ id, body }) => updateStaffSession(id, body))
+export const useDeleteStaffSession = () => useListAction(deleteStaffSession)
+export const useUpdateBatch = () => useListAction(({ id, body }) => updateBatch(id, body))
+export const useDeleteBatch = () => useListAction(deleteBatch)
 
 export function useCurrencyQuery() {
   return useQuery({ queryKey: ["settings", "currency"], queryFn: async () => unwrap(await getCurrency()) })

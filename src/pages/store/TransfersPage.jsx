@@ -1,4 +1,4 @@
-import { StatCards } from "../../ui/PageHeader.jsx"
+import { PageHeader, StatCards } from "../../ui/PageHeader.jsx"
 import { useNavigate } from "react-router-dom"
 import {
   useCancelStockTransfer,
@@ -74,21 +74,21 @@ export function TransfersPage() {
 
   return (
     <section className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Inventory</p>
-        <h1 className="mt-2 text-2xl font-semibold text-slate-900">Stock Transfers</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Stock sent from one location to another. It stays on the way until the receiving location completes it.
-        </p>
-      </div>
-        {canManage ? (
-          <Button onClick={() => navigate("/transfers/new")}>
-            <Plus className="h-4 w-4" />
-            New transfer
-          </Button>
-        ) : null}
-      </div>
+      <PageHeader
+        section="Inventory"
+        title="Stock Transfers"
+        description="Stock sent from one location to another. It stays on the way until the receiving location completes it."
+        actions={<>
+          <div className="flex flex-wrap items-center gap-2">
+            {canManage ? (
+              <Button onClick={() => navigate("/transfers/new")}>
+                <Plus className="h-4 w-4" />
+                New transfer
+              </Button>
+            ) : null}
+          </div>
+        </>}
+      />
 
       <StatCards
         items={[
@@ -99,6 +99,7 @@ export function TransfersPage() {
         ]}
       />
       <DataTable
+        title="Stock Transfers"
         columns={[
           { key: "transfer_number", header: "Transfer #", sortValue: (row) => Number(row.transfer_number), render: (row) => <span className="font-semibold text-slate-900">#{row.transfer_number}</span> },
           { key: "created_at", header: "Date", sortValue: (row) => new Date(row.created_at), render: (row) => formatDateTime(row.created_at) },

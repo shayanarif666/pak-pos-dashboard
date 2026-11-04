@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
+import { PageHeader } from "../../ui/PageHeader.jsx"
 import { Link } from "react-router-dom"
 import { Boxes, Package, Search } from "lucide-react"
 import { useAuth } from "../../auth/AuthContext.jsx"
@@ -151,23 +152,24 @@ export function InventoryPage() {
 
   return (
     <section>
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Inventory</p>
-          <h1 className="mt-2 text-2xl font-semibold text-slate-900">Product Stock</h1>
-          <p className="mt-1 max-w-2xl text-sm text-slate-500">
-            Quantities belong to one location. This session is scoped to{" "}
-            <span className="text-slate-700">{activeLocation?.name || "your login location"}</span>
-            {isAdmin ? ". Switch branch below to count another location." : "."}
-          </p>
-        </div>
-        <Link to="/products/new">
-          <Button>
-            <Package className="h-4 w-4" />
-            New product
-          </Button>
-        </Link>
-      </div>
+      <PageHeader
+        section="Inventory"
+        title="Product Stock"
+        description={<>
+          Quantities belong to one location. This session is scoped to{" "}
+          <span className="text-slate-700">{activeLocation?.name || "your login location"}</span>
+          {isAdmin ? ". Switch branch below to count another location." : "."}
+        </>}
+        actions={<>
+          <Link to="/products/new">
+            <Button>
+              <Package className="h-4 w-4" />
+              New product
+            </Button>
+          </Link>
+        </>}
+        className="mb-6"
+      />
 
       <div className="mb-6 grid gap-3 sm:grid-cols-3">
         <article className="rounded-[24px] border border-slate-200 bg-white p-4 backdrop-blur-2xl">

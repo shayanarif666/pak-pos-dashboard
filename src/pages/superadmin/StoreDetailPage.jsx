@@ -1,4 +1,5 @@
 import { Link, useParams } from "react-router-dom"
+import { PageHeader } from "../../ui/PageHeader.jsx"
 import { Pencil } from "lucide-react"
 import { useStoreQuery } from "../../features/admin/adminQuery.js"
 import { Button } from "../../ui/Button.jsx"
@@ -70,50 +71,49 @@ export function StoreDetailPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-            Store inspect
-          </p>
-          <h1 className="mt-2 text-2xl font-semibold text-slate-900">{store.name}</h1>
-          <p className="mt-1 text-sm text-slate-600">
-            {store.slug}
-            {store.custom_domain ? ` · ${store.custom_domain}` : ""}
-          </p>
-          <div className="mt-3 flex flex-wrap gap-1.5">
-            <Pill label="Publish" tone={store.is_live ? "emerald" : "zinc"}>
-              {store.is_live ? "Live" : "Draft"}
-            </Pill>
-            <Pill label="Account" tone={store.is_active ? "emerald" : "rose"}>
-              {store.is_active ? "Active" : "Suspended"}
-            </Pill>
-            <Pill label="Business" tone={statusTone(store.business_type)}>
-              {store.business_type || "—"}
-            </Pill>
-            <Pill label="POS" tone={store.pos_enabled ? "sky" : "zinc"}>
-              {store.pos_enabled ? "On" : "Off"}
-            </Pill>
-            <Pill label="Web" tone={store.web_enabled ? "fuchsia" : "zinc"}>
-              {store.web_enabled ? "On" : "Off"}
-            </Pill>
-            <Pill label="Plan" tone="violet">
-              {store.plan?.name || "None"}
-            </Pill>
-            <Pill label="License" tone={statusTone(latestLicense?.status)}>
-              {latestLicense?.status || "None"}
-            </Pill>
-            <Pill label="Billing" tone={statusTone(billing?.status)}>
-              {billing?.status || "None"}
-            </Pill>
-          </div>
+      <PageHeader
+        section="Store inspect"
+        title={store.name}
+        description={<>
+          {store.slug}
+          {store.custom_domain ? ` · ${store.custom_domain}` : ""}
+        </>}
+        actions={<>
+          <Link to={`/stores/${store.id}/edit`}>
+            <Button>
+              <Pencil className="h-4 w-4" />
+              Edit
+            </Button>
+          </Link>
+        </>}
+      >
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          <Pill label="Publish" tone={store.is_live ? "emerald" : "zinc"}>
+            {store.is_live ? "Live" : "Draft"}
+          </Pill>
+          <Pill label="Account" tone={store.is_active ? "emerald" : "rose"}>
+            {store.is_active ? "Active" : "Suspended"}
+          </Pill>
+          <Pill label="Business" tone={statusTone(store.business_type)}>
+            {store.business_type || "—"}
+          </Pill>
+          <Pill label="POS" tone={store.pos_enabled ? "sky" : "zinc"}>
+            {store.pos_enabled ? "On" : "Off"}
+          </Pill>
+          <Pill label="Web" tone={store.web_enabled ? "fuchsia" : "zinc"}>
+            {store.web_enabled ? "On" : "Off"}
+          </Pill>
+          <Pill label="Plan" tone="violet">
+            {store.plan?.name || "None"}
+          </Pill>
+          <Pill label="License" tone={statusTone(latestLicense?.status)}>
+            {latestLicense?.status || "None"}
+          </Pill>
+          <Pill label="Billing" tone={statusTone(billing?.status)}>
+            {billing?.status || "None"}
+          </Pill>
         </div>
-        <Link to={`/stores/${store.id}/edit`}>
-          <Button>
-            <Pencil className="h-4 w-4" />
-            Edit
-          </Button>
-        </Link>
-      </div>
+      </PageHeader>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <Card title="Locations">

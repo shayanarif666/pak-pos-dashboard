@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react"
-import { BarChart3, Pencil, Plus, X } from "lucide-react"
+import { BarChart3, Pencil, Plus, Trash2, X } from "lucide-react"
 import { useAuth } from "../../auth/AuthContext.jsx"
 import {
+  useDeleteStaff,
   useSaveStaff,
   useStaffQuery,
   useStaffSalesQuery,
@@ -35,11 +36,12 @@ const empty = {
 
 export function StaffPage() {
   const { user } = useAuth()
-  const { toast } = useToast()
+  const { toast, confirmToast } = useToast()
   const isAdmin = user.role === "store_admin"
   const staffQuery = useStaffQuery()
   const locationsQuery = useStoreLocationsQuery({ enabled: isAdmin })
   const saveStaff = useSaveStaff()
+  const deleteStaff = useDeleteStaff()
   const scope = useDashboardLocation()
   // One location chosen: its staff (the store admin works across every location).
   const rows = (staffQuery.data || []).filter((row) => !scope.locationId || row.location_id === scope.locationId || row.role === "store_admin")
@@ -53,6 +55,26 @@ export function StaffPage() {
   const [toggling, setToggling] = useState({})
   // A cashier works on the POS with the PIN only: no password.
   const needsPassword = form.role !== "cashier"
+  // The store admin and the signed-in user's own row show "Active"; everyone else gets the switch.
+  const isSelf = (row) => row.id === user.id || (row.user_number != null && row.user_number === user.user_number)
+  const canToggle = (row) => row.role !== "store_admin" && !isSelf(row)
+  // Not the store admin or yourself; a manager deletes cashiers only.
+  const canDelete = (row) => canToggle(row) && (isAdmin || row.role === "cashier")
+
+  async function remove(row) {
+    const ok = await confirmToast({
+      title: "Delete staff member?",
+      message: `${row.name} leaves the staff list and can no longer sign in or use their PIN. Their sales and history stay.`,
+      confirmLabel: "Delete",
+    })
+    if (!ok) return
+    try {
+      await deleteStaff.mutateAsync(row.id)
+      toast(`${row.name} deleted`)
+    } catch (err) {
+      toast(err.message, "error")
+    }
+  }
 
   async function setActive(row, next) {
     setToggling((current) => ({ ...current, [row.id]: true }))
@@ -87,6 +109,7 @@ export function StaffPage() {
       phone: row.phone || "",
       role: row.role,
       location_id: row.location_id || "",
+      pin: row.pin || "",
       is_active: row.is_active !== false,
     })
     setError("")
@@ -101,13 +124,14 @@ export function StaffPage() {
       phone: form.phone.trim() || null,
       ...(isAdmin && form.location_id ? { location_id: form.location_id } : {}),
     }
+    body.email = form.email.trim()
     if (form.pin) body.pin = form.pin.trim()
-    if (form.password && needsPassword) body.password = form.password
+    // Edit is every field except the password (staff reset it with Forgot password).
     if (editingId) {
-      body.is_active = form.is_active
+      if (editingId !== user.id) body.is_active = form.is_active
       if (isAdmin) body.role = form.role
     } else {
-      body.email = form.email.trim()
+      if (form.password && needsPassword) body.password = form.password
       body.role = form.role
     }
     try {
@@ -153,6 +177,7 @@ export function StaffPage() {
       />
 
       <DataTable
+        title="Staff"
         columns={[
           {
             key: "name",
@@ -174,17 +199,16 @@ export function StaffPage() {
             header: "Status",
             sortValue: (row) => (row.is_active ? 1 : 0),
             render: (row) => (
-              <div className="flex items-center gap-2">
-                {row.role !== "store_admin" ? (
-                  <Switch
-                    checked={Boolean(row.is_active)}
-                    disabled={Boolean(toggling[row.id])}
-                    label={row.is_active ? `Suspend ${row.name}` : `Activate ${row.name}`}
-                    onChange={(next) => setActive(row, next)}
-                  />
-                ) : null}
+              canToggle(row) ? (
+                <Switch
+                  checked={Boolean(row.is_active)}
+                  disabled={Boolean(toggling[row.id])}
+                  label={row.is_active ? `Suspend ${row.name}` : `Activate ${row.name}`}
+                  onChange={(next) => setActive(row, next)}
+                />
+              ) : (
                 <Pill tone={row.is_active ? "emerald" : "rose"}>{row.is_active ? "Active" : "Suspended"}</Pill>
-              </div>
+              )
             ),
           },
           {
@@ -194,9 +218,12 @@ export function StaffPage() {
             render: (row) => (
               <div className="flex justify-end gap-1">
                 {row.role !== "store_admin" ? (
-                  <Button variant="icon" aria-label="Edit staff" onClick={() => openEdit(row)}><Pencil className="h-4 w-4" /></Button>
+                  <Button variant="icon" aria-label="Edit staff" title="Edit" onClick={() => openEdit(row)}><Pencil className="h-4 w-4" /></Button>
                 ) : null}
-                <Button variant="icon" aria-label="Sales by this staff member" onClick={() => setSalesFor(row)}><BarChart3 className="h-4 w-4" /></Button>
+                <Button variant="icon" aria-label="Sales by this staff member" title="Sales" onClick={() => setSalesFor(row)}><BarChart3 className="h-4 w-4" /></Button>
+                {canDelete(row) ? (
+                  <Button variant="icon" aria-label={`Delete ${row.name}`} title="Delete" onClick={() => remove(row)}><Trash2 className="h-4 w-4 text-rose-600" /></Button>
+                ) : null}
               </div>
             ),
           },
@@ -225,15 +252,13 @@ export function StaffPage() {
             {error ? <p className="mb-3 text-sm text-rose-700">{error}</p> : null}
             <div className="grid gap-3">
               <Input label="Name" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-              {!editingId ? (
-                <Input label="Email" type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-              ) : null}
+              <Input label="Email" type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
               <Input label="Phone" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
-              {needsPassword ? (
+              {editingId ? null : needsPassword ? (
                 <Input
-                  label={editingId ? "New password (optional)" : "Password (dashboard sign-in)"}
+                  label="Password (dashboard sign-in)"
                   type="password"
-                  required={!editingId}
+                  required
                   minLength={6}
                   value={form.password}
                   onChange={(e) => setForm({ ...form, password: e.target.value })}
@@ -242,10 +267,10 @@ export function StaffPage() {
                 <p className="rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-500">A cashier signs in on the POS with the PIN only; no password is needed.</p>
               )}
               <Input
-                label={editingId ? "New PIN (optional)" : "POS PIN (4–6 digits)"}
+                label="POS PIN (4–6 digits)"
                 inputMode="numeric"
                 pattern="\d{4,6}"
-                required={!editingId}
+                required
                 value={form.pin}
                 onChange={(e) => setForm({ ...form, pin: e.target.value.replace(/\D/g, "").slice(0, 6) })}
               />
@@ -267,7 +292,7 @@ export function StaffPage() {
                   ))}
                 </Select>
               ) : null}
-              {editingId ? (
+              {editingId && editingId !== user.id ? (
                 <Checkbox label="Active" checked={form.is_active} onChange={(e) => setForm({ ...form, is_active: e.target.checked })} />
               ) : null}
             </div>

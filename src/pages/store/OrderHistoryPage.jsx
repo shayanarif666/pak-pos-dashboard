@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { PageHeader } from "../../ui/PageHeader.jsx"
 import { Tabs, useTabParam } from "../../ui/Tabs.jsx"
 import { LocationSalesSummary, LocationSelect } from "../../features/orders/LocationSales.jsx"
 import { OrdersPage } from "./OrdersPage.jsx"
@@ -21,14 +22,14 @@ export function OrderHistoryPage() {
 
   return (
     <section className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Sales</p>
-          <h1 className="mt-2 text-2xl font-semibold text-slate-900">Order history</h1>
-          <p className="mt-1 text-sm text-slate-500">Orders grouped by where they ended up.</p>
-        </div>
-        <LocationSelect className="min-w-56" value={locationId} onChange={setLocationId} />
-      </div>
+      <PageHeader
+        section="Sales"
+        title="Order history"
+        description="Orders grouped by where they ended up."
+        actions={<>
+          <LocationSelect className="min-w-56" value={locationId} onChange={setLocationId} />
+        </>}
+      />
       <LocationSalesSummary selected={locationId} onSelect={setLocationId} />
       <Tabs tabs={TABS} value={tab} onChange={setTab} />
       {tab === "completed" ? <OrdersPage key="completed" status="completed" embedded locationId={locationId} /> : null}

@@ -17,6 +17,7 @@ import { MovementsPage } from "./pages/store/MovementsPage.jsx"
 import { DiscountsPage } from "./pages/store/OffersPage.jsx"
 import { DiscountFormPage } from "./pages/store/DiscountFormPage.jsx"
 import { TransferFormPage } from "./pages/store/TransferFormPage.jsx"
+import { StockMovementFormPage } from "./pages/store/StockMovementFormPage.jsx"
 import { SurchargesPage } from "./pages/store/SurchargesPage.jsx"
 import { ForgotPasswordPage } from "./pages/auth/ForgotPasswordPage.jsx"
 import { ResetPasswordPage } from "./pages/auth/ResetPasswordPage.jsx"
@@ -24,7 +25,7 @@ import { OrderDetailPage } from "./pages/store/OrderDetailPage.jsx"
 import { ProductDetailPage } from "./pages/store/ProductDetailPage.jsx"
 import { ProductFormPage } from "./pages/store/ProductFormPage.jsx"
 import { ProductsPage } from "./pages/store/ProductsPage.jsx"
-import { ReportsPage } from "./pages/store/ReportsPage.jsx"
+import { ReportingPage } from "./pages/store/ReportingPage.jsx"
 import { ReviewsPage } from "./pages/store/ReviewsPage.jsx"
 import { StoreAuditPage } from "./pages/store/StoreAuditPage.jsx"
 import { StoreBillingPage } from "./pages/store/StoreBillingPage.jsx"
@@ -111,7 +112,7 @@ export default function App() {
 
           <Route element={<RequireStoreStaff />}>
             <Route path="staff" element={<StaffPage />} />
-            <Route path="reports" element={<ReportsPage />} />
+            <Route path="reports" element={<ReportingPage />} />
             <Route path="products/new" element={<ProductFormPage />} />
             <Route path="products/:id/edit" element={<ProductFormPage />} />
             <Route path="products/:id" element={<ProductDetailPage />} />
@@ -120,6 +121,7 @@ export default function App() {
             <Route path="categories" element={<CategoriesPage />} />
             <Route path="inventory" element={<InventoryPage />} />
             <Route path="movements" element={<MovementsPage />} />
+            <Route path="movements/new" element={<StockMovementFormPage />} />
             <Route path="expiry" element={<ExpiryPage />} />
             <Route path="weight" element={<WeightPage />} />
             <Route path="suppliers/:id" element={<SupplierDetailPage />} />

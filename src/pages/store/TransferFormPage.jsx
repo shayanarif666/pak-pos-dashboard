@@ -205,7 +205,7 @@ export function TransferFormPage() {
               })}
             </div>
             <div className="-mx-5 hidden overflow-x-auto sm:-mx-6 sm:block">
-              <table className="w-full min-w-[560px] text-left text-sm">
+              <table className="ui-table w-full min-w-[560px] text-left text-sm">
                 <thead className="border-y border-slate-200 text-xs uppercase tracking-[0.12em] text-slate-500">
                   <tr>
                     <th className="px-5 py-2.5 font-semibold sm:px-6">Product</th>

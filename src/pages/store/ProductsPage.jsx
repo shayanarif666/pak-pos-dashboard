@@ -3,14 +3,14 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom"
 import { Eye, Pencil, Plus, Trash2 } from "lucide-react"
 import { useCategoriesQuery, useDisableProduct, useProductsQuery } from "../../features/catalog/catalogQuery.jsx"
 import { useDashboardLocation } from "../../features/scope/DashboardLocation.jsx"
-import { LocationScopePills } from "../../features/scope/LocationScopeField.jsx"
 import { DataTable } from "../../ui/DataTable.jsx"
-import { Currency } from "../../ui/Currency.jsx"
 import { Button } from "../../ui/Button.jsx"
 import { useToast } from "../../ui/Toast.jsx"
 import { Pill } from "../../ui/Pill.jsx"
 import { PageHeader, StatCards } from "../../ui/PageHeader.jsx"
 import { toNumber } from "../../ui/format.js"
+import { rowsToTables } from "../../lib/exportFile.js"
+import { ExportButton } from "../../ui/ExportButton.jsx"
 
 function productType(row) {
   if (row.is_pack_product && row.is_weight_based) return "pack_weight"
@@ -22,12 +22,6 @@ const TYPE_LABEL = { loose: "Loose", pack: "Pack", weight: "Weight", pack_weight
 
 // Stock total and status come from the API (total_qty, stock_status: in / low / out).
 const STOCK_TONE = { out: "font-semibold text-rose-700", low: "font-semibold text-amber-700", in: "font-semibold text-slate-900" }
-
-function taxText(row) {
-  const taxes = row.taxes || []
-  if (!taxes.length) return "—"
-  return taxes.map((tax) => `${tax.name} ${tax.type === "percentage" ? `${Number(tax.value)}%` : `Rs ${Number(tax.value)}`}`).join(", ")
-}
 
 /** Products: the store's catalog with each product's stock at the chosen location(s). */
 export function ProductsPage() {
@@ -74,24 +68,22 @@ export function ProductsPage() {
   }
 
   const columns = [
+    { key: "product_number", header: "Product #", sortValue: (row) => Number(row.product_number), render: (row) => <span className="font-semibold text-slate-900">#{row.product_number}</span> },
     {
       key: "title",
-      header: "Product",
+      header: "Title",
       render: (row) => (
-        <div className="flex min-w-48 items-center gap-3">
+        <div className="flex min-w-44 items-center gap-3">
           {row.featured_image || row.image_url ? (
-            <img src={row.featured_image || row.image_url} alt="" className="h-10 w-10 shrink-0 rounded-xl object-cover" />
+            <img src={row.featured_image || row.image_url} alt="" className="h-9 w-9 shrink-0 rounded-xl object-cover" />
           ) : (
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-[10px] text-slate-400">No img</div>
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-[10px] text-slate-400">No img</div>
           )}
-          <div className="min-w-0">
-            <p className="truncate font-semibold text-slate-900">{row.title}</p>
-            <p className="text-xs text-slate-500">#{row.product_number} · {row.unit}</p>
-          </div>
+          <p className="truncate font-semibold text-slate-900">{row.title}</p>
         </div>
       ),
     },
-    { key: "sku", header: "SKU / Barcode", render: (row) => (<div className="text-xs"><p className="font-mono text-slate-700">{row.sku}</p><p className="font-mono text-slate-400">{row.barcode || "—"}</p></div>) },
+    { key: "barcode", header: "Barcode", render: (row) => <span className="font-mono text-xs text-slate-700">{row.barcode || "—"}</span> },
     {
       key: "category",
       header: "Category",
@@ -103,26 +95,7 @@ export function ProductsPage() {
           </Link>
         ) : "—",
     },
-    { key: "type", header: "Type", sortValue: productType, render: (row) => <Pill tone="violet" dot={false}>{TYPE_LABEL[productType(row)]}</Pill> },
-    { key: "cost_price", header: "Cost", align: "right", sortValue: (row) => toNumber(row.cost_price), render: (row) => <Currency value={row.cost_price} /> },
-    { key: "selling_price", header: "Price", align: "right", sortValue: (row) => toNumber(row.selling_price), render: (row) => <Currency value={row.selling_price} /> },
-    {
-      key: "pack",
-      header: "Pack",
-      align: "right",
-      sortValue: (row) => toNumber(row.pack_selling_price),
-      render: (row) => (row.is_pack_product ? (<span>{row.pack_size} × · <Currency value={row.pack_selling_price} /></span>) : "—"),
-    },
-    { key: "taxes", header: "Taxes", sortable: false, className: "max-w-48 text-xs", render: taxText },
-    {
-      key: "discount",
-      header: "Discount",
-      sortValue: (row) => toNumber(row.discount_value),
-      render: (row) =>
-        row.discount_type && Number(row.discount_value) > 0
-          ? row.discount_type === "percentage" ? `${Number(row.discount_value)}%` : <Currency value={row.discount_value} />
-          : "—",
-    },
+    { key: "is_active", header: "Status", sortValue: (row) => (row.is_active ? 1 : 0), render: (row) => <Pill tone={row.is_active ? "emerald" : "rose"}>{row.is_active ? "Active" : "Disabled"}</Pill> },
     {
       key: "stock",
       header: isAll ? "Stock (all)" : "Stock",
@@ -131,21 +104,14 @@ export function ProductsPage() {
       render: (row) => <span className={STOCK_TONE[row.stock_status] || STOCK_TONE.in}>{row.total_qty ?? 0}</span>,
     },
     {
-      key: "locations",
-      header: "Sold at",
-      sortValue: (row) => (row.location_scope === "selected" ? (row.locations || []).length : 0),
-      render: (row) => <LocationScopePills row={row} />,
-    },
-    { key: "is_active", header: "Status", sortValue: (row) => (row.is_active ? 1 : 0), render: (row) => <Pill tone={row.is_active ? "emerald" : "rose"}>{row.is_active ? "Active" : "Disabled"}</Pill> },
-    {
       key: "actions",
       header: "",
       sortable: false,
       render: (row) => (
         <div className="flex justify-end gap-1" onClick={(event) => event.stopPropagation()}>
-          <Link to={`/products/${row.id}`}><Button variant="icon" aria-label="View product"><Eye className="h-4 w-4" /></Button></Link>
-          <Link to={`/products/${row.id}/edit`}><Button variant="icon" aria-label="Edit product"><Pencil className="h-4 w-4" /></Button></Link>
-          <Button variant="icon" aria-label="Delete product" onClick={() => remove(row)}><Trash2 className="h-4 w-4 text-rose-600" /></Button>
+          <Link to={`/products/${row.id}`}><Button variant="icon" aria-label="View product" title="View"><Eye className="h-4 w-4" /></Button></Link>
+          <Link to={`/products/${row.id}/edit`}><Button variant="icon" aria-label="Edit product" title="Edit"><Pencil className="h-4 w-4" /></Button></Link>
+          <Button variant="icon" aria-label="Delete product" title="Delete" onClick={() => remove(row)}><Trash2 className="h-4 w-4 text-rose-600" /></Button>
         </div>
       ),
     },
@@ -158,9 +124,12 @@ export function ProductsPage() {
         title="Products"
         description={`Products belong to the whole store; stock is shown for ${isAll ? "all locations together" : label}.`}
         actions={
-          <Link to="/products/new">
-            <Button><Plus className="h-4 w-4" /> Add product</Button>
-          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            <ExportButton name="products" getTables={() => rowsToTables("Products", rows)} disabled={productsQuery.isPending} />
+            <Link to="/products/new">
+              <Button className="h-11"><Plus className="h-4 w-4" /> Add product</Button>
+            </Link>
+          </div>
         }
       />
       <StatCards
@@ -172,6 +141,7 @@ export function ProductsPage() {
         ]}
       />
       <DataTable
+        title="Products"
         columns={columns}
         rows={rows}
         loading={productsQuery.isPending}

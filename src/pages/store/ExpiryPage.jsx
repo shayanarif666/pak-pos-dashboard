@@ -88,6 +88,7 @@ export function ExpiryPage() {
         ]}
       />
       <DataTable
+        title="Products"
         columns={columns}
         rows={rows}
         rowKey={(row) => `${row.id}-${row.location_id}`}

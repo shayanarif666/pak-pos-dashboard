@@ -194,6 +194,7 @@ export function TaxesPage() {
         ]}
       />
       <DataTable
+        title="Taxes"
         columns={columns}
         rows={rows}
         loading={taxesQuery.isPending}

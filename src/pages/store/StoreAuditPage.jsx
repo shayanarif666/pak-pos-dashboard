@@ -115,6 +115,7 @@ export function StoreAuditPage() {
         ]}
       />
       <DataTable
+        title="Audit Logs"
         columns={columns}
         rows={rows}
         loading={auditQuery.isPending}

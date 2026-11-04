@@ -1,4 +1,5 @@
 import { Fragment, useState } from "react"
+import { table as ui } from "../../ui/tableStyles.js"
 import { StatusBadge } from "../../ui/Pill.jsx"
 
 
@@ -49,8 +50,9 @@ export function AuditLogsTable({
   }
 
   return (
-    <div className="overflow-x-auto rounded-[24px] border border-slate-200">
-      <table className="min-w-full text-left text-sm">
+    <div className={ui.card}>
+      <div className={ui.scroll}>
+      <table className="ui-table min-w-full text-left text-sm">
         <thead className="border-b border-slate-200 bg-white text-xs uppercase tracking-[0.14em] text-slate-500">
           <tr>
             <th className="px-4 py-3">When</th>
@@ -136,6 +138,7 @@ export function AuditLogsTable({
           })}
         </tbody>
       </table>
+    </div>
     </div>
   )
 }

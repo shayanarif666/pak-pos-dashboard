@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react"
+import { PageHeader } from "../ui/PageHeader.jsx"
 import { Link } from "react-router-dom"
 import { useAuth } from "../auth/AuthContext.jsx"
 import {
@@ -57,25 +58,26 @@ export function OverviewPage() {
 
   return (
     <section className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Home</p>
-          <h1 className="mt-2 text-2xl font-semibold text-slate-900">Overview</h1>
-          <p className="mt-2 text-sm text-slate-600">{subtitle}</p>
-          <p className="mt-2 text-sm text-slate-500">
-            Welcome back, {user.name}. This month so far{locationName ? ` · ${locationName}` : ""}.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-end gap-3">
-          <LocationSelect className="min-w-56" value={locationId} onChange={setLocationId} />
-          <Link
-          to="/reports"
-          className="rounded-2xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 transition hover:bg-brand-50"
-        >
-          Open reports
-          </Link>
-        </div>
-      </div>
+      <PageHeader
+        section="Home"
+        title="Overview"
+        description={subtitle}
+        actions={<>
+          <div className="flex flex-wrap items-end gap-3">
+            <LocationSelect className="min-w-56" value={locationId} onChange={setLocationId} />
+            <Link
+            to="/reports"
+            className="rounded-2xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 transition hover:bg-brand-50"
+          >
+            Open reports
+            </Link>
+          </div>
+        </>}
+      >
+        <p className="mt-2 text-sm text-slate-500">
+          Welcome back, {user.name}. This month so far{locationName ? ` · ${locationName}` : ""}.
+        </p>
+      </PageHeader>
 
       {dashboardQuery.isPending ? <PageLoader label="Loading KPIs…" /> : null}
       {dashboardQuery.error ? (

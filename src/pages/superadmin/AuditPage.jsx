@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react"
+import { PageHeader } from "../../ui/PageHeader.jsx"
 import {
   useAdminAuditLogsQuery,
   useStoresQuery,
@@ -34,15 +35,11 @@ export function AuditPage() {
 
   return (
     <section className="space-y-6">
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-          Super Admin
-        </p>
-        <h1 className="mt-2 text-2xl font-semibold text-slate-900">Platform audit</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Complete audit trail across all stores. Sensitive fields are redacted.
-        </p>
-      </div>
+      <PageHeader
+        section="Super Admin"
+        title="Platform audit"
+        description="Complete audit trail across all stores. Sensitive fields are redacted."
+      />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <Select label="Store" value={storeId} onChange={(e) => setStoreId(e.target.value)}>

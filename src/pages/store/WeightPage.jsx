@@ -127,6 +127,7 @@ export function WeightPage() {
         </Button>
       </form>
       <DataTable
+        title="Weight Based Products"
         columns={columns}
         rows={rows}
         loading={weightQuery.isPending}

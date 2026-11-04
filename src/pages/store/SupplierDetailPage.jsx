@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { PageHeader } from "../../ui/PageHeader.jsx"
 import { Link, useParams } from "react-router-dom"
 import { useLocationsQuery, useProductsQuery } from "../../features/catalog/catalogQuery.jsx"
 import {
@@ -74,34 +75,33 @@ export function SupplierDetailPage() {
 
   return (
     <section className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Suppliers</p>
-          <h1 className="mt-2 text-2xl font-semibold text-slate-900">{supplier.name}</h1>
-          <p className="mt-1 text-sm text-slate-600">
-            {supplier.phone || "—"} · {supplier.email || "—"}
-          </p>
-          <p className="mt-1 text-sm text-slate-600">
-            Supplies:{" "}
-            {supplier.location_scope === "selected"
-              ? (supplier.locations || []).map((row) => row.name).join(", ") || "—"
-              : "All locations"}
-          </p>
-        </div>
-        <div className="text-right">
-          <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Balance owed</p>
-          <p className="mt-1 text-3xl font-semibold text-slate-900"><Currency value={supplier.balance_owed || 0} /></p>
-          <Link to="/suppliers" className="mt-2 inline-block text-sm text-brand-700">
-            Back to suppliers
-          </Link>
-          <div className="mt-3">
-            <Button onClick={() => setShowForm(true)}>
-              <Plus className="h-4 w-4" />
-              Add ledger entry
-            </Button>
+      <PageHeader
+        section="Suppliers"
+        title={supplier.name}
+        description={<>{supplier.phone || "—"} · {supplier.email || "—"}</>}
+        actions={<>
+          <div className="text-right">
+            <p className="text-xs uppercase tracking-[0.16em] text-slate-500">Balance owed</p>
+            <p className="mt-1 text-3xl font-semibold text-slate-900"><Currency value={supplier.balance_owed || 0} /></p>
+            <Link to="/suppliers" className="mt-2 inline-block text-sm text-brand-700">
+              Back to suppliers
+            </Link>
+            <div className="mt-3">
+              <Button onClick={() => setShowForm(true)}>
+                <Plus className="h-4 w-4" />
+                Add ledger entry
+              </Button>
+            </div>
           </div>
-        </div>
-      </div>
+        </>}
+      >
+        <p className="mt-1 text-sm text-slate-600">
+          Supplies:{" "}
+          {supplier.location_scope === "selected"
+            ? (supplier.locations || []).map((row) => row.name).join(", ") || "—"
+            : "All locations"}
+        </p>
+      </PageHeader>
 
       <Modal open={showForm} onClose={closeForm} size="lg">
       <ModalCard as="form" title="New ledger entry" onClose={closeForm} onSubmit={save}>

@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom"
 import { useState } from "react"
-import { Pencil, Plus, Trash2 } from "lucide-react"
+import { Eye, Pencil, Plus, Trash2 } from "lucide-react"
 import { useAuth } from "../../auth/AuthContext.jsx"
 import {
   useCategoriesQuery,
@@ -46,10 +46,6 @@ export function CategoriesPage() {
   const [editing, setEditing] = useState(null)
   const loading = categoriesQuery.isPending
   const productsQuery = useProductsQuery({})
-  const productCount = new Map()
-  for (const product of productsQuery.data || []) {
-    productCount.set(product.category_id, (productCount.get(product.category_id) || 0) + 1)
-  }
   const listError = categoriesQuery.error?.message || ""
 
   const openCreate = () => setEditing({ category: null })
@@ -70,41 +66,25 @@ export function CategoriesPage() {
     }
   }
 
-
-  const parentName = (id) => rows.find((row) => row.id === id)?.name || "—"
-  const percentOrRs = (type, value) =>
-    type && value != null && value !== "" ? (type === "percentage" ? `${Number(value)}%` : `Rs ${Number(value)}`) : "—"
+  // Store admin: the switch on every category. Manager: the switch on his location's own
+  // categories; a store-wide one (every location, set by the store admin) only shows "Active".
+  const canToggle = (row) =>
+    isAdmin ||
+    (row.location_scope === "selected" && (row.location_ids || []).every((id) => id === user?.location_id))
 
   const columns = [
+    { key: "category_number", header: "Category #", sortValue: (row) => Number(row.category_number), render: (row) => <span className="font-semibold text-slate-900">#{row.category_number}</span> },
     {
       key: "name",
-      header: "Category",
+      header: "Name",
       render: (row) => (
-        <div className="flex min-w-44 items-center gap-3">
+        <div className="flex min-w-40 items-center gap-3">
           {row.image_url ? (
-            <img src={row.image_url} alt="" className="h-10 w-10 shrink-0 rounded-xl object-cover" />
+            <img src={row.image_url} alt="" className="h-9 w-9 shrink-0 rounded-xl object-cover" />
           ) : (
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-[10px] text-slate-400">No img</div>
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-[10px] text-slate-400">No img</div>
           )}
-          <div className="min-w-0">
-            <p className="truncate font-semibold text-slate-900">{row.name}</p>
-            <p className="text-xs text-slate-500">#{row.category_number} · {row.slug}</p>
-          </div>
-        </div>
-      ),
-    },
-    { key: "parent", header: "Parent", sortValue: (row) => parentName(row.parent_category_id), render: (row) => (row.parent_category_id ? parentName(row.parent_category_id) : "—") },
-    { key: "products", header: "Products", align: "right", sortValue: (row) => productCount.get(row.id) || 0, render: (row) => productCount.get(row.id) || 0 },
-    { key: "tax", header: "Category tax", sortValue: (row) => Number(row.tax_value || 0), render: (row) => percentOrRs(row.tax_type, row.tax_value) },
-    { key: "discount", header: "Discount", sortValue: (row) => Number(row.discount_value || 0), render: (row) => percentOrRs(row.discount_type, row.discount_value) },
-    {
-      key: "channels",
-      header: "Shown on",
-      sortable: false,
-      render: (row) => (
-        <div className="flex gap-1">
-          <Pill tone={row.is_pos_visible ? "sky" : "zinc"} dot={false}>POS</Pill>
-          <Pill tone={row.is_web_visible ? "fuchsia" : "zinc"} dot={false}>Web</Pill>
+          <p className="truncate font-semibold text-slate-900">{row.name}</p>
         </div>
       ),
     },
@@ -118,17 +98,19 @@ export function CategoriesPage() {
       key: "is_active",
       header: "Active",
       sortValue: (row) => (row.is_active ? 1 : 0),
-      render: (row) => (
-        <div className="flex items-center gap-2" onClick={(event) => event.stopPropagation()}>
-          <Switch
-            checked={row.is_active !== false}
-            disabled={Boolean(toggling[row.id])}
-            label={row.is_active !== false ? `Switch off ${row.name}` : `Switch on ${row.name}`}
-            onChange={(next) => setActive(row, next)}
-          />
+      render: (row) =>
+        canToggle(row) ? (
+          <div onClick={(event) => event.stopPropagation()}>
+            <Switch
+              checked={row.is_active !== false}
+              disabled={Boolean(toggling[row.id])}
+              label={row.is_active !== false ? `Switch off ${row.name}` : `Switch on ${row.name}`}
+              onChange={(next) => setActive(row, next)}
+            />
+          </div>
+        ) : (
           <Pill tone={row.is_active !== false ? "emerald" : "rose"}>{row.is_active !== false ? "Active" : "Off"}</Pill>
-        </div>
-      ),
+        ),
     },
     {
       key: "actions",
@@ -136,8 +118,9 @@ export function CategoriesPage() {
       sortable: false,
       render: (row) => (
         <div className="flex justify-end gap-1" onClick={(event) => event.stopPropagation()}>
-          <Button variant="icon" aria-label="Edit category" onClick={() => openEdit(row)}><Pencil className="h-4 w-4" /></Button>
-          <Button variant="icon" aria-label="Delete category" onClick={() => remove(row)}><Trash2 className="h-4 w-4" /></Button>
+          <Button variant="icon" aria-label="View category" title="View" onClick={() => navigate(`/categories/${row.category_number}`)}><Eye className="h-4 w-4" /></Button>
+          <Button variant="icon" aria-label="Edit category" title="Edit" onClick={() => openEdit(row)}><Pencil className="h-4 w-4" /></Button>
+          <Button variant="icon" aria-label="Delete category" title="Delete" onClick={() => remove(row)}><Trash2 className="h-4 w-4 text-rose-600" /></Button>
         </div>
       ),
     },
@@ -160,6 +143,7 @@ export function CategoriesPage() {
         ]}
       />
       <DataTable
+        title="Categories"
         columns={columns}
         rows={rows}
         loading={loading}

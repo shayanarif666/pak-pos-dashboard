@@ -2,7 +2,7 @@ import { useEffect, useState } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import { usePlansQuery, useSaveStore, useStoreQuery } from "../../features/admin/adminQuery.js"
 import { StoreStepper } from "../../features/stores/StoreStepper.jsx"
-import { emptyStoreForm, storeFormPayload, storeToForm } from "../../features/stores/storeForm.js"
+import { emptyStoreForm, storeFormFiles, storeFormPayload, storeToForm } from "../../features/stores/storeForm.js"
 import { PageLoader } from "../../ui/Spinner.jsx"
 import { useToast } from "../../ui/Toast.jsx"
 
@@ -37,6 +37,7 @@ export function StoreFormPage() {
       await saveStore.mutateAsync({
         id: isEdit ? id : undefined,
         body: storeFormPayload(form, { isEdit }),
+        files: storeFormFiles(form),
       })
       toast(isEdit ? "Store updated" : "Store registered")
       navigate("/stores")
@@ -60,7 +61,7 @@ export function StoreFormPage() {
       <p className="mt-2 mb-6 text-sm text-slate-600">
         {isEdit
           ? "Update the same fields collected at registration. Passwords stay unchanged if left blank."
-          : "Create a merchant with first location, Store Admin, Store Manager, and billing."}
+          : "Create a merchant with its first location, Store Admin, billing, tax settings, logo and favicon. Managers are added later by the store admin."}
       </p>
       <StoreStepper
         mode={isEdit ? "edit" : "add"}

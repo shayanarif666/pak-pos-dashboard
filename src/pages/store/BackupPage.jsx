@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { PageHeader } from "../../ui/PageHeader.jsx"
 import { useBackupsQuery, useCreateBackup, useRestoreBackup } from "../../features/settings/settingsQuery.js"
 import { Button } from "../../ui/Button.jsx"
 import { Input } from "../../ui/Input.jsx"
@@ -41,11 +42,11 @@ export function BackupPage() {
 
   return (
     <section className="space-y-6">
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Admin</p>
-        <h1 className="mt-2 text-2xl font-semibold text-slate-900">Backup &amp; restore</h1>
-        <p className="mt-1 text-sm text-slate-500">Available on packages with backup enabled.</p>
-      </div>
+      <PageHeader
+        section="Admin"
+        title="Backup &amp; restore"
+        description="Available on packages with backup enabled."
+      />
       <form onSubmit={create} className="flex max-w-xl items-end gap-3">
         <Input className="flex-1" label="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} />
         <Button type="submit" disabled={createBackup.isPending}>Back up now</Button>

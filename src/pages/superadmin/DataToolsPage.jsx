@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { PageHeader } from "../../ui/PageHeader.jsx"
 import { useDataModulesQuery, useWipeDataModule } from "../../features/settings/settingsQuery.js"
 import { Button } from "../../ui/Button.jsx"
 import { Modal } from "../../ui/Modal.jsx"
@@ -30,11 +31,11 @@ export function DataToolsPage() {
 
   return (
     <section className="space-y-6">
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-rose-700">Danger zone</p>
-        <h1 className="mt-2 text-2xl font-semibold text-slate-900">Data tools</h1>
-        <p className="mt-1 text-sm text-slate-500">Permanently deletes every row of a module across all stores. This cannot be undone.</p>
-      </div>
+      <PageHeader
+        section="Danger zone"
+        title="Data tools"
+        description="Permanently deletes every row of a module across all stores. This cannot be undone."
+      />
       {modulesQuery.isPending ? <PageLoader label="Loading modules…" /> : null}
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {rows.map((row) => (

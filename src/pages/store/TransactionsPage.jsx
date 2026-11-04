@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { PageHeader } from "../../ui/PageHeader.jsx"
 import { Eye } from "lucide-react"
 import {
   useAddOrderPayment,
@@ -65,21 +66,21 @@ export function TransactionsPage() {
 
   return (
     <section className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Sales</p>
-          <h1 className="mt-2 text-2xl font-semibold text-slate-900">Transactions</h1>
-          <p className="mt-1 text-sm text-slate-500">Select an order to view payments, add split payments, confirm payments, and load receipts.</p>
-        </div>
-        <LocationSelect
-          className="min-w-56"
-          value={locationId}
-          onChange={(value) => {
-            setLocationId(value)
-            setSelectedOrder(null)
-          }}
-        />
-      </div>
+      <PageHeader
+        section="Sales"
+        title="Transactions"
+        description="Select an order to view payments, add split payments, confirm payments, and load receipts."
+        actions={<>
+          <LocationSelect
+            className="min-w-56"
+            value={locationId}
+            onChange={(value) => {
+              setLocationId(value)
+              setSelectedOrder(null)
+            }}
+          />
+        </>}
+      />
 
       {ordersQuery.isPending ? <PageLoader label="Loading orders…" /> : null}
       {ordersQuery.error ? <p className="text-sm text-rose-700">{ordersQuery.error.message}</p> : null}

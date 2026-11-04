@@ -3,7 +3,8 @@ import { useStaffQuery } from "../operations/operationsQuery.js"
 
 /** Staff name by user UUID or user number (tables show names, not ids). */
 export function useStaffNames() {
-  const staffQuery = useStaffQuery()
+  // Deleted staff too: their sales and sessions still show who did them.
+  const staffQuery = useStaffQuery({ withDeleted: true })
   return useMemo(() => {
     const rows = staffQuery.data || []
     const byId = new Map(rows.map((row) => [row.id, row.name]))

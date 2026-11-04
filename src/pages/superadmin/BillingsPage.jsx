@@ -1,4 +1,6 @@
 import { useState } from "react"
+import { PageHeader } from "../../ui/PageHeader.jsx"
+import { table as ui } from "../../ui/tableStyles.js"
 import { Plus, X } from "lucide-react"
 import {
   useBillingsQuery,
@@ -81,20 +83,18 @@ export function BillingsPage() {
 
   return (
     <section className="space-y-6">
-      <div className="flex items-end justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-            Super Admin
-          </p>
-          <h1 className="mt-2 text-2xl font-semibold text-slate-900">Billings</h1>
-        </div>
-        {!showForm ? (
-          <Button onClick={() => setShowForm(true)}>
-            <Plus className="h-4 w-4" />
-            Create billing
-          </Button>
-        ) : null}
-      </div>
+      <PageHeader
+        section="Super Admin"
+        title="Billings"
+        actions={<>
+          {!showForm ? (
+            <Button onClick={() => setShowForm(true)}>
+              <Plus className="h-4 w-4" />
+              Create billing
+            </Button>
+          ) : null}
+        </>}
+      />
 
       <Modal open={showForm} onClose={closeForm} size="lg">
         <form
@@ -172,8 +172,9 @@ export function BillingsPage() {
       {loading ? <PageLoader label="Loading billings…" /> : null}
 
       {!loading ? (
-        <div className="overflow-x-auto rounded-[28px] border border-slate-200 bg-white">
-          <table className="min-w-full text-left text-sm">
+        <div className={ui.card}>
+          <div className={ui.scroll}>
+          <table className="ui-table min-w-full text-left text-sm">
             <thead className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
               <tr>
                 <th className="px-4 py-3 font-medium">Store</th>
@@ -216,6 +217,7 @@ export function BillingsPage() {
               ))}
             </tbody>
           </table>
+          </div>
           {!rows.length ? (
             <p className="px-4 py-8 text-sm text-slate-500">No billings yet. Record the first payment.</p>
           ) : null}

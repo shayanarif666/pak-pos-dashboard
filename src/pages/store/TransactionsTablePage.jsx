@@ -7,6 +7,20 @@ import { StatusBadge } from "../../ui/Pill.jsx"
 import { PageHeader, StatCards } from "../../ui/PageHeader.jsx"
 import { useScopedReportQuery } from "../../features/reports/reportQuery.js"
 import { formatDateTime, PAYMENT_METHODS } from "../../ui/format.js"
+import { listTransactions } from "../../api/orders.js"
+import { rowsToTables } from "../../lib/exportFile.js"
+import { ExportButton } from "../../ui/ExportButton.jsx"
+
+/** Every transaction at the chosen location(s), all pages. */
+async function allTransactions(params) {
+  const rows = []
+  for (let page = 1; page <= 500; page += 1) {
+    const json = await listTransactions({ ...params, page, limit: 200 })
+    rows.push(...(json?.data || []))
+    if (page >= Number(json?.pagination?.total_pages || 1)) break
+  }
+  return rows
+}
 
 const METHODS = PAYMENT_METHODS
 const STATUSES = ["success", "initiated", "pending", "failed", "refunded"].map((value) => ({
@@ -60,6 +74,7 @@ export function TransactionsTablePage() {
         section="Sales"
         title="Transactions"
         description="Every payment taken for an order — created with the order, one per payment method. Search by order number."
+        actions={<ExportButton name="transactions" getTables={async () => rowsToTables("Transactions", await allTransactions(locationParams))} />}
       />
       <StatCards
         items={[
@@ -70,6 +85,7 @@ export function TransactionsTablePage() {
         ]}
       />
       <DataTable
+        title="Transactions"
         columns={columns}
         rows={rows}
         loading={query.isPending}

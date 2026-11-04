@@ -1,4 +1,4 @@
-import { StatCards } from "../../ui/PageHeader.jsx"
+import { PageHeader, StatCards } from "../../ui/PageHeader.jsx"
 import { useMemo, useState } from "react"
 import { Pencil, Plus, X } from "lucide-react"
 import { useAuth } from "../../auth/AuthContext.jsx"
@@ -128,24 +128,26 @@ export function StoreDevicesPage() {
 
   return (
     <section className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Staff</p>
-          <h1 className="mt-2 text-2xl font-semibold text-slate-900">Devices Registered</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            {store?.name ? `${store.name} · ` : ""}
-            {isManager
-              ? `POS devices for ${location?.name || "your location"} only.`
-              : "Register and manage POS devices for this store."}
-          </p>
-        </div>
-        {!showForm ? (
-          <Button onClick={openCreate}>
-            <Plus className="h-4 w-4" />
-            Register device
-          </Button>
-        ) : null}
-      </div>
+      <PageHeader
+        section="Staff"
+        title="Devices Registered"
+        description={<>
+          {store?.name ? `${store.name} · ` : ""}
+          {isManager
+            ? `POS devices for ${location?.name || "your location"} only.`
+            : "Register and manage POS devices for this store."}
+        </>}
+        actions={<>
+          <div className="flex flex-wrap items-center gap-2">
+            {!showForm ? (
+              <Button onClick={openCreate}>
+                <Plus className="h-4 w-4" />
+                Register device
+              </Button>
+            ) : null}
+          </div>
+        </>}
+      />
 
 
       <Modal open={showForm} onClose={closeForm} size="lg">
@@ -239,6 +241,7 @@ export function StoreDevicesPage() {
         ]}
       />
       <DataTable
+        title="POS Devices"
         columns={[
           {
             key: "name",

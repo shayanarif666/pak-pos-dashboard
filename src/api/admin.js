@@ -1,4 +1,5 @@
 import { apiDelete, apiGet, apiPatch, apiPost, withQuery } from "../lib/http.js"
+import { objectToForm } from "./catalog.js"
 
 const auth = { auth: true }
 
@@ -10,12 +11,21 @@ export function getStore(id) {
   return apiGet(`/api/v1/admin/stores/${id}`, auth)
 }
 
-export function createStore(body) {
-  return apiPost("/api/v1/admin/stores", body, auth)
+// With a logo / favicon file the body goes as multipart (rates as a JSON string).
+function storeBody(body, files) {
+  if (!files?.logo && !files?.favicon) return body
+  const form = objectToForm(body)
+  if (files.logo) form.append("logo", files.logo)
+  if (files.favicon) form.append("favicon", files.favicon)
+  return form
 }
 
-export function updateStore(id, body) {
-  return apiPatch(`/api/v1/admin/stores/${id}`, body, auth)
+export function createStore(body, files) {
+  return apiPost("/api/v1/admin/stores", storeBody(body, files), auth)
+}
+
+export function updateStore(id, body, files) {
+  return apiPatch(`/api/v1/admin/stores/${id}`, storeBody(body, files), auth)
 }
 
 export function listPlans() {

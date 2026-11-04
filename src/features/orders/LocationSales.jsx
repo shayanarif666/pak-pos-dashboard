@@ -1,4 +1,5 @@
 import { MapPin } from "lucide-react"
+import { table as ui } from "../../ui/tableStyles.js"
 import { useAuth } from "../../auth/AuthContext.jsx"
 import { useLocationsQuery } from "../catalog/catalogQuery.jsx"
 import { useSalesByLocationQuery } from "./orderQuery.js"
@@ -49,10 +50,10 @@ export function LocationSalesSummary({ filters = {}, selected = "", onSelect }) 
   const totals = query.data?.totals || {}
 
   return (
-    <div className="mb-6 overflow-hidden rounded-[28px] border border-slate-200 bg-white">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-5 py-3">
+    <div className={`mb-6 ${ui.card}`}>
+      <div className={ui.header}>
         <div>
-          <h2 className="text-sm font-semibold text-slate-900">Sales by location</h2>
+          <h2 className={ui.title}>Sales by location</h2>
           <p className="text-xs text-slate-500">
             Click a location to see only its orders{selected ? " · click again to show all" : ""}.
           </p>
@@ -61,7 +62,7 @@ export function LocationSalesSummary({ filters = {}, selected = "", onSelect }) 
       </div>
       {query.error ? <p className="px-5 py-3 text-sm text-rose-700">{query.error.message}</p> : null}
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[760px] text-left text-sm">
+        <table className="ui-table w-full min-w-[760px] text-left text-sm">
           <thead className="bg-slate-50 text-xs uppercase tracking-[0.12em] text-slate-500">
             <tr>
               <th className="px-5 py-2.5 font-semibold">Location</th>

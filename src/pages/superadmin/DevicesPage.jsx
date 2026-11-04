@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react"
+import { PageHeader } from "../../ui/PageHeader.jsx"
 import { Plus, X } from "lucide-react"
 import {
   useAdminPosDevicesQuery,
@@ -91,21 +92,19 @@ export function DevicesPage() {
 
   return (
     <section className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-            Super Admin
-          </p>
-          <h1 className="mt-2 text-2xl font-semibold text-slate-900">Devices</h1>
-          <p className="mt-1 text-sm text-slate-500">All POS devices across every store.</p>
-        </div>
-        {!showForm ? (
-          <Button onClick={openCreate}>
-            <Plus className="h-4 w-4" />
-            Register device
-          </Button>
-        ) : null}
-      </div>
+      <PageHeader
+        section="Super Admin"
+        title="Devices"
+        description="All POS devices across every store."
+        actions={<>
+          {!showForm ? (
+            <Button onClick={openCreate}>
+              <Plus className="h-4 w-4" />
+              Register device
+            </Button>
+          ) : null}
+        </>}
+      />
 
       <div className="grid gap-3 sm:grid-cols-2">
         <Select label="Store" value={storeId} onChange={(e) => setStoreId(e.target.value)}>

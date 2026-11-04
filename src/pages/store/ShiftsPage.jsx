@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react"
+import { PageHeader } from "../../ui/PageHeader.jsx"
 import { useAuth } from "../../auth/AuthContext.jsx"
 import { useRegisterSessionsQuery, useStaffQuery } from "../../features/operations/operationsQuery.js"
 import { useStoreLocationsQuery } from "../../features/people/peopleQuery.js"
@@ -36,28 +37,28 @@ export function ShiftsPage() {
 
   return (
     <section className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Point of sale</p>
-          <h1 className="mt-2 text-2xl font-semibold text-slate-900">Shift history</h1>
-          <p className="mt-1 text-sm text-slate-500">Cash drawer sessions from the POS counters: sales, expected cash and variance.</p>
-        </div>
-        <div className="flex flex-wrap gap-3">
-          {isAdmin ? (
-            <Select label="Location" className="min-w-52" value={locationId} onChange={(e) => setLocationId(e.target.value)}>
-              <option value="">All locations</option>
-              {locations.map((row) => (
-                <option key={row.id} value={row.id}>{row.name}</option>
-              ))}
+      <PageHeader
+        section="Point of sale"
+        title="Shift history"
+        description="Cash drawer sessions from the POS counters: sales, expected cash and variance."
+        actions={<>
+          <div className="flex flex-wrap gap-3">
+            {isAdmin ? (
+              <Select label="Location" className="min-w-52" value={locationId} onChange={(e) => setLocationId(e.target.value)}>
+                <option value="">All locations</option>
+                {locations.map((row) => (
+                  <option key={row.id} value={row.id}>{row.name}</option>
+                ))}
+              </Select>
+            ) : null}
+            <Select label="Status" className="min-w-40" value={status} onChange={(e) => setStatus(e.target.value)}>
+              <option value="">All shifts</option>
+              <option value="clock_in">Open</option>
+              <option value="clock_out">Closed</option>
             </Select>
-          ) : null}
-          <Select label="Status" className="min-w-40" value={status} onChange={(e) => setStatus(e.target.value)}>
-            <option value="">All shifts</option>
-            <option value="clock_in">Open</option>
-            <option value="clock_out">Closed</option>
-          </Select>
-        </div>
-      </div>
+          </div>
+        </>}
+      />
 
       <div className="grid gap-3 sm:grid-cols-3">
         <Summary label="Shifts" value={rows.length} />

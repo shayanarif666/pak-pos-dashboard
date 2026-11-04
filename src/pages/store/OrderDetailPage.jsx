@@ -146,7 +146,7 @@ function OrderReceipt({ storeName, order, items, payments, receipt, customer, ca
 function SimpleTable({ head, children, empty, colSpan }) {
   return (
     <div className="overflow-x-auto rounded-2xl border border-slate-200">
-      <table className="w-full min-w-[560px] text-left text-sm">
+      <table className="ui-table w-full min-w-[560px] text-left text-sm">
         <thead className="border-b border-slate-200 text-xs uppercase tracking-[0.12em] text-slate-500">
           <tr>
             {head.map(([label, align]) => (
@@ -426,7 +426,7 @@ export function OrderDetailPage() {
 
           <Panel title="Items">
             <div className="-mx-5 overflow-x-auto">
-              <table className="w-full min-w-[720px] text-left text-sm">
+              <table className="ui-table w-full min-w-[720px] text-left text-sm">
                 <thead className="border-y border-slate-200 text-xs uppercase tracking-[0.12em] text-slate-500">
                   <tr>
                     <th className="px-5 py-3 font-semibold">Item</th>

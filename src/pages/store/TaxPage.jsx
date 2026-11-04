@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { PageHeader } from "../../ui/PageHeader.jsx"
 import { useSaveTaxRates, useTaxRatesQuery } from "../../features/tax/taxQuery.js"
 import { Button } from "../../ui/Button.jsx"
 import { Checkbox } from "../../ui/Checkbox.jsx"
@@ -82,13 +83,11 @@ export function TaxPage() {
 
   return (
     <section className="mx-auto max-w-3xl space-y-6">
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Admin</p>
-        <h1 className="mt-2 text-2xl font-semibold text-slate-900">Tax & FBR</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Store tax flags, default rate, NTN/STRN, and GST percent per payment method.
-        </p>
-      </div>
+      <PageHeader
+        section="Admin"
+        title="Tax & FBR"
+        description="Store tax flags, default rate, NTN/STRN, and GST percent per payment method."
+      />
 
       {taxQuery.error ? (
         <p className="text-sm text-rose-700">{taxQuery.error.message}</p>

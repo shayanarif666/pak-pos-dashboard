@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   createStaff,
+  deleteStaff,
   getStaffSales,
   listRegisterSessions,
   listStaff,
@@ -26,10 +27,23 @@ export function useRegisterSessionsQuery(filters = {}) {
   })
 }
 
-export function useStaffQuery() {
+/**
+ * The store's staff. Deleted staff (soft deleted) are fetched too, so history still shows their
+ * names (withDeleted), but are left out of the list everywhere else.
+ */
+export function useStaffQuery({ withDeleted = false } = {}) {
   return useQuery({
     queryKey: operationsKeys.staff,
-    queryFn: async () => unwrap(await listStaff()) || [],
+    queryFn: async () => unwrap(await listStaff({ include_deleted: 1 })) || [],
+    select: withDeleted ? undefined : (rows) => rows.filter((row) => !row.deleted),
+  })
+}
+
+export function useDeleteStaff() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id) => unwrap(await deleteStaff(id)),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: operationsKeys.staff }),
   })
 }
 

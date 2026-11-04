@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react"
+import { PageHeader } from "../../ui/PageHeader.jsx"
 import { CalendarClock, CalendarPlus, PauseCircle, PlayCircle, Plus, Search } from "lucide-react"
 import {
   useActivateLicense,
@@ -99,22 +100,20 @@ export function LicensesPage() {
 
   return (
     <section className="space-y-6">
-      <div className="flex items-end justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-            Super Admin
-          </p>
-          <h1 className="mt-2 text-2xl font-semibold text-slate-900">Licenses</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Extend gives {GRACE_DAYS} grace days (taken back on renewal). Renew adds one month on the
-            plan the store bought and records the payment. Suspend blocks dashboard and POS.
-          </p>
-        </div>
-        <Button onClick={() => setIssueOpen(true)}>
-          <Plus className="h-4 w-4" />
-          Issue license
-        </Button>
-      </div>
+      <PageHeader
+        section="Super Admin"
+        title="Licenses"
+        description={<>
+          Extend gives {GRACE_DAYS} grace days (taken back on renewal). Renew adds one month on the
+          plan the store bought and records the payment. Suspend blocks dashboard and POS.
+        </>}
+        actions={<>
+          <Button onClick={() => setIssueOpen(true)}>
+            <Plus className="h-4 w-4" />
+            Issue license
+          </Button>
+        </>}
+      />
 
       <div className="flex flex-wrap gap-3">
         <div className="relative min-w-64 flex-1">

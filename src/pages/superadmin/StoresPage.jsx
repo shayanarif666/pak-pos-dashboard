@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom"
+import { PageHeader } from "../../ui/PageHeader.jsx"
 import { Eye, Pencil, Plus } from "lucide-react"
 import { useStoresQuery } from "../../features/admin/adminQuery.js"
 import { Button } from "../../ui/Button.jsx"
@@ -13,20 +14,19 @@ export function StoresPage() {
 
   return (
     <section>
-      <div className="mb-6 flex items-end justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-            Super Admin
-          </p>
-          <h1 className="mt-2 text-2xl font-semibold text-slate-900">Stores</h1>
-        </div>
-        <Link to="/stores/register">
-          <Button>
-            <Plus className="h-4 w-4" />
-            Register store
-          </Button>
-        </Link>
-      </div>
+      <PageHeader
+        section="Super Admin"
+        title="Stores"
+        actions={<>
+          <Link to="/stores/register">
+            <Button>
+              <Plus className="h-4 w-4" />
+              Register store
+            </Button>
+          </Link>
+        </>}
+        className="mb-6"
+      />
 
       {loading ? <PageLoader label="Loading stores…" /> : null}
       {error ? <p className="text-sm text-rose-700">{error}</p> : null}

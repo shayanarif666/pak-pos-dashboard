@@ -41,6 +41,14 @@ export function nowInput() {
   return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
 }
 
+/** An ISO date-time as a datetime-local value (local time), "" when empty. */
+export function isoToInput(value) {
+  if (!value) return ""
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ""
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+}
+
 /** A datetime-local value as an ISO date (undefined when empty = the server's now). */
 export const inputToIso = (value) => (value ? new Date(value).toISOString() : undefined)
 

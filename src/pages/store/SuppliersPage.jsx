@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { PageHeader } from "../../ui/PageHeader.jsx"
 import { Link } from "react-router-dom"
 import { MapPin, Pencil, Plus, Trash2, X } from "lucide-react"
 import { useAuth } from "../../auth/AuthContext.jsx"
@@ -126,38 +127,39 @@ export function SuppliersPage() {
 
   return (
     <section>
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Inventory</p>
-          <h1 className="mt-2 text-2xl font-semibold text-slate-900">Suppliers</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            {isAdmin
-              ? "Vendors, the branches they supply, and their ledgers."
-              : "Vendors that supply your branch."}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-end gap-3">
-          {isAdmin ? (
-            <Select
-              label="Location"
-              className="min-w-48"
-              value={locationFilter}
-              onChange={(event) => setLocationFilter(event.target.value)}
-            >
-              <option value="">All locations</option>
-              {locations.map((row) => (
-                <option key={row.id} value={row.id}>
-                  {row.name}
-                </option>
-              ))}
-            </Select>
-          ) : null}
-          <Button onClick={openCreate}>
-            <Plus className="h-4 w-4" />
-            Add supplier
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        section="Inventory"
+        title="Suppliers"
+        description={<>
+          {isAdmin
+            ? "Vendors, the branches they supply, and their ledgers."
+            : "Vendors that supply your branch."}
+        </>}
+        actions={<>
+          <div className="flex flex-wrap items-end gap-3">
+            {isAdmin ? (
+              <Select
+                label="Location"
+                className="min-w-48"
+                value={locationFilter}
+                onChange={(event) => setLocationFilter(event.target.value)}
+              >
+                <option value="">All locations</option>
+                {locations.map((row) => (
+                  <option key={row.id} value={row.id}>
+                    {row.name}
+                  </option>
+                ))}
+              </Select>
+            ) : null}
+            <Button onClick={openCreate}>
+              <Plus className="h-4 w-4" />
+              Add supplier
+            </Button>
+          </div>
+        </>}
+        className="mb-6"
+      />
 
       {suppliersQuery.isPending ? <PageLoader label="Loading suppliers…" /> : null}
       {suppliersQuery.error ? (
@@ -315,7 +317,7 @@ function ScopeOption({ checked, title, hint, onSelect }) {
       className={[
         "rounded-xl border px-3 py-2.5 text-left transition",
         checked
-          ? "border-brand-600 bg-brand-50 ring-1 ring-brand-600"
+            ? "border-brand-600 bg-brand-50 ring-1 ring-brand-600"
           : "border-slate-200 bg-white hover:border-brand-300",
       ].join(" ")}
     >

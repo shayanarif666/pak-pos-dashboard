@@ -1,22 +1,23 @@
-import { useEffect, useMemo, useState } from "react"
-import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, RotateCcw, Search, X } from "lucide-react"
-import { PageLoader } from "./Spinner.jsx"
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { createPortal } from "react-dom"
+import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, ChevronsUpDown, Inbox, ListFilter, RotateCcw, Search, X } from "lucide-react"
+import { Drawer } from "./Drawer.jsx"
+import { headerIconButton } from "./PageHeader.jsx"
+import { alignClass, table as ui } from "./tableStyles.js"
 
 const PAGE_SIZES = [10, 20, 50, 100]
 
 const fieldBase =
-  "h-10 w-full rounded-xl border px-3 text-sm font-medium outline-none transition focus:ring-4 focus:ring-slate-900/10"
+  "h-11 w-full rounded-xl border px-3.5 text-sm font-medium outline-none transition focus:ring-4 focus:ring-slate-900/10"
 const inputClass = `${fieldBase} border-slate-200 bg-white text-slate-900 hover:border-slate-400 focus:border-brand-700`
-// A dropdown with a value turns black, so the active filters stand out.
+// A dropdown with a value turns green, so the active filters stand out.
 const selectClass = (active) =>
   active ? `select-ui is-active ${fieldBase} border-brand-700 bg-brand-700 text-white` : `select-ui ${inputClass}`
-// A chosen date keeps a white field (readable) with a black border.
-const dateClass = (active) => (active ? `${fieldBase} border-brand-700 bg-white text-slate-950` : inputClass)
 
 const pageBase = "inline-flex h-9 items-center justify-center rounded-xl border text-sm font-semibold transition"
 // Colours are picked per state (two bg-* classes on one element would fight).
 const pageButton = `${pageBase} border-slate-200 bg-white hover:border-brand-700 hover:text-brand-700 disabled:cursor-not-allowed disabled:border-slate-100 disabled:text-slate-300 disabled:hover:border-slate-100`
-const pageButtonActive = `${pageBase} border-brand-700 bg-brand-700 text-white`
+const pageButtonActive = `${pageBase} border-brand-700 bg-brand-700 text-white shadow-[0_6px_14px_-6px_rgba(19,92,76,0.6)]`
 
 /** Page numbers to show: first, last and the ones around the current page, gaps as "…". */
 function pageList(current, pages) {
@@ -49,21 +50,29 @@ function compare(a, b) {
   return String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: "base" })
 }
 
+const hasValue = (value) => value !== undefined && value !== null && value !== ""
+
 /**
- * The dashboard's list table: search, dropdown filters, date range, sorting and pagination.
+ * The dashboard's list table: sorting and pagination, with search, dropdown filters and the date
+ * range in a drawer. The drawer opens from a filter icon placed in the page header (the
+ * [data-table-filters] slot of PageHeader), or above the table when the page has no slot; the
+ * filters apply on "Apply filters" and the active ones show as chips above the table.
  *
+ *   title:    names the drawer ("Filter products")
  *   columns:  [{ key, header, render?(row), sortValue?(row), align?: "right" | "center", className? }]
  *   rows:     the list (client mode: every row; server mode: the current page)
  *   search:   { placeholder, text(row) }          — client mode matches text(row)
  *   filters:  [{ key, label, options: [{ value, label }], match?(row, value), server? }]
  *             server: true = the page asks the API with it (onFiltersChange) instead of matching rows here
- *   dateRange:{ label?, value(row) }              — from / to inputs (client mode filters by value(row))
+ *   dateRange:{ label?, value(row) }              — from / to (client mode filters by value(row))
  *   server:   { total, onChange({ page, limit, search, filters, from, to }) } — the API pages / filters
+ *   toolbar:  buttons shown at the end of the label row, before Filters
  *
  * State (page, page size, search, filters, dates, sort) lives here; in server mode every change is
  * reported through server.onChange so the page can refetch.
  */
 export function DataTable({
+  title = null,
   columns,
   rows = [],
   loading = false,
@@ -85,12 +94,26 @@ export function DataTable({
   const [filterValues, setFilterValues] = useState(initialFilters)
   const [from, setFrom] = useState("")
   const [to, setTo] = useState("")
-  // Dates typed in the inputs; they filter only after Apply Filter.
-  const [draftFrom, setDraftFrom] = useState("")
-  const [draftTo, setDraftTo] = useState("")
   const [sort, setSort] = useState(initialSort)
   const [page, setPage] = useState(1)
   const [limit, setLimit] = useState(defaultPageSize)
+  // The drawer edits a draft; Apply filters makes it the table's.
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  // The page header's slot for the filter icon (null = show it above the table).
+  const cardRef = useRef(null)
+  const [slot, setSlot] = useState(null)
+  const [searchSlot, setSearchSlot] = useState(null)
+  const [searchOpen, setSearchOpen] = useState(false)
+  const searchRef = useRef(null)
+  useLayoutEffect(() => {
+    const page = cardRef.current?.closest("section") || document
+    setSlot(page.querySelector("[data-table-filters]"))
+    setSearchSlot(page.querySelector("[data-table-search]"))
+  }, [])
+  useEffect(() => {
+    if (searchOpen) searchRef.current?.focus()
+  }, [searchOpen])
+  const [draft, setDraft] = useState({ query: "", filters: initialFilters, from: "", to: "" })
 
   // Back to page 1 whenever what is shown changes.
   useEffect(() => {
@@ -118,7 +141,7 @@ export function DataTable({
     for (const filter of filters) {
       if (filter.server) continue
       const value = filterValues[filter.key]
-      if (value === undefined || value === "") continue
+      if (!hasValue(value)) continue
       list = list.filter((row) =>
         filter.match ? filter.match(row, value) : String(row[filter.key] ?? "") === String(value)
       )
@@ -147,7 +170,26 @@ export function DataTable({
   const pageRows = server ? visible : visible.slice((current - 1) * limit, current * limit)
   const firstShown = total ? (current - 1) * limit + 1 : 0
   const lastShown = Math.min(current * limit, total)
-  const hasFilters = Boolean(query || from || to || draftFrom || draftTo || Object.values(filterValues).some((v) => v !== "" && v != null))
+  const headerSearch = Boolean(search && searchSlot)
+  const canFilter = Boolean((search && !headerSearch) || filters.length || dateRange)
+
+  // The applied filters as chips: [{ id, label, clear() }].
+  const chips = [
+    // A header search shows its own text; the drawer's search shows as a chip.
+    ...(query.trim() && !headerSearch ? [{ id: "search", label: `“${query.trim()}”`, clear: () => setQuery("") }] : []),
+    ...filters
+      .filter((filter) => hasValue(filterValues[filter.key]))
+      .map((filter) => ({
+        id: filter.key,
+        label: `${filter.label}: ${filter.options.find((option) => String(option.value) === String(filterValues[filter.key]))?.label ?? filterValues[filter.key]}`,
+        clear: () => setFilterValues((prev) => ({ ...prev, [filter.key]: "" })),
+      })),
+    ...(from || to
+      ? [{ id: "dates", label: `${dateRange?.label || "Date"}: ${from || "…"} → ${to || "…"}`, clear: () => { setFrom(""); setTo("") } }]
+      : []),
+  ]
+  const hasFilters = chips.length > 0
+  const filtering = hasFilters || Boolean(query.trim())
 
   function toggleSort(column) {
     if (server || column.sortable === false) return
@@ -160,111 +202,102 @@ export function DataTable({
     )
   }
 
+  function openDrawer() {
+    setDraft({ query, filters: filterValues, from, to })
+    setDrawerOpen(true)
+  }
+
+  function applyDraft() {
+    setQuery(draft.query)
+    setFilterValues(draft.filters)
+    setFrom(draft.from)
+    setTo(draft.to)
+    setDrawerOpen(false)
+  }
+
   function clearAll() {
     setQuery("")
     setFilterValues({})
     setFrom("")
     setTo("")
-    setDraftFrom("")
-    setDraftTo("")
+    setDraft({ query: "", filters: {}, from: "", to: "" })
   }
 
-  function applyDates() {
-    setFrom(draftFrom)
-    setTo(draftTo)
-  }
-  const datesPending = draftFrom !== from || draftTo !== to
+  const searchBox = searchOpen || query ? (
+    <label className="relative inline-flex h-11 w-full items-center sm:w-64">
+      <Search className="pointer-events-none absolute left-3.5 h-4 w-4 text-brand-700" />
+      <input
+        ref={searchRef}
+        value={query}
+        onChange={(event) => setQuery(event.target.value)}
+        onKeyDown={(event) => event.key === "Escape" && (setQuery(""), setSearchOpen(false))}
+        placeholder={search?.placeholder || "Search…"}
+        className="h-11 w-full rounded-xl border border-brand-700 bg-white pl-10 pr-9 text-sm font-medium text-slate-900 shadow-sm outline-none focus:ring-4 focus:ring-brand-700/10"
+      />
+      <button
+        type="button"
+        onClick={() => { setQuery(""); setSearchOpen(false) }}
+        aria-label="Close search"
+        className="absolute right-2 rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+      >
+        <X className="h-4 w-4" />
+      </button>
+    </label>
+  ) : (
+    <button type="button" onClick={() => setSearchOpen(true)} title="Search" aria-label="Search" className={headerIconButton()}>
+      <Search className="h-5 w-5" />
+    </button>
+  )
+
+  const filterButton = (
+    <button
+      type="button"
+      onClick={openDrawer}
+      title="Filters"
+      aria-label={hasFilters ? `Filters (${chips.length} on)` : "Filters"}
+      className={headerIconButton(hasFilters)}
+    >
+      <ListFilter className="h-5 w-5" />
+      {hasFilters ? (
+        <span className="absolute -right-1.5 -top-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-white px-1 text-[11px] font-bold text-brand-700 ring-2 ring-brand-700">
+          {chips.length}
+        </span>
+      ) : null}
+    </button>
+  )
 
   return (
-    <div className="overflow-hidden rounded-[24px] border border-slate-200 bg-white">
-      {search || filters.length || dateRange || toolbar ? (
-        <div className="space-y-3 border-b border-slate-100 px-4 py-4">
-          {/* Row 1: search (full width), clear and page actions. */}
-          {search || (hasFilters && !dateRange) || toolbar ? (
-            <div className="flex flex-wrap items-center gap-3">
-              {search ? (
-                <label className="relative min-w-56 flex-1">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                  <input
-                    className={`${inputClass} pl-9`}
-                    placeholder={search.placeholder || "Search…"}
-                    value={query}
-                    onChange={(event) => setQuery(event.target.value)}
-                  />
-                </label>
-              ) : null}
-              {hasFilters && !dateRange ? (
-                <button
-                  type="button"
-                  onClick={clearAll}
-                  className="inline-flex h-10 items-center gap-1 rounded-xl border border-slate-200 px-3 text-sm font-semibold text-slate-700 hover:border-brand-700 hover:text-brand-700"
-                >
-                  <X className="h-4 w-4" /> Clear
-                </button>
-              ) : null}
-              {toolbar ? <div className="ml-auto flex items-center gap-2">{toolbar}</div> : null}
-            </div>
-          ) : null}
-          {/* Row 2+: the filters and dates, four to a row. */}
-          {filters.length || dateRange ? (
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-              {filters.map((filter) => (
-                <label key={filter.key} className="min-w-0 text-xs font-medium text-slate-500">
-                  <span className="mb-1 block">{filter.label}</span>
-                  <select
-                    className={selectClass(Boolean(filterValues[filter.key]))}
-                    value={filterValues[filter.key] ?? ""}
-                    onChange={(event) => setFilterValues((prev) => ({ ...prev, [filter.key]: event.target.value }))}
-                  >
-                    <option value="">All</option>
-                    {filter.options.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              ))}
-              {dateRange ? (
-                <>
-                  <label className="min-w-0 text-xs font-medium text-slate-500">
-                    <span className="mb-1 block">{dateRange.label ? `${dateRange.label} from` : "From"}</span>
-                    <input type="date" className={dateClass(Boolean(from))} value={draftFrom} max={draftTo || undefined} onChange={(event) => setDraftFrom(event.target.value)} />
-                  </label>
-                  <label className="min-w-0 text-xs font-medium text-slate-500">
-                    <span className="mb-1 block">{dateRange.label ? `${dateRange.label} to` : "To"}</span>
-                    <input type="date" className={dateClass(Boolean(to))} value={draftTo} min={draftFrom || undefined} onChange={(event) => setDraftTo(event.target.value)} />
-                  </label>
-                  <div className="col-span-2 flex items-end gap-2 [&>button]:flex-1 sm:[&>button]:flex-none">
-                    <button
-                      type="button"
-                      onClick={applyDates}
-                      disabled={!datesPending}
-                      className="h-10 whitespace-nowrap rounded-xl bg-brand-700 px-5 text-sm font-semibold text-white transition hover:bg-brand-800 disabled:cursor-not-allowed disabled:bg-slate-300"
-                    >
-                      Apply Filter
-                    </button>
-                    <button
-                      type="button"
-                      onClick={clearAll}
-                      disabled={!hasFilters}
-                      className="inline-flex h-10 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-brand-700 hover:text-brand-700 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400"
-                    >
-                      <RotateCcw className="h-4 w-4 shrink-0" /> Reset Filters
-                    </button>
-                  </div>
-                </>
-              ) : null}
-            </div>
-          ) : null}
+    <div ref={cardRef} className={ui.card}>
+      {toolbar || (canFilter && !slot) ? (
+        <div className="flex flex-wrap items-center justify-end gap-2 px-5 pt-4">
+          {toolbar}
+          {canFilter && !slot ? filterButton : null}
+        </div>
+      ) : null}
+      {headerSearch ? createPortal(searchBox, searchSlot) : null}
+      {canFilter && slot ? createPortal(filterButton, slot) : null}
+
+      {hasFilters ? (
+        <div className="flex flex-wrap items-center gap-2 border-b border-slate-200/80 px-5 py-3.5">
+          {chips.map((chip) => (
+            <span key={chip.id} className="inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-brand-50 py-1 pl-3 pr-1.5 text-xs font-semibold text-brand-800">
+              {chip.label}
+              <button type="button" onClick={chip.clear} aria-label={`Remove ${chip.label}`} className="rounded-full p-0.5 hover:bg-brand-100">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </span>
+          ))}
+          <button type="button" onClick={clearAll} className="text-xs font-semibold text-slate-500 underline-offset-2 hover:text-brand-700 hover:underline">
+            Clear all
+          </button>
         </div>
       ) : null}
 
-      {error ? <p className="px-5 py-3 text-sm text-rose-700">{error.message || String(error)}</p> : null}
+      {error ? <p className="mx-5 mb-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm text-rose-700">{error.message || String(error)}</p> : null}
 
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[720px] text-left text-sm">
-          <thead className="border-b border-slate-200 bg-white text-xs uppercase tracking-[0.12em] text-slate-500">
+      <div className={ui.scroll}>
+        <table className={`${ui.table} min-w-[720px]`}>
+          <thead className={ui.thead}>
             <tr>
               {columns.map((column) => {
                 const active = sort?.key === column.key
@@ -273,18 +306,16 @@ export function DataTable({
                   <th
                     key={column.key}
                     scope="col"
-                    className={[
-                      "whitespace-nowrap px-4 py-3 font-semibold",
-                      column.align === "right" ? "text-right" : column.align === "center" ? "text-center" : "",
-                      sortable ? "cursor-pointer select-none hover:text-slate-800" : "",
-                    ].join(" ")}
+                    className={[ui.th, alignClass(column.align), sortable ? "group cursor-pointer select-none hover:text-slate-900" : ""].join(" ")}
                     onClick={() => toggleSort(column)}
                     aria-sort={active ? (sort.dir === "asc" ? "ascending" : "descending") : undefined}
                   >
-                    <span className="inline-flex items-center gap-1">
+                    <span className={`inline-flex items-center gap-1 ${column.align === "right" ? "flex-row-reverse" : ""}`}>
                       {column.header}
                       {active ? (
-                        sort.dir === "asc" ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />
+                        sort.dir === "asc" ? <ArrowUp className="h-3.5 w-3.5 text-brand-700" /> : <ArrowDown className="h-3.5 w-3.5 text-brand-700" />
+                      ) : sortable && column.header ? (
+                        <ChevronsUpDown className="h-3.5 w-3.5 opacity-0 transition group-hover:opacity-60" />
                       ) : null}
                     </span>
                   </th>
@@ -294,30 +325,24 @@ export function DataTable({
           </thead>
           <tbody>
             {loading ? (
-              <tr>
-                <td colSpan={columns.length} className="px-4 py-6">
-                  <PageLoader label="Loading…" />
-                </td>
-              </tr>
+              Array.from({ length: 5 }, (_, index) => (
+                <tr key={`skeleton-${index}`} className="border-b border-slate-100 last:border-0">
+                  {columns.map((column) => (
+                    <td key={column.key} className={ui.td}>
+                      <div className="h-3.5 animate-pulse rounded-full bg-slate-100" style={{ width: `${45 + ((index * 17 + column.key.length * 7) % 45)}%` }} />
+                    </td>
+                  ))}
+                </tr>
+              ))
             ) : pageRows.length ? (
               pageRows.map((row, index) => (
                 <tr
                   key={rowKey(row) ?? index}
                   onClick={onRowClick ? () => onRowClick(row) : undefined}
-                  className={[
-                    "border-t border-slate-100",
-                    onRowClick ? "cursor-pointer hover:bg-slate-50" : "hover:bg-slate-50/60",
-                  ].join(" ")}
+                  className={`${ui.tr} ${onRowClick ? "cursor-pointer" : ""}`}
                 >
                   {columns.map((column) => (
-                    <td
-                      key={column.key}
-                      className={[
-                        "px-4 py-3 align-middle text-slate-700",
-                        column.align === "right" ? "text-right tabular-nums" : column.align === "center" ? "text-center" : "",
-                        column.className || "",
-                      ].join(" ")}
-                    >
+                    <td key={column.key} className={[ui.td, alignClass(column.align), column.className || ""].join(" ")}>
                       {column.render ? column.render(row) : (row[column.key] ?? "—")}
                     </td>
                   ))}
@@ -325,8 +350,16 @@ export function DataTable({
               ))
             ) : (
               <tr>
-                <td colSpan={columns.length} className="px-4 py-10 text-center text-sm text-slate-500">
-                  {hasFilters ? "No rows match these filters." : emptyText}
+                <td colSpan={columns.length} className={ui.empty}>
+                  <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
+                    <Inbox className="h-6 w-6" />
+                  </span>
+                  <p className="mt-3 text-sm font-medium text-slate-700">{filtering ? "No rows match these filters." : emptyText}</p>
+                  {filtering ? (
+                    <button type="button" onClick={clearAll} className="mt-2 text-sm font-semibold text-brand-700 hover:underline">
+                      Clear filters
+                    </button>
+                  ) : null}
                 </td>
               </tr>
             )}
@@ -334,19 +367,14 @@ export function DataTable({
         </table>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-4 border-t border-slate-200 px-4 py-3 text-sm text-slate-600">
+      <div className={ui.footer}>
         <p>
           Showing <span className="font-semibold text-slate-950">{firstShown}–{lastShown}</span> of{" "}
           <span className="font-semibold text-slate-950">{total}</span> {total === 1 ? "result" : "results"}
         </p>
 
         <nav className="flex items-center gap-1" aria-label="Pagination">
-          <button
-            type="button"
-            disabled={current <= 1}
-            onClick={() => setPage(current - 1)}
-            className={`${pageButton} gap-1 px-3 text-slate-700`}
-          >
+          <button type="button" disabled={current <= 1} onClick={() => setPage(current - 1)} className={`${pageButton} gap-1 px-3 text-slate-700`}>
             <ChevronLeft className="h-4 w-4" />
             Prev
           </button>
@@ -365,12 +393,7 @@ export function DataTable({
               </button>
             )
           )}
-          <button
-            type="button"
-            disabled={current >= pages}
-            onClick={() => setPage(current + 1)}
-            className={`${pageButton} gap-1 px-3 text-slate-700`}
-          >
+          <button type="button" disabled={current >= pages} onClick={() => setPage(current + 1)} className={`${pageButton} gap-1 px-3 text-slate-700`}>
             Next
             <ChevronRight className="h-4 w-4" />
           </button>
@@ -391,6 +414,77 @@ export function DataTable({
           </select>
         </label>
       </div>
+
+      {canFilter ? (
+        <Drawer
+          open={drawerOpen}
+          onClose={() => setDrawerOpen(false)}
+          title={title ? `Filter ${String(title).toLowerCase()}` : "Filters"}
+          footer={
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setDraft({ query: "", filters: {}, from: "", to: "" })}
+                className="inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-xl border border-slate-300 bg-white text-sm font-semibold text-slate-700 transition hover:border-brand-700 hover:text-brand-700"
+              >
+                <RotateCcw className="h-4 w-4" /> Reset
+              </button>
+              <button
+                type="button"
+                onClick={applyDraft}
+                className="h-11 flex-1 rounded-xl bg-brand-700 text-sm font-semibold text-white transition hover:bg-brand-800"
+              >
+                Apply filters
+              </button>
+            </div>
+          }
+        >
+          {search && !headerSearch ? (
+            <label className="block text-sm">
+              <span className="mb-1.5 block font-medium text-slate-600">Search</span>
+              <span className="relative block">
+                <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  className={`${inputClass} pl-10`}
+                  placeholder={search.placeholder || "Search…"}
+                  value={draft.query}
+                  onChange={(event) => setDraft((prev) => ({ ...prev, query: event.target.value }))}
+                  onKeyDown={(event) => event.key === "Enter" && applyDraft()}
+                />
+              </span>
+            </label>
+          ) : null}
+          {filters.map((filter) => (
+            <label key={filter.key} className="block text-sm">
+              <span className="mb-1.5 block font-medium text-slate-600">{filter.label}</span>
+              <select
+                className={selectClass(hasValue(draft.filters[filter.key]))}
+                value={draft.filters[filter.key] ?? ""}
+                onChange={(event) => setDraft((prev) => ({ ...prev, filters: { ...prev.filters, [filter.key]: event.target.value } }))}
+              >
+                <option value="">All</option>
+                {filter.options.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ))}
+          {dateRange ? (
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block text-sm">
+                <span className="mb-1.5 block font-medium text-slate-600">{dateRange.label ? `${dateRange.label} from` : "From"}</span>
+                <input type="date" className={inputClass} value={draft.from} max={draft.to || undefined} onChange={(event) => setDraft((prev) => ({ ...prev, from: event.target.value }))} />
+              </label>
+              <label className="block text-sm">
+                <span className="mb-1.5 block font-medium text-slate-600">{dateRange.label ? `${dateRange.label} to` : "To"}</span>
+                <input type="date" className={inputClass} value={draft.to} min={draft.from || undefined} onChange={(event) => setDraft((prev) => ({ ...prev, to: event.target.value }))} />
+              </label>
+            </div>
+          ) : null}
+        </Drawer>
+      ) : null}
     </div>
   )
 }

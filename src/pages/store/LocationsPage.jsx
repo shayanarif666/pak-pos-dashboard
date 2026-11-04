@@ -1,4 +1,4 @@
-import { StatCards } from "../../ui/PageHeader.jsx"
+import { PageHeader, StatCards } from "../../ui/PageHeader.jsx"
 import { useMemo, useState } from "react"
 import { Pencil, Plus, X } from "lucide-react"
 import { useAuth } from "../../auth/AuthContext.jsx"
@@ -46,11 +46,17 @@ export function LocationsPage() {
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState(null)
   const [form, setForm] = useState(emptyForm)
+  const [hasManager, setHasManager] = useState(false)
   const [error, setError] = useState("")
+  // New location: the manager is optional, but once any manager field is filled all of them are needed.
+  const managerStarted = Boolean(
+    form.manager_name.trim() || form.manager_email.trim() || form.manager_password || form.manager_pin.trim()
+  )
 
   function openCreate() {
     setEditingId(null)
     setForm(emptyForm)
+    setHasManager(false)
     setError("")
     setShowForm(true)
   }
@@ -73,6 +79,7 @@ export function LocationsPage() {
       manager_phone: row.manager?.phone || "",
       manager_is_active: row.manager ? row.manager.is_active !== false : true,
     })
+    setHasManager(Boolean(row.manager))
     setError("")
     setShowForm(true)
   }
@@ -97,18 +104,19 @@ export function LocationsPage() {
         is_active: form.is_active,
         is_default: form.is_default,
       }
-      if (isAdmin) {
+      // Edit: the existing manager's details (the password is changed under Staff).
+      // New: a manager only when one was entered.
+      const sendManager = isAdmin && (editingId ? hasManager : managerStarted)
+      if (sendManager) {
         body.manager_name = form.manager_name.trim()
         body.manager_email = form.manager_email.trim()
         body.manager_phone = form.manager_phone.trim() || null
         body.manager_pin = form.manager_pin.trim()
-        body.manager_is_active = form.manager_is_active
-        if (!editingId || form.manager_password) {
-          body.manager_password = form.manager_password
-        }
+        if (editingId) body.manager_is_active = form.manager_is_active
+        else body.manager_password = form.manager_password
       }
       await saveLocation.mutateAsync({ id: editingId || undefined, body })
-      toast(editingId ? "Location updated" : "Location created with manager")
+      toast(editingId ? "Location updated" : sendManager ? "Location created with manager" : "Location created")
       closeForm()
     } catch (err) {
       setError(err.message)
@@ -118,24 +126,26 @@ export function LocationsPage() {
 
   return (
     <section className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">People</p>
-          <h1 className="mt-2 text-2xl font-semibold text-slate-900">Locations</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            {store?.name ? `${store.name} · ` : ""}
-            {isAdmin
-              ? "Create branches with a manager account. Set a default location for stock and POS."
-              : "View and update your assigned location."}
-          </p>
-        </div>
-        {isAdmin && !showForm ? (
-          <Button onClick={openCreate}>
-            <Plus className="h-4 w-4" />
-            Add location
-          </Button>
-        ) : null}
-      </div>
+      <PageHeader
+        section="People"
+        title="Locations"
+        description={<>
+          {store?.name ? `${store.name} · ` : ""}
+          {isAdmin
+            ? "Create branches, with or without a manager account. Set a default location for stock and POS."
+            : "View and update your assigned location."}
+        </>}
+        actions={<>
+          <div className="flex flex-wrap items-center gap-2">
+            {isAdmin && !showForm ? (
+              <Button onClick={openCreate}>
+                <Plus className="h-4 w-4" />
+                Add location
+              </Button>
+            ) : null}
+          </div>
+        </>}
+      />
 
       <Modal open={showForm} onClose={closeForm} size="xl">
         <form
@@ -200,43 +210,51 @@ export function LocationsPage() {
             ) : null}
           </div>
 
-          {isAdmin ? (
+          {isAdmin && editingId && !hasManager ? (
+            <p className="rounded-2xl border border-slate-200 bg-slate-100 px-4 py-3 text-sm text-slate-600">
+              No manager at this location. Add one under Staff (role manager, this location).
+            </p>
+          ) : null}
+
+          {isAdmin && (!editingId || hasManager) ? (
             <div className="space-y-4 rounded-2xl border border-brand-300 bg-brand-50 p-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-700">
-                  Location manager
+                  Location manager{editingId ? "" : " (optional)"}
                 </p>
                 <p className="mt-1 text-sm text-slate-600">
                   {editingId
-                    ? "Update this branch manager. Leave password blank to keep the current one."
-                    : "Required. This account can manage stock and staff at this location only."}
+                    ? "Update this branch manager. The password is changed under Staff."
+                    : "Leave empty to add a manager later under Staff. Once filled, the account manages stock and staff at this location only."}
                 </p>
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <Input
                   label="Manager name"
-                  required
+                  required={Boolean(editingId) || managerStarted}
                   value={form.manager_name}
                   onChange={(e) => setForm({ ...form, manager_name: e.target.value })}
                 />
                 <Input
                   label="Manager email"
                   type="email"
-                  required
+                  required={Boolean(editingId) || managerStarted}
                   value={form.manager_email}
                   onChange={(e) => setForm({ ...form, manager_email: e.target.value })}
                 />
-                <Input
-                  label={editingId ? "New password (optional)" : "Manager password"}
-                  type="password"
-                  required={!editingId}
-                  minLength={6}
-                  value={form.manager_password}
-                  onChange={(e) => setForm({ ...form, manager_password: e.target.value })}
-                />
+                {editingId ? null : (
+                  <Input
+                    label="Manager password"
+                    type="password"
+                    required={managerStarted}
+                    minLength={6}
+                    value={form.manager_password}
+                    onChange={(e) => setForm({ ...form, manager_password: e.target.value })}
+                  />
+                )}
                 <Input
                   label="Manager PIN (4–6 digits)"
-                  required
+                  required={Boolean(editingId) || managerStarted}
                   inputMode="numeric"
                   pattern="\d{4,6}"
                   value={form.manager_pin}
@@ -282,6 +300,7 @@ export function LocationsPage() {
         ]}
       />
       <DataTable
+        title="Locations"
         columns={[
           {
             key: "name",

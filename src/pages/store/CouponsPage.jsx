@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react"
+import { PageHeader } from "../../ui/PageHeader.jsx"
 import { Eye, Pencil, Plus, X } from "lucide-react"
 import { useAuth } from "../../auth/AuthContext.jsx"
 import { useLocationsQuery } from "../../features/catalog/catalogQuery.jsx"
@@ -139,17 +140,17 @@ export function CouponsPage() {
 
   return (
     <section className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Promotions</p>
-          <h1 className="mt-2 text-2xl font-semibold text-slate-900">Coupons</h1>
-          <p className="mt-1 text-sm text-slate-500">Order-level coupon codes for web and POS checkout.</p>
-        </div>
-        <Button onClick={openCreate}>
-          <Plus className="h-4 w-4" />
-          Add coupon
-        </Button>
-      </div>
+      <PageHeader
+        section="Promotions"
+        title="Coupons"
+        description="Order-level coupon codes for web and POS checkout."
+        actions={<>
+          <Button onClick={openCreate}>
+            <Plus className="h-4 w-4" />
+            Add coupon
+          </Button>
+        </>}
+      />
 
       <form onSubmit={validate} className="grid gap-3 rounded-[28px] border border-slate-200 bg-white p-5 md:grid-cols-5">
         <Input label="Preview code" required value={previewForm.code} onChange={(e) => setPreviewForm({ ...previewForm, code: e.target.value })} />

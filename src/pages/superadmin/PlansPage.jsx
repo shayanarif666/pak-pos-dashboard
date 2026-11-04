@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { PageHeader } from "../../ui/PageHeader.jsx"
 import { Pencil, Plus, X } from "lucide-react"
 import { useDeletePlan, usePlansQuery, useSavePlan } from "../../features/admin/adminQuery.js"
 import { Button } from "../../ui/Button.jsx"
@@ -11,6 +12,19 @@ import { PageLoader } from "../../ui/Spinner.jsx"
 import { useToast } from "../../ui/Toast.jsx"
 import { Pill, StatusBadge } from "../../ui/Pill.jsx"
 
+// The plan's feature switches (own columns on the plan), as POST /plans takes them.
+const FEATURE_FLAGS = [
+  { key: "import_export", label: "Import / export" },
+  { key: "staff_attendance", label: "Staff attendance" },
+  { key: "email_integration", label: "Email integration" },
+  { key: "whatsapp_integration", label: "WhatsApp integration" },
+  { key: "receipt_customization", label: "Receipt customization" },
+  { key: "barcode_scanning", label: "Barcode scanning" },
+  { key: "batch_management", label: "Batch management" },
+  { key: "remote_access", label: "Remote access" },
+]
+const REPORTING_LEVELS = ["basic", "standard", "advanced", "custom"]
+
 const empty = {
   code: "",
   type: "monthly",
@@ -18,6 +32,9 @@ const empty = {
   price_pkr: "",
   max_devices: "1",
   max_locations: "1",
+  max_users: "",
+  reporting_level: "basic",
+  ...Object.fromEntries(FEATURE_FLAGS.map(({ key }) => [key, false])),
   features: "",
   is_active: true,
 }
@@ -42,6 +59,10 @@ export function PlansPage() {
       price_pkr: Number(form.price_pkr),
       max_devices: Number(form.max_devices),
       max_locations: Number(form.max_locations),
+      // Blank = no limit.
+      max_users: String(form.max_users ?? "").trim() === "" ? null : Number(form.max_users),
+      reporting_level: form.reporting_level,
+      ...Object.fromEntries(FEATURE_FLAGS.map(({ key }) => [key, Boolean(form[key])])),
       features: form.features
         .split(",")
         .map((item) => item.trim())
@@ -106,6 +127,9 @@ export function PlansPage() {
       price_pkr: plan.price_pkr,
       max_devices: plan.max_devices,
       max_locations: plan.max_locations,
+      max_users: plan.max_users ?? "",
+      reporting_level: plan.reporting_level || "basic",
+      ...Object.fromEntries(FEATURE_FLAGS.map(({ key }) => [key, Boolean(plan[key])])),
       features: (plan.features || []).join(", "),
       is_active: plan.is_active,
     })
@@ -114,20 +138,18 @@ export function PlansPage() {
 
   return (
     <section className="space-y-6">
-      <div className="flex items-end justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-            Super Admin
-          </p>
-          <h1 className="mt-2 text-2xl font-semibold text-slate-900">Plans</h1>
-        </div>
-        {!showForm ? (
-          <Button onClick={startCreate}>
-            <Plus className="h-4 w-4" />
-            Create plan
-          </Button>
-        ) : null}
-      </div>
+      <PageHeader
+        section="Super Admin"
+        title="Plans"
+        actions={<>
+          {!showForm ? (
+            <Button onClick={startCreate}>
+              <Plus className="h-4 w-4" />
+              Create plan
+            </Button>
+          ) : null}
+        </>}
+      />
 
       <Modal open={showForm} onClose={closeForm} size="xl">
         <form
@@ -189,18 +211,49 @@ export function PlansPage() {
               onChange={(event) => setForm({ ...form, max_locations: event.target.value })}
             />
             <Input
+              label="Max users"
+              type="number"
+              min="1"
+              placeholder="Blank = no limit"
+              value={form.max_users}
+              onChange={(event) => setForm({ ...form, max_users: event.target.value })}
+            />
+            <Select
+              label="Reporting level"
+              value={form.reporting_level}
+              onChange={(event) => setForm({ ...form, reporting_level: event.target.value })}
+            >
+              {REPORTING_LEVELS.map((level) => (
+                <option key={level} value={level}>
+                  {level}
+                </option>
+              ))}
+            </Select>
+            <Input
               className="sm:col-span-2"
               label="Features (comma separated)"
+              placeholder="Extra feature labels shown on the plan"
               value={form.features}
               onChange={(event) => setForm({ ...form, features: event.target.value })}
             />
-            <Checkbox
-              className="self-end pb-3"
-              label="Active"
-              checked={form.is_active}
-              onChange={(event) => setForm({ ...form, is_active: event.target.checked })}
-            />
           </div>
+          <p className="mt-5 mb-2 text-sm font-medium text-slate-600">Included features</p>
+          <div className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-2 lg:grid-cols-4">
+            {FEATURE_FLAGS.map(({ key, label }) => (
+              <Checkbox
+                key={key}
+                label={label}
+                checked={Boolean(form[key])}
+                onChange={(event) => setForm({ ...form, [key]: event.target.checked })}
+              />
+            ))}
+          </div>
+          <Checkbox
+            className="mt-4"
+            label="Active"
+            checked={form.is_active}
+            onChange={(event) => setForm({ ...form, is_active: event.target.checked })}
+          />
           {error || plansQuery.error?.message ? (
             <p className="mt-4 text-sm text-rose-700">{error || plansQuery.error?.message}</p>
           ) : null}
@@ -239,6 +292,15 @@ export function PlansPage() {
             <div className="mt-3 flex flex-wrap gap-1.5">
               <Pill tone="sky">{plan.max_devices} devices</Pill>
               <Pill tone="violet">{plan.max_locations} locations</Pill>
+              <Pill tone="amber">{plan.max_users == null ? "Unlimited users" : `${plan.max_users} users`}</Pill>
+              <Pill tone="zinc">{plan.reporting_level || "basic"} reports</Pill>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {FEATURE_FLAGS.filter(({ key }) => plan[key]).map(({ key, label }) => (
+                <Pill key={key} tone="emerald" className="normal-case tracking-normal">
+                  {label}
+                </Pill>
+              ))}
             </div>
             <div className="mt-4 flex flex-wrap gap-1.5">
               {(plan.features || []).slice(0, 6).map((feature) => (

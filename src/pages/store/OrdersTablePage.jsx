@@ -11,6 +11,8 @@ import { Currency } from "../../ui/Currency.jsx"
 import { StatusBadge } from "../../ui/Pill.jsx"
 import { PageHeader, StatCards } from "../../ui/PageHeader.jsx"
 import { Tabs, useTabParam } from "../../ui/Tabs.jsx"
+import { ExportButton } from "../../ui/ExportButton.jsx"
+import { rowsToTables } from "../../lib/exportFile.js"
 import { formatDateTime, PAYMENT_METHOD_OPTIONS, toNumber } from "../../ui/format.js"
 
 // Orders History tabs: [key, label, which orders, what the tab is about].
@@ -63,6 +65,19 @@ export function OrdersTablePage() {
     }
   }, [rows, cancelled])
 
+  // Export: every order at the chosen location(s), every field, with the location and cashier names.
+  const exportTables = () =>
+    rowsToTables(
+      "Orders",
+      all.map((row) => ({
+        order_number: row.order_number,
+        placed_at: row.placed_at,
+        location: locationName(row.location_id),
+        cashier: staffName(row.cashier_id),
+        ...row,
+      }))
+    )
+
   const columns = [
     {
       key: "order_number",
@@ -110,7 +125,12 @@ export function OrdersTablePage() {
 
   return (
     <section className="space-y-6">
-      <PageHeader section="Sales" title="Orders History" description={current[3]} />
+      <PageHeader
+        section="Sales"
+        title="Orders History"
+        description={current[3]}
+        actions={<ExportButton name="orders" getTables={exportTables} disabled={query.isPending} />}
+      />
       <Tabs
         tabs={TABS.map(([key, label]) => [key, `${label} (${counts[key] ?? 0})`])}
         value={tab}
@@ -125,6 +145,7 @@ export function OrdersTablePage() {
         ]}
       />
       <DataTable
+        title={current[0] === "all" ? "All orders" : `${current[1]} orders`}
         columns={columns}
         rows={rows}
         loading={query.isPending}

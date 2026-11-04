@@ -163,6 +163,7 @@ export function CategoryDetailPage() {
           <Link to="/products/new"><Button><Plus className="h-4 w-4" /> Add product</Button></Link>
         </div>
         <DataTable
+          title="Products in this category"
           columns={columns}
           rows={products}
           search={{ placeholder: "Search title, SKU or barcode…", text: (row) => `${row.title} ${row.sku} ${row.barcode} ${row.product_number}` }}

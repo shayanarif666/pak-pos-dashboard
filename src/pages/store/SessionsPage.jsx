@@ -1,8 +1,8 @@
 import { useState } from "react"
-import { LogIn, LogOut } from "lucide-react"
+import { LogIn, LogOut, Pencil, Trash2 } from "lucide-react"
 import { useAuth } from "../../auth/AuthContext.jsx"
-import { useClockIn, useClockOut, useStaffSessionsQuery } from "../../features/lists/listQueries.js"
-import { StaffLocationFields, inputToIso, nowInput, staffLocationBody } from "../../features/lists/StaffLocationFields.jsx"
+import { useClockIn, useClockOut, useDeleteStaffSession, useStaffSessionsQuery, useUpdateStaffSession } from "../../features/lists/listQueries.js"
+import { StaffLocationFields, inputToIso, isoToInput, nowInput, staffLocationBody } from "../../features/lists/StaffLocationFields.jsx"
 import { Input } from "../../ui/Input.jsx"
 import { Button } from "../../ui/Button.jsx"
 import { Modal, ModalCard } from "../../ui/Modal.jsx"
@@ -29,9 +29,44 @@ export function SessionsPage() {
   const { params: locationParams, isAll, locationId } = useDashboardLocation()
   const { user } = useAuth()
   const isAdmin = user?.role === "store_admin"
-  const { toast } = useToast()
+  const { toast, confirmToast } = useToast()
   const clockIn = useClockIn()
   const clockOut = useClockOut()
+  const updateSession = useUpdateStaffSession()
+  const deleteSession = useDeleteStaffSession()
+  // Edit: { row, in, out } (datetime-local values).
+  const [editing, setEditing] = useState(null)
+
+  async function submitEdit(event) {
+    event.preventDefault()
+    if (editing.out && editing.in && editing.out <= editing.in) return toast("Clock out must be after clock in", "error")
+    try {
+      await updateSession.mutateAsync({
+        id: editing.row.id,
+        body: { clock_in_at: inputToIso(editing.in), ...(editing.out ? { clock_out_at: inputToIso(editing.out) } : {}) },
+      })
+      toast(`Session #${editing.row.id} updated`)
+      setEditing(null)
+    } catch (err) {
+      toast(err.message, "error")
+    }
+  }
+
+  // Soft delete: the session leaves the history and reports; the row stays in the database.
+  async function remove(row) {
+    const ok = await confirmToast({
+      title: `Delete session #${row.id}?`,
+      message: `${row.staff?.name || "This staff member"}'s clock in / out leaves the history and the reports.`,
+      confirmLabel: "Delete",
+    })
+    if (!ok) return
+    try {
+      await deleteSession.mutateAsync(row.id)
+      toast(`Session #${row.id} deleted`)
+    } catch (err) {
+      toast(err.message, "error")
+    }
+  }
   // Clock in: who, where and when. Clock out: the session's row and when.
   const [clocking, setClocking] = useState(null)
   const [leaving, setLeaving] = useState(null)
@@ -96,10 +131,16 @@ export function SessionsPage() {
     {
       key: "actions",
       header: "",
-      render: (row) =>
-        row.status === "clock_in" && !row.closing_at ? (
-          <Button variant="ghost" onClick={() => setLeaving({ row, at: nowInput() })}><LogOut className="h-4 w-4" /> Clock out</Button>
-        ) : null,
+      sortable: false,
+      render: (row) => (
+        <div className="flex justify-end gap-1">
+          {row.status === "clock_in" && !row.closing_at ? (
+            <Button variant="icon" aria-label={`Clock out ${row.staff?.name || ""}`} title="Clock out" onClick={() => setLeaving({ row, at: nowInput() })}><LogOut className="h-4 w-4 text-amber-600" /></Button>
+          ) : null}
+          <Button variant="icon" aria-label={`Edit session #${row.id}`} title="Edit" onClick={() => setEditing({ row, in: isoToInput(row.opening_at), out: isoToInput(row.closing_at) })}><Pencil className="h-4 w-4" /></Button>
+          <Button variant="icon" aria-label={`Delete session #${row.id}`} title="Delete" onClick={() => remove(row)}><Trash2 className="h-4 w-4 text-rose-600" /></Button>
+        </div>
+      ),
     },
   ]
 
@@ -120,6 +161,7 @@ export function SessionsPage() {
         ]}
       />
       <DataTable
+        title="Sessions"
         columns={columns}
         rows={rows}
         loading={query.isPending}
@@ -148,6 +190,23 @@ export function SessionsPage() {
             <div className="mt-5 flex justify-end gap-2">
               <Button variant="ghost" type="button" onClick={() => setClocking(null)}>Cancel</Button>
               <Button type="submit" disabled={clockIn.isPending}>{clockIn.isPending ? "Saving…" : "Clock in"}</Button>
+            </div>
+          </ModalCard>
+        ) : null}
+      </Modal>
+
+      <Modal open={Boolean(editing)} onClose={() => setEditing(null)} size="md">
+        {editing ? (
+          <ModalCard as="form" title={`Edit session #${editing.row.id}`} onClose={() => setEditing(null)} onSubmit={submitEdit}>
+            <p className="text-sm text-slate-600">{editing.row.staff?.name || staffName(editing.row.staff?.id)}{editing.row.location?.name ? ` · ${editing.row.location.name}` : ""}</p>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <Input label="Clock in" type="datetime-local" required value={editing.in} onChange={(e) => setEditing({ ...editing, in: e.target.value })} />
+              <Input label="Clock out" type="datetime-local" value={editing.out} min={editing.in || undefined} onChange={(e) => setEditing({ ...editing, out: e.target.value })} />
+            </div>
+            <p className="mt-3 text-xs text-slate-500">Setting a clock out time closes the session.</p>
+            <div className="mt-5 flex justify-end gap-2">
+              <Button variant="ghost" type="button" onClick={() => setEditing(null)}>Cancel</Button>
+              <Button type="submit" disabled={updateSession.isPending}>{updateSession.isPending ? "Saving…" : "Save"}</Button>
             </div>
           </ModalCard>
         ) : null}

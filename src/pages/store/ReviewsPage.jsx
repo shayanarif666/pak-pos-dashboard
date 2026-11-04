@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { PageHeader } from "../../ui/PageHeader.jsx"
 import { Check, X } from "lucide-react"
 import {
   useModerateReview,
@@ -35,11 +36,12 @@ export function ReviewsPage() {
 
   return (
     <section>
-      <div className="mb-6">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Promotions</p>
-        <h1 className="mt-2 text-2xl font-semibold text-slate-900">Reviews</h1>
-        <p className="mt-1 text-sm text-slate-500">Moderate storefront product reviews before they become public.</p>
-      </div>
+      <PageHeader
+        section="Promotions"
+        title="Reviews"
+        description="Moderate storefront product reviews before they become public."
+        className="mb-6"
+      />
 
       <form onSubmit={applyFilters} className="mb-6 grid gap-3 rounded-[28px] border border-slate-200 bg-white p-4 md:grid-cols-[220px_auto]">
         <Select label="Status" value={status} onChange={(e) => setStatus(e.target.value)}>

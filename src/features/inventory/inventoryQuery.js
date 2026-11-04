@@ -4,6 +4,7 @@ import {
   cancelStockTransfer,
   completeStockTransfer,
   createStockMovement,
+  createStockMovementsBulk,
   createStockTransfer,
   createSupplier,
   deleteSupplier,
@@ -129,5 +130,13 @@ export function useAddSupplierLedger() {
     mutationFn: ({ id, body }) => addSupplierLedger(id, body),
     onSuccess: (_data, variables) =>
       invalidateInventory({ catalog: Boolean(variables.body?.product_id) }),
+  })
+}
+
+export function useCreateStockMovementsBulk() {
+  const invalidateInventory = useInvalidateInventory()
+  return useMutation({
+    mutationFn: (body) => createStockMovementsBulk(body),
+    onSuccess: () => invalidateInventory({ catalog: true }),
   })
 }

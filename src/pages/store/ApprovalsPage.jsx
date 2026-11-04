@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react"
+import { PageHeader } from "../../ui/PageHeader.jsx"
 import { KeyRound } from "lucide-react"
 import { useAuth } from "../../auth/AuthContext.jsx"
 import {
@@ -110,20 +111,20 @@ export function ApprovalsPage() {
 
   return (
     <section className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Admin</p>
-          <h1 className="mt-2 text-2xl font-semibold text-slate-900">Approvals</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            {store?.name ? `${store.name} · ` : ""}
-            Review pending void / discount / stock requests, or record a PIN override.
-          </p>
-        </div>
-        <Button variant="ghost" onClick={() => setShowOverride(true)}>
-          <KeyRound className="h-4 w-4" />
-          PIN override
-        </Button>
-      </div>
+      <PageHeader
+        section="Admin"
+        title="Approvals"
+        description={<>
+          {store?.name ? `${store.name} · ` : ""}
+          Review pending void / discount / stock requests, or record a PIN override.
+        </>}
+        actions={<>
+          <Button variant="ghost" onClick={() => setShowOverride(true)}>
+            <KeyRound className="h-4 w-4" />
+            PIN override
+          </Button>
+        </>}
+      />
 
       <Modal open={showOverride} onClose={() => setShowOverride(false)} size="md">
         <ModalCard as="form" title="PIN override" onClose={() => setShowOverride(false)} onSubmit={submitOverride} className="space-y-4">

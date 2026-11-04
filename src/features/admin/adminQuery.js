@@ -110,9 +110,9 @@ export function useCreateAdminPosDevice() {
 export function useSaveStore() {
   const invalidateAdmin = useInvalidateAdmin()
   return useMutation({
-    mutationFn: async ({ id, body }) => {
-      if (id) return updateStore(id, body)
-      return createStore(body)
+    mutationFn: async ({ id, body, files }) => {
+      if (id) return updateStore(id, body, files)
+      return createStore(body, files)
     },
     onSuccess: invalidateAdmin,
   })

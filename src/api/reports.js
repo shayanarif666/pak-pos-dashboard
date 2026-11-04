@@ -82,3 +82,13 @@ export async function downloadReportExport(params = {}) {
   const filename = match?.[1] || `report.${params.format || "csv"}`
   return { blob, filename }
 }
+
+// Plan-based reporting (GET /reporting): location (number | UUID | all), from, to, channel.
+export function getReportingOverview(params = {}) {
+  return apiGet(withQuery("/api/v1/reporting", params), auth)
+}
+
+// One card: summary + lists, paged per list (table, page, limit, search; limit=all for export).
+export function getReportingSection(section, params = {}) {
+  return apiGet(withQuery(`/api/v1/reporting/${section}`, params), auth)
+}

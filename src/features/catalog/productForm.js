@@ -123,6 +123,8 @@ export function stockToForm(product) {
       rows[`${key}|${row.location_id}`] = {
         qty: row.qty == null ? "" : String(Number(row.qty)),
         expiry_date: row.expiry_date ? String(row.expiry_date).slice(0, 10) : "",
+        // Saved stock is in loose items.
+        stock_unit: "unit",
       }
     }
   }
@@ -233,8 +235,9 @@ export function productPayload(form, { withScope = false, stockFor = () => undef
   return body
 }
 
-export function emptyOpeningStock() {
-  return { qty: "", expiry_date: "" }
+// stock_unit: what the qty counts — unit (loose items) or pack (whole packs; pack products only).
+export function emptyOpeningStock(stock_unit = "unit") {
+  return { qty: "", expiry_date: "", stock_unit }
 }
 
 export function money(value) {

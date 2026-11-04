@@ -53,7 +53,7 @@ function StockTable({ stocks, isPack }) {
   if (!stocks.length) return <p className="text-sm text-slate-500">No stock recorded yet.</p>
   return (
     <div className="-mx-5 overflow-x-auto">
-      <table className="w-full min-w-[480px] text-left text-sm">
+      <table className="ui-table w-full min-w-[480px] text-left text-sm">
         <thead className="border-y border-slate-200 text-xs uppercase tracking-[0.12em] text-slate-500">
           <tr>
             <th className="px-5 py-2.5 font-semibold">Location</th>

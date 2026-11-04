@@ -97,3 +97,42 @@ select option {
 .toast-enter {
   animation: toast-enter 0.28s ease-out;
 }
+
+/*
+ * Hand-built tables (<table className="ui-table">) get the DataTable look: tinted header,
+ * roomy cells, soft row lines and hover. Unlayered, so they win over the cells' own padding.
+ */
+.ui-table thead {
+  background: rgb(248 250 252 / 0.8);
+}
+.ui-table thead th {
+  padding: 0.75rem 1.25rem;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: #64748b;
+  border-top: 1px solid rgb(226 232 240 / 0.8);
+  border-bottom: 1px solid rgb(226 232 240 / 0.8);
+}
+.ui-table tbody tr {
+  border-bottom: 1px solid #f1f5f9;
+  transition: background-color 150ms;
+}
+.ui-table tbody tr:last-child {
+  border-bottom: 0;
+}
+.ui-table tbody tr:hover {
+  background: rgb(238 248 245 / 0.45);
+}
+.ui-table tbody td {
+  padding: 0.875rem 1.25rem;
+  vertical-align: middle;
+}
+.ui-table tfoot td,
+.ui-table tfoot th {
+  padding: 0.75rem 1.25rem;
+  background: rgb(248 250 252 / 0.6);
+  border-top: 1px solid rgb(226 232 240 / 0.8);
+}

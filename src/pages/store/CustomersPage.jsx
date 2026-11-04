@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react"
+import { PageHeader } from "../../ui/PageHeader.jsx"
 import { Eye, Pencil, Plus, X } from "lucide-react"
 import { useAuth } from "../../auth/AuthContext.jsx"
 import { useLocationsQuery } from "../../features/catalog/catalogQuery.jsx"
@@ -146,17 +147,18 @@ export function CustomersPage() {
 
   return (
     <section>
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">CRM</p>
-          <h1 className="mt-2 text-2xl font-semibold text-slate-900">Customers</h1>
-          <p className="mt-1 text-sm text-slate-500">Customer profiles, contact details, and udhaar ledger.</p>
-        </div>
-        <Button onClick={openCreate}>
-          <Plus className="h-4 w-4" />
-          Add customer
-        </Button>
-      </div>
+      <PageHeader
+        section="CRM"
+        title="Customers"
+        description="Customer profiles, contact details, and udhaar ledger."
+        actions={<>
+          <Button onClick={openCreate}>
+            <Plus className="h-4 w-4" />
+            Add customer
+          </Button>
+        </>}
+        className="mb-6"
+      />
 
       <form
         onSubmit={search}

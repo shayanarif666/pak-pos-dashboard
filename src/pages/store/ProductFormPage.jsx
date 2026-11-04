@@ -109,6 +109,7 @@ export function ProductFormPage() {
   }, [product])
 
   const patch = (key, value) => setForm((current) => ({ ...current, [key]: value }))
+  const savedKeys = new Set(form.variants.filter((row) => row.id).map((row) => row.id))
   const patchVariant = (index, key, value) =>
     setForm((current) => ({ ...current, variants: current.variants.map((row, i) => (i === index ? { ...row, [key]: value } : row)) }))
   const hasVariants = form.variants.length > 0
@@ -122,10 +123,19 @@ export function ProductFormPage() {
   const patchTax = (index, key, value) =>
     setForm((current) => ({ ...current, taxes: current.taxes.map((tax, i) => (i === index ? { ...tax, [key]: value } : tax)) }))
   const stockKey = (key, locationId) => `${key}|${locationId}`
+  // A pack product / pack variant: units per pack (null = loose). Its stock can be given in packs.
+  const packSizeOf = (key) => {
+    const row = key === "product" ? form : form.variants.find((variant) => (variant.id || variant.key) === key)
+    const size = Number(row?.pack_size)
+    return row?.is_pack_product && size >= 2 ? size : null
+  }
+  // New stock of a pack product is counted in packs by default; saved stock is shown in loose items.
+  const blankStock = (key, isNew) => emptyOpeningStock(isNew && packSizeOf(key) ? "pack" : "unit")
+  const isNewTarget = (key) => !isEdit || (key !== "product" && !savedKeys.has(key))
   const patchStock = (key, locationId, field, value) =>
     setStock((current) => {
       const id = stockKey(key, locationId)
-      return { ...current, [id]: { ...(current[id] || emptyOpeningStock()), [field]: value } }
+      return { ...current, [id]: { ...(current[id] || blankStock(key, isNewTarget(key))), [field]: value } }
     })
 
   /**
@@ -133,19 +143,27 @@ export function ProductFormPage() {
    * (or a new variant) what was filled in, as opening stock; on edit what changed, as the count.
    */
   function stockFor(key, isNew) {
+    const packSize = packSizeOf(key)
     const rows = stockLocations
       .map((location) => {
-        const row = stock[stockKey(key, location.id)] || emptyOpeningStock()
+        const row = stock[stockKey(key, location.id)] || blankStock(key, isNew)
         const before = initialStock[stockKey(key, location.id)] || emptyOpeningStock()
-        const changed = !isNew ? row.qty !== before.qty || row.expiry_date !== before.expiry_date : row.qty !== "" || row.expiry_date
+        const inPacks = Boolean(packSize) && row.stock_unit === "pack"
+        const changed = !isNew
+          ? row.qty !== before.qty || row.expiry_date !== before.expiry_date || inPacks
+          : row.qty !== "" || row.expiry_date
         if (!changed) return null
-        return { location_id: location.id, qty: Number(row.qty || 0), ...(row.expiry_date ? { expiry_date: row.expiry_date } : {}) }
+        return {
+          location_id: location.id,
+          qty: Number(row.qty || 0),
+          ...(inPacks ? { stock_unit: "pack" } : {}),
+          ...(row.expiry_date ? { expiry_date: row.expiry_date } : {}),
+        }
       })
       .filter(Boolean)
     return rows.length ? rows : undefined
   }
-  const savedKeys = new Set(form.variants.filter((row) => row.id).map((row) => row.id))
-  const stockOf = (key) => stockFor(key, !isEdit || (key !== "product" && !savedKeys.has(key)))
+  const stockOf = (key) => stockFor(key, isNewTarget(key))
   // Stock rows to fill in: each variant (or the product itself).
   const stockTargets = hasVariants
     ? form.variants.map((row, index) => ({ key: row.id || row.key, label: row.name || `Variant ${index + 1}`, number: row.variant_number }))
@@ -460,7 +478,7 @@ export function ProductFormPage() {
           description={
             isEdit
               ? "Change a quantity to the counted stock; the difference is saved as a stock count. Untouched rows stay as they are."
-              : "Quantity at each branch that holds its stock (in units). Empty = 0; saved as opening balance."
+              : "Quantity at each branch that holds its stock. A pack product's quantity can be given in packs or loose items. Empty = 0; saved as opening balance."
           }
         >
           {isAdmin ? (
@@ -489,14 +507,28 @@ export function ProductFormPage() {
                   ) : null}
                   <div className="space-y-2">
                     {stockLocations.map((location) => {
-                      const row = stock[stockKey(target.key, location.id)] || emptyOpeningStock()
+                      const packSize = packSizeOf(target.key)
+                      const row = stock[stockKey(target.key, location.id)] || blankStock(target.key, isNewTarget(target.key))
+                      const inPacks = Boolean(packSize) && row.stock_unit === "pack"
                       return (
-                        <div key={location.id} className="grid grid-cols-2 items-end gap-3 md:grid-cols-[minmax(0,1.2fr)_1fr_1fr]">
+                        <div
+                          key={location.id}
+                          className={`grid grid-cols-2 items-end gap-3 ${packSize ? "md:grid-cols-[minmax(0,1.2fr)_1fr_1fr_1fr]" : "md:grid-cols-[minmax(0,1.2fr)_1fr_1fr]"}`}
+                        >
                           <div className="col-span-2 md:col-span-1 md:pb-2.5">
                             <p className="text-sm font-medium text-slate-800">{location.name}</p>
                             {location.is_default ? <p className="text-xs text-slate-500">Default location</p> : null}
                           </div>
-                          <Input label="Quantity" type="number" min="0" step="0.01" value={row.qty} onChange={(e) => patchStock(target.key, location.id, "qty", e.target.value)} />
+                          {packSize ? (
+                            <Select label="Quantity in" value={row.stock_unit || "unit"} onChange={(e) => patchStock(target.key, location.id, "stock_unit", e.target.value)}>
+                              <option value="pack">Packs (× {packSize})</option>
+                              <option value="unit">Loose items</option>
+                            </Select>
+                          ) : null}
+                          <div>
+                            <Input label={inPacks ? "Packs" : "Quantity"} type="number" min="0" step={inPacks ? "1" : "0.01"} value={row.qty} onChange={(e) => patchStock(target.key, location.id, "qty", e.target.value)} />
+                            {inPacks && row.qty !== "" ? <p className="mt-1 text-xs text-slate-500">= {Number(row.qty) * packSize} items</p> : null}
+                          </div>
                           <Input label="Expiry (optional)" type="date" value={row.expiry_date} onChange={(e) => patchStock(target.key, location.id, "expiry_date", e.target.value)} />
                         </div>
                       )

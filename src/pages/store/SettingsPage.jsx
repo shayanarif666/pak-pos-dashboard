@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { PageHeader } from "../../ui/PageHeader.jsx"
 import { useAuth } from "../../auth/AuthContext.jsx"
 import { useMyStoreQuery, useUpdateMyStore } from "../../features/settings/settingsQuery.js"
 import { Button } from "../../ui/Button.jsx"
@@ -33,11 +34,11 @@ export function SettingsPage() {
   const [tab, setTab] = useTabParam(TABS)
   return (
     <section className="space-y-6">
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Settings</p>
-        <h1 className="mt-2 text-2xl font-semibold text-slate-900">Settings</h1>
-        <p className="mt-1 text-sm text-slate-500">Store profile, online storefront and your own account.</p>
-      </div>
+      <PageHeader
+        section="Settings"
+        title="Settings"
+        description="Store profile, online storefront and your own account."
+      />
       <Tabs tabs={TABS} value={tab} onChange={setTab} />
       {tab === "store" ? <StoreForm /> : null}
       {tab === "website" ? <WebsitePage embedded /> : null}

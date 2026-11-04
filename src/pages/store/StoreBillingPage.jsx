@@ -113,6 +113,7 @@ export function StoreBillingPage() {
       <div className="space-y-3">
         <h2 className="text-base font-semibold text-slate-950">Billing history</h2>
         <DataTable
+          title="Billings"
           columns={[
             { key: "month", header: "Month", sortValue: (row) => new Date(row.period_start || row.created_at), render: (row) => new Date(row.period_start || row.created_at).toLocaleDateString(undefined, { month: "long", year: "numeric" }) },
             { key: "plan", header: "Plan", sortValue: (row) => planName(row.plan_id), render: (row) => planName(row.plan_id) },
