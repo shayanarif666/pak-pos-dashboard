@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
+  deleteLocation,
   createLocation,
   listApprovalRequests,
   listAuditLogs,
@@ -39,6 +40,22 @@ export function useSaveLocation() {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: peopleKeys.locations }),
         queryClient.invalidateQueries({ queryKey: catalogKeys.locations }),
+      ])
+    },
+  })
+}
+
+/** Soft delete a location; the lists of locations everywhere refresh. */
+export function useDeleteLocation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id) => unwrap(await deleteLocation(id)),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: peopleKeys.locations }),
+        queryClient.invalidateQueries({ queryKey: catalogKeys.locations }),
+        // Staff of the branch are switched off too.
+        queryClient.invalidateQueries({ queryKey: peopleKeys.all }),
       ])
     },
   })

@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { Eye, Pencil, Plus, X } from "lucide-react"
+import { Eye, Pencil, Plus, Trash2, X } from "lucide-react"
 import { useCategoriesQuery, useProductsQuery } from "../../features/catalog/catalogQuery.jsx"
-import { useOffersQuery, useSaveOffer } from "../../features/promotions/promotionQuery.js"
+import { useDeleteOffer, useOffersQuery, useSaveOffer } from "../../features/promotions/promotionQuery.js"
 import { LocationScopePills } from "../../features/scope/LocationScopeField.jsx"
 import { Currency, formatCurrency } from "../../ui/Currency.jsx"
 import { Button } from "../../ui/Button.jsx"
@@ -74,6 +74,11 @@ function formatDate(value) {
   return value ? new Date(value).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : "Open"
 }
 
+/** "6 Nov 2026" for the table (the full time shows on hover). */
+function shortDate(value) {
+  return value ? new Date(value).toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" }) : "Open"
+}
+
 function Info({ label, children }) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-4">
@@ -84,8 +89,9 @@ function Info({ label, children }) {
 }
 
 export function DiscountsPage() {
-  const { toast } = useToast()
+  const { toast, confirmToast } = useToast()
   const navigate = useNavigate()
+  const deleteOffer = useDeleteOffer()
   const [selected, setSelected] = useState(null)
   const [toggling, setToggling] = useState({})
 
@@ -126,15 +132,32 @@ export function DiscountsPage() {
     }
   }
 
+  // Soft delete: the discount leaves the list and the POS at once; sales made with it keep it.
+  async function remove(row) {
+    const ok = await confirmToast({
+      title: `Delete ${row.name}?`,
+      message: "It stops at checkout and leaves the list and the POS. Sales already made with it keep their discount.",
+      confirmLabel: "Delete",
+    })
+    if (!ok) return
+    try {
+      await deleteOffer.mutateAsync(row.id)
+      toast(`${row.name} deleted`)
+    } catch (err) {
+      toast(err.message, "error")
+    }
+  }
+
   const now = Date.now()
   const columns = [
     {
       key: "name",
       header: "Discount",
       render: (row) => (
-        <div className="min-w-44">
-          <p className="font-semibold text-slate-900">{row.name}</p>
+        <div className="min-w-40 max-w-56">
+          <p className="truncate font-semibold text-slate-900" title={row.name}>{row.name}</p>
           <p className="text-xs text-slate-500">#{row.offer_number} · {TYPE_LABEL[row.type] || row.type}</p>
+          <p className="mt-0.5 text-xs font-semibold text-brand-700">{discountText(row)}</p>
         </div>
       ),
     },
@@ -143,17 +166,26 @@ export function DiscountsPage() {
       header: "Applies to",
       sortable: false,
       render: (row) => (
-        <div className="max-w-64">
-          <p className="truncate text-slate-900">{appliesTo(row)}</p>
+        <div className="min-w-36 max-w-52">
+          <p className="truncate text-slate-900" title={appliesTo(row)}>{appliesTo(row)}</p>
           <p className="text-xs text-slate-500">
             {productTargets(row).length} product{productTargets(row).length === 1 ? "" : "s"} · {categoryTargets(row).length} categor{categoryTargets(row).length === 1 ? "y" : "ies"}
           </p>
         </div>
       ),
     },
-    { key: "discount", header: "Discount", sortValue: (row) => Number(row.discount_value || 0), render: (row) => discountText(row) },
-    { key: "window", header: "Runs", sortValue: (row) => row.start_at || "", render: (row) => <span className="text-xs text-slate-600">{formatDate(row.start_at)} → {formatDate(row.end_at)}</span> },
-    { key: "locations", header: "Locations", sortable: false, render: (row) => <LocationScopePills row={row} /> },
+    {
+      key: "window",
+      header: "Runs",
+      sortValue: (row) => row.start_at || "",
+      render: (row) => (
+        <div className="whitespace-nowrap text-xs text-slate-700" title={`${formatDate(row.start_at)} → ${formatDate(row.end_at)}`}>
+          <p>{shortDate(row.start_at)}</p>
+          <p className="text-slate-500">to {shortDate(row.end_at)}</p>
+        </div>
+      ),
+    },
+    { key: "locations", header: "Locations", sortable: false, render: (row) => <div className="whitespace-nowrap"><LocationScopePills row={row} /></div> },
     {
       key: "state",
       header: "Status",
@@ -177,8 +209,9 @@ export function DiscountsPage() {
       sortable: false,
       render: (row) => (
         <div className="flex justify-end gap-1" onClick={(event) => event.stopPropagation()}>
-          <Button variant="icon" aria-label="View discount" onClick={() => setSelected(row)}><Eye className="h-4 w-4" /></Button>
-          <Button variant="icon" aria-label="Edit discount" onClick={() => openEdit(row)}><Pencil className="h-4 w-4" /></Button>
+          <Button variant="icon" aria-label="View discount" title="View" onClick={() => setSelected(row)}><Eye className="h-4 w-4" /></Button>
+          <Button variant="icon" aria-label="Edit discount" title="Edit" onClick={() => openEdit(row)}><Pencil className="h-4 w-4" /></Button>
+          <Button variant="icon" aria-label="Delete discount" title="Delete" onClick={() => remove(row)}><Trash2 className="h-4 w-4 text-rose-600" /></Button>
         </div>
       ),
     },

@@ -137,6 +137,7 @@ export default function App() {
             <Route path="sessions" element={<SessionsPage />} />
             <Route path="transfers" element={<TransfersPage />} />
             <Route path="transfers/new" element={<TransferFormPage />} />
+            <Route path="transfers/:transferNumber/edit" element={<TransferFormPage />} />
             <Route path="batches" element={<BatchesPage />} />
             <Route path="shifts" element={<Navigate to="/batches" replace />} />
             <Route path="discounts" element={<DiscountsPage />} />

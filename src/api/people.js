@@ -1,4 +1,4 @@
-import { apiGet, apiPatch, apiPost, withQuery } from "../lib/http.js"
+import { apiDelete, apiGet, apiPatch, apiPost, withQuery } from "../lib/http.js"
 
 const auth = { auth: true }
 
@@ -16,6 +16,11 @@ export function createLocation(body) {
 
 export function updateLocation(id, body) {
   return apiPatch(`/api/v1/locations/${id}`, body, auth)
+}
+
+/** Soft delete a branch (not the default one, nor one holding stock or with transfers on the way). */
+export function deleteLocation(id) {
+  return apiDelete(`/api/v1/locations/${id}`, auth)
 }
 
 export function listPosDevices(params = {}) {

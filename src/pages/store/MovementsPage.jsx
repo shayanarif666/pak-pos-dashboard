@@ -2,8 +2,12 @@ import { PageHeader, StatCards } from "../../ui/PageHeader.jsx"
 import { useAuth } from "../../auth/AuthContext.jsx"
 import { Link } from "react-router-dom"
 import { useProductsQuery } from "../../features/catalog/catalogQuery.jsx"
-import { useStockMovementsQuery } from "../../features/inventory/inventoryQuery.js"
-import { Plus } from "lucide-react"
+import { useStockEdit, useStockMovementsQuery } from "../../features/inventory/inventoryQuery.js"
+import { MovementEditModal, movementEditable } from "../../features/inventory/StockEditModals.jsx"
+import { useToast } from "../../ui/Toast.jsx"
+import { useState } from "react"
+import { Eye, Pencil, Plus, Trash2 } from "lucide-react"
+import { MovementViewModal, movementTone } from "../../features/inventory/MovementViewModal.jsx"
 import { Button } from "../../ui/Button.jsx"
 import { DataTable } from "../../ui/DataTable.jsx"
 import { formatDateTime } from "../../ui/format.js"
@@ -25,12 +29,6 @@ function productLabel(row) {
   return row.variant?.name ? `${title} · ${row.variant.name}` : title
 }
 
-function typeTone(type) {
-  if (type === "stock_in" || type === "refund" || type === "transfer_in") return "emerald"
-  if (type === "stock_out" || type === "sale" || type === "transfer_out") return "rose"
-  return "amber"
-}
-
 function label(value) {
   return String(value || "").replaceAll("_", " ")
 }
@@ -45,6 +43,28 @@ export function MovementsPage() {
   const products = productsQuery.data || []
   const rows = movementsQuery.data || []
   const loading = movementsQuery.isPending
+  const { toast, confirmToast } = useToast()
+  const { deleteMovement } = useStockEdit()
+  const [editing, setEditing] = useState(null)
+  const [viewing, setViewing] = useState(null)
+
+  // Soft delete: the movement leaves the list and its qty is taken back off the stock.
+  async function remove(row) {
+    const qty = Number(row.qty)
+    const ok = await confirmToast({
+      title: "Delete movement?",
+      message: `${productLabel(row)} at ${row.location_name || "this location"}: the ${qty > 0 ? "+" : ""}${qty} is taken back, so the stock goes ${qty > 0 ? "down" : "up"} by ${Math.abs(qty)}.`,
+      confirmLabel: "Delete",
+    })
+    if (!ok) return
+    try {
+      await deleteMovement.mutateAsync(row.id)
+      toast("Movement deleted — stock corrected")
+    } catch (err) {
+      toast(err.message, "error")
+    }
+  }
+
   return (
     <section className="space-y-6">
       <PageHeader
@@ -77,33 +97,34 @@ export function MovementsPage() {
       <DataTable
         title="Stock Movements"
         columns={[
+          { key: "movement_number", header: "Movement #", sortValue: (row) => Number(row.movement_number), render: (row) => <span className="font-semibold text-slate-900">#{row.movement_number ?? "—"}</span> },
           { key: "created_at", header: "Date", sortValue: (row) => new Date(row.created_at), render: (row) => formatDateTime(row.created_at) },
-          { key: "product", header: "Product", sortValue: (row) => productLabel(row), render: (row) => <span className="font-medium text-slate-900">{productLabel(row) || "—"}</span> },
-          ...(scope.isAll ? [{ key: "location_name", header: "Location", render: (row) => row.location_name || "—" }] : []),
-          { key: "movement_type", header: "Type", render: (row) => <Pill tone={typeTone(row.movement_type)}>{label(row.movement_type)}</Pill> },
+          { key: "movement_type", header: "Status", render: (row) => <Pill tone={movementTone(row.movement_type)}>{label(row.movement_type)}</Pill> },
           { key: "reason", header: "Reason", render: (row) => <span className="capitalize">{label(row.reason)}</span> },
           {
-            key: "qty",
-            header: "Qty",
-            align: "right",
-            sortValue: (row) => Number(row.qty),
-            render: (row) => (
-              <span className={Number(row.qty) < 0 ? "font-semibold text-rose-700" : "font-semibold text-emerald-700"}>
-                {Number(row.qty) > 0 ? "+" : ""}
-                {row.qty}
-              </span>
-            ),
+            key: "actions",
+            header: "",
+            sortable: false,
+            // Every row can be viewed; sales, refunds and transfers change with their order /
+            // transfer, so they have no edit / delete.
+            render: (row) => {
+              const editable = movementEditable(row)
+              return (
+                <div className="flex justify-end gap-1">
+                  <Button variant="icon" aria-label="View movement" title="View" onClick={() => setViewing(row)}><Eye className="h-4 w-4" /></Button>
+                  <Button variant="icon" aria-label="Edit movement" title={editable ? "Edit" : "Sales, refunds and transfers cannot be edited"} disabled={!editable} onClick={() => setEditing(row)}><Pencil className="h-4 w-4" /></Button>
+                  <Button variant="icon" aria-label="Delete movement" title={editable ? "Delete" : "Sales, refunds and transfers cannot be deleted"} disabled={!editable} onClick={() => remove(row)}><Trash2 className={`h-4 w-4 ${editable ? "text-rose-600" : ""}`} /></Button>
+                </div>
+              )
+            },
           },
-          { key: "qty_after", header: "Stock after", align: "right", sortValue: (row) => Number(row.qty_after), render: (row) => row.qty_after ?? "—" },
-          { key: "staff", header: "By", sortValue: (row) => row.staff?.name || staffName(row.staff_id), render: (row) => (row.staff_id ? row.staff?.name || staffName(row.staff_id) : "System") },
-          { key: "reason_note", header: "Note", sortable: false, className: "max-w-56 truncate", render: (row) => row.reason_note || "—" },
         ]}
         rows={rows}
         loading={loading}
         error={movementsQuery.error}
         search={{ placeholder: "Search product or note…", text: (row) => `${productLabel(row)} ${row.reason_note || ""}` }}
         filters={[
-          { key: "movement_type", label: "Type", options: ["stock_in", "stock_out", "adjustment", "sale", "refund", "transfer_in", "transfer_out", "custom_sale"].map((value) => ({ value, label: label(value) })) },
+          { key: "movement_type", label: "Status", options: ["stock_in", "stock_out", "adjustment", "sale", "refund", "transfer_in", "transfer_out", "custom_sale"].map((value) => ({ value, label: label(value) })) },
           { key: "reason", label: "Reason", options: [...REASONS, "sale", "refund", "transfer"].map((value) => ({ value, label: label(value) })) },
           { key: "product", label: "Product", options: products.map((row) => ({ value: row.id, label: row.title })), match: (row, value) => row.product?.id === value },
         ]}
@@ -111,6 +132,8 @@ export function MovementsPage() {
         initialSort={{ key: "created_at", dir: "desc" }}
         emptyText="No movements yet."
       />
+      <MovementEditModal movement={editing} onClose={() => setEditing(null)} productLabel={productLabel} />
+      <MovementViewModal movement={viewing} onClose={() => setViewing(null)} staffName={staffName} />
     </section>
   )
 }

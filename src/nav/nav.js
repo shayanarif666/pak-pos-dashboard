@@ -93,7 +93,7 @@ const storeNav = [
     items: [
       { to: "/products", label: "Products", icon: Package },
       { to: "/categories", label: "Categories", icon: FolderTree },
-      { to: "/expiry", label: "Product Expiry", icon: FileWarning },
+      { to: "/expiry", label: "Product Stock & Expiry", icon: FileWarning },
       { to: "/weight", label: "Weight Based Products", icon: Scale },
     ],
   },

@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom"
-import { useState } from "react"
-import { Eye, Pencil, Plus, Trash2 } from "lucide-react"
+import { useMemo, useState } from "react"
+import { Eye, MapPin, Pencil, Plus, Trash2 } from "lucide-react"
 import { useAuth } from "../../auth/AuthContext.jsx"
 import {
   useCategoriesQuery,
@@ -11,12 +11,14 @@ import {
 } from "../../features/catalog/catalogQuery.jsx"
 import { Switch } from "../../ui/Switch.jsx"
 import { CategoryFormModal } from "../../features/catalog/CategoryFormModal.jsx"
+import { CategoryLocationsModal } from "../../features/catalog/CategoryLocationsModal.jsx"
 import { LocationScopePills } from "../../features/scope/LocationScopeField.jsx"
 import { Button } from "../../ui/Button.jsx"
 import { DataTable } from "../../ui/DataTable.jsx"
 import { PageHeader, StatCards } from "../../ui/PageHeader.jsx"
 import { useToast } from "../../ui/Toast.jsx"
 import { Pill } from "../../ui/Pill.jsx"
+import { SelectionBar } from "../../ui/SelectionBar.jsx"
 
 export function CategoriesPage() {
   const navigate = useNavigate()
@@ -50,6 +52,13 @@ export function CategoriesPage() {
 
   const openCreate = () => setEditing({ category: null })
   const openEdit = (row) => setEditing({ category: row })
+
+  // Store admin: tick categories, then Update Locations sets where all of them are sold at once.
+  const [selectedIds, setSelectedIds] = useState([])
+  const [locationsOpen, setLocationsOpen] = useState(false)
+  // The table drops a deleted / filtered-out category from the selection.
+  const selectedRows = useMemo(() => rows.filter((row) => selectedIds.includes(row.id)), [rows, selectedIds])
+  const clearSelection = () => setSelectedIds([])
 
   async function remove(row) {
     const ok = await confirmToast({
@@ -127,7 +136,7 @@ export function CategoriesPage() {
   ]
 
   return (
-    <section className="space-y-6">
+    <section className={`space-y-6 ${isAdmin && selectedRows.length ? "pb-24" : ""}`}>
       <PageHeader
         section="Catalog"
         title="Categories"
@@ -165,9 +174,24 @@ export function CategoriesPage() {
         initialSort={{ key: "name", dir: "asc" }}
         onRowClick={(row) => navigate(`/categories/${row.category_number}`)}
         emptyText="No categories yet. Create one before adding products."
+        selection={isAdmin ? { selected: selectedIds, onChange: setSelectedIds } : null}
       />
 
       <CategoryFormModal open={Boolean(editing)} category={editing?.category || null} categories={rows} onClose={() => setEditing(null)} />
+
+      <SelectionBar count={isAdmin ? selectedRows.length : 0} noun={["category", "categories"]} onClear={clearSelection}>
+        <Button onClick={() => setLocationsOpen(true)}>
+          <MapPin className="h-4 w-4" /> Update Locations
+        </Button>
+      </SelectionBar>
+
+      <CategoryLocationsModal
+        open={locationsOpen}
+        categories={selectedRows}
+        onClose={() => setLocationsOpen(false)}
+        onSaved={clearSelection}
+      />
     </section>
   )
 }
+

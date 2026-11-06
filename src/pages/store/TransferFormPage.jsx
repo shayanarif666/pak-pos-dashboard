@@ -1,7 +1,7 @@
-import { useMemo, useState } from "react"
-import { Link, useNavigate } from "react-router-dom"
+import { useEffect, useMemo, useState } from "react"
+import { Link, useNavigate, useParams } from "react-router-dom"
 import { ArrowLeft, Search } from "lucide-react"
-import { useCreateStockTransfer } from "../../features/inventory/inventoryQuery.js"
+import { useCreateStockTransfer, useStockTransfersQuery, useUpdateStockTransfer } from "../../features/inventory/inventoryQuery.js"
 import { useLocationsQuery, useProductsQuery } from "../../features/catalog/catalogQuery.jsx"
 import { Button } from "../../ui/Button.jsx"
 import { Checkbox } from "../../ui/Checkbox.jsx"
@@ -12,7 +12,8 @@ import { PageLoader } from "../../ui/Spinner.jsx"
 import { useToast } from "../../ui/Toast.jsx"
 
 /*
- * New stock transfer (/transfers/new): from one location, several products, to several locations,
+ * New stock transfer (/transfers/new) or edit one (/transfers/:transferNumber/edit — the same form,
+ * filled in, sent to PATCH /stock-transfers/bulk as { items: [{ id, ...the same body }] }): from one location, several products, to several locations,
  * each with its own qty — the Bulk Stock Transfer body:
  * { from_location_id, note, destinations: [{ to_location_id, products: [{ product_id, variant_id?, qty }] }] }.
  */
@@ -40,6 +41,14 @@ export function TransferFormPage() {
   // Every sellable row: a product without variants, or each variant of one.
   const productsQuery = useProductsQuery({}, { sellable: true })
   const createTransfer = useCreateStockTransfer()
+  const updateTransfer = useUpdateStockTransfer()
+  const { transferNumber } = useParams()
+  const editing = Boolean(transferNumber)
+  const transfersQuery = useStockTransfersQuery()
+  const existing = editing ? (transfersQuery.data || []).find((row) => String(row.transfer_number) === String(transferNumber)) : null
+  // Part received = its stock moved: it can no longer be changed.
+  const locked = Boolean(existing?.destinations?.some((dest) => dest.products.some((line) => line.status === "completed")))
+  const [filled, setFilled] = useState(false)
 
   const [fromId, setFromId] = useState("")
   const [productIds, setProductIds] = useState([])
@@ -58,6 +67,20 @@ export function TransferFormPage() {
   const shown = products.filter((row) => !q || `${row.title} ${row.sku || ""} ${row.barcode || ""}`.toLowerCase().includes(q))
   const picked = productIds.map((id) => productById.get(id)).filter(Boolean)
   const pickedDestinations = destinations.filter((row) => destinationIds.includes(row.id))
+
+  // Edit: start from the transfer as it is (the lines still on the way).
+  useEffect(() => {
+    if (!existing || filled) return
+    const open = (existing.destinations || []).flatMap((dest) =>
+      dest.products.filter((line) => line.status !== "cancelled").map((line) => ({ ...line, to: dest.to_location_id }))
+    )
+    setFromId(existing.from_location_id)
+    setNote(existing.note || "")
+    setProductIds([...new Set(open.map((line) => line.product_id))])
+    setDestinationIds([...new Set(open.map((line) => line.to))])
+    setQtys(Object.fromEntries(open.map((line) => [`${line.product_id}|${line.to}`, String(Number(line.qty))])))
+    setFilled(true)
+  }, [existing, filled])
 
   const toggle = (list, setList, id) => setList(list.includes(id) ? list.filter((value) => value !== id) : [...list, id])
   const key = (productId, locationId) => `${productId}|${locationId}`
@@ -99,6 +122,12 @@ export function TransferFormPage() {
     }
     if (!body.destinations.length) return setError("Enter a quantity for at least one product and location.")
     try {
+      if (editing) {
+        await updateTransfer.mutateAsync({ id: Number(transferNumber), ...body })
+        toast(`Transfer #${transferNumber} updated`)
+        navigate("/transfers")
+        return
+      }
       await createTransfer.mutateAsync(body)
       toast("Transfer created")
       navigate("/transfers")
@@ -107,7 +136,20 @@ export function TransferFormPage() {
     }
   }
 
-  if (locationsQuery.isPending || productsQuery.isPending) return <PageLoader label="Loading…" />
+  if (locationsQuery.isPending || productsQuery.isPending || (editing && transfersQuery.isPending)) return <PageLoader label="Loading…" />
+  if (editing && (!existing || locked)) {
+    return (
+      <section className="space-y-6">
+        <Link to="/transfers" className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-brand-700">
+          <ArrowLeft className="h-4 w-4" />
+          Back to transfers
+        </Link>
+        <p className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          {existing ? `Transfer #${transferNumber} has been received in part or in full, so its stock has moved: it can no longer be edited.` : `Transfer #${transferNumber} was not found.`}
+        </p>
+      </section>
+    )
+  }
 
   return (
     <section className="space-y-6">
@@ -115,7 +157,11 @@ export function TransferFormPage() {
         <ArrowLeft className="h-4 w-4" />
         Back to transfers
       </Link>
-      <PageHeader section="Inventory" title="New stock transfer" description="Send several products from one location to several locations, each with its own quantity." />
+      <PageHeader
+        section="Inventory"
+        title={editing ? `Edit transfer #${transferNumber}` : "New stock transfer"}
+        description={editing ? "Change the source, products, locations or quantities. Saving replaces what is on the way with this list." : "Send several products from one location to several locations, each with its own quantity."}
+      />
 
       <form onSubmit={save} className="space-y-6">
         <Section title="From" description="The location the stock leaves from.">
@@ -255,7 +301,9 @@ export function TransferFormPage() {
           <Link to="/transfers">
             <Button variant="ghost" type="button">Cancel</Button>
           </Link>
-          <Button type="submit" disabled={createTransfer.isPending}>{createTransfer.isPending ? "Saving…" : "Create transfer"}</Button>
+          <Button type="submit" disabled={createTransfer.isPending || updateTransfer.isPending}>
+            {createTransfer.isPending || updateTransfer.isPending ? "Saving…" : editing ? "Save changes" : "Create transfer"}
+          </Button>
         </div>
       </form>
     </section>

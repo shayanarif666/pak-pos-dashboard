@@ -29,6 +29,11 @@ export function updateCategory(id, body, imageFile) {
   return apiPatch(`/api/v1/categories/${id}`, body, auth)
 }
 
+/** Where several categories are sold: { category_ids, location_scope, location_ids }. */
+export function updateCategoryLocations(body) {
+  return apiPatch("/api/v1/categories/locations", body, auth)
+}
+
 export function deleteCategory(id) {
   return apiDelete(`/api/v1/categories/${id}`, auth)
 }
@@ -73,6 +78,11 @@ export function updateProduct(id, body, { featuredFile, imageFiles, existingImag
     return apiPatch(`/api/v1/products/${id}`, form, auth)
   }
   return apiPatch(`/api/v1/products/${id}`, body, auth)
+}
+
+/** Several products on / off sale: items = [{ id (product number), is_active }]. */
+export function bulkUpdateProductStatus(items) {
+  return apiPatch("/api/v1/products/bulk/status", { items }, auth)
 }
 
 export function deleteProduct(id) {

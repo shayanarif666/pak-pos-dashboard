@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react"
 import { Link, useNavigate, useSearchParams } from "react-router-dom"
-import { Eye, Pencil, Plus, Trash2 } from "lucide-react"
+import { Eye, Pencil, Plus, Power, Trash2 } from "lucide-react"
+import { ProductStatusModal } from "../../features/catalog/ProductBulkModals.jsx"
+import { SelectionBar } from "../../ui/SelectionBar.jsx"
 import { useCategoriesQuery, useDisableProduct, useProductsQuery } from "../../features/catalog/catalogQuery.jsx"
 import { useDashboardLocation } from "../../features/scope/DashboardLocation.jsx"
 import { DataTable } from "../../ui/DataTable.jsx"
@@ -38,18 +40,26 @@ export function ProductsPage() {
     ...(categoryId ? { category_id: categoryId } : {}),
   })
   const categories = categoriesQuery.data || []
-  // A deleted product is switched off (soft delete) and is no longer listed.
-  const rows = useMemo(() => (productsQuery.data || []).filter((row) => row.is_active !== false), [productsQuery.data])
+  // Every product; the Status filter starts on Active. A deleted product is a disabled one
+  // (soft delete), so it shows under Status: Disabled and can be switched back on from there.
+  const rows = useMemo(() => productsQuery.data || [], [productsQuery.data])
 
   const totals = useMemo(() => {
-    const statuses = rows.map((row) => row.stock_status)
+    const active = rows.filter((row) => row.is_active)
+    const statuses = active.map((row) => row.stock_status)
     return {
       products: rows.length,
-      active: rows.filter((row) => row.is_active).length,
+      active: active.length,
       low: statuses.filter((value) => value === "low").length,
       out: statuses.filter((value) => value === "out").length,
     }
   }, [rows])
+
+  // Tick products, then Update Status switches all of them on or off at once.
+  const [selectedIds, setSelectedIds] = useState([])
+  const selectedRows = useMemo(() => rows.filter((row) => selectedIds.includes(row.id)), [rows, selectedIds])
+  const [statusOpen, setStatusOpen] = useState(false)
+  const clearSelection = () => setSelectedIds([])
 
   // Delete is a soft delete: the product is switched off (is_active false) and leaves the table.
   async function remove(product) {
@@ -118,7 +128,7 @@ export function ProductsPage() {
   ]
 
   return (
-    <section className="space-y-6">
+    <section className={`space-y-6 ${selectedRows.length ? "pb-24" : ""}`}>
       <PageHeader
         section="Catalog"
         title="Products"
@@ -148,17 +158,28 @@ export function ProductsPage() {
         error={productsQuery.error || categoriesQuery.error}
         search={{ placeholder: "Search title, SKU or barcode…", text: (row) => `${row.title} ${row.sku} ${row.barcode} ${row.product_number}` }}
         filters={[
+          { key: "status", label: "Status", options: [{ value: "active", label: "Active" }, { value: "disabled", label: "Disabled" }], match: (row, value) => (row.is_active ? "active" : "disabled") === value },
           { key: "category", label: "Category", server: true, options: categories.map((row) => ({ value: String(row.category_number), label: row.name })) },
           { key: "type", label: "Type", options: Object.entries(TYPE_LABEL).map(([value, text]) => ({ value, label: text })), match: (row, value) => productType(row) === value },
           { key: "stock", label: "Stock", options: [{ value: "in", label: "In stock" }, { value: "low", label: "Low stock" }, { value: "out", label: "Out of stock" }], match: (row, value) => row.stock_status === value },
         ]}
         dateRange={{ label: "Added on", value: (row) => row.created_at }}
         initialSort={{ key: "title", dir: "asc" }}
-        initialFilters={categoryId ? { category: categoryId } : {}}
+        initialFilters={{ status: "active", ...(categoryId ? { category: categoryId } : {}) }}
         onFiltersChange={(values) => setCategoryId(values.category || "")}
         onRowClick={(row) => navigate(`/products/${row.id}`)}
         emptyText="No products yet — add your first product."
+        selection={{ selected: selectedIds, onChange: setSelectedIds }}
       />
+
+      <SelectionBar count={selectedRows.length} noun={["product", "products"]} onClear={clearSelection}>
+        <Button onClick={() => setStatusOpen(true)}>
+          <Power className="h-4 w-4" /> Update Status
+        </Button>
+      </SelectionBar>
+
+      <ProductStatusModal open={statusOpen} products={selectedRows} onClose={() => setStatusOpen(false)} onSaved={clearSelection} />
     </section>
   )
 }
+

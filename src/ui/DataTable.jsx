@@ -67,6 +67,9 @@ const hasValue = (value) => value !== undefined && value !== null && value !== "
  *   dateRange:{ label?, value(row) }              — from / to (client mode filters by value(row))
  *   server:   { total, onChange({ page, limit, search, filters, from, to }) } — the API pages / filters
  *   toolbar:  buttons shown at the end of the label row, before Filters
+ *   selection:{ selected: [rowKey...], onChange(nextKeys) } — a checkbox column first; the header
+ *             box selects every row matching the search / filters (not only this page). A selected
+ *             row hidden by a new search / filter leaves the selection.
  *
  * State (page, page size, search, filters, dates, sort) lives here; in server mode every change is
  * reported through server.onChange so the page can refetch.
@@ -89,6 +92,7 @@ export function DataTable({
   server = null,
   initialFilters = {},
   onFiltersChange = null,
+  selection = null,
 }) {
   const [query, setQuery] = useState("")
   const [filterValues, setFilterValues] = useState(initialFilters)
@@ -163,6 +167,56 @@ export function DataTable({
     }
     return list
   }, [rows, server, query, search, filters, filterValues, dateRange, from, to, sort, columns])
+
+  // Row selection (checkbox column): kept to the rows the search / filters still show.
+  const selectedKeys = selection?.selected || []
+  const visibleKeys = useMemo(() => visible.map((row) => rowKey(row)), [visible, rowKey])
+  useEffect(() => {
+    if (!selection || loading) return
+    const shown = new Set(visibleKeys)
+    const kept = selectedKeys.filter((key) => shown.has(key))
+    if (kept.length !== selectedKeys.length) selection.onChange(kept)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleKeys, loading])
+  const selectedSet = new Set(selectedKeys)
+  const allShownSelected = visibleKeys.length > 0 && visibleKeys.every((key) => selectedSet.has(key))
+  const someShownSelected = !allShownSelected && visibleKeys.some((key) => selectedSet.has(key))
+  const tableColumns = selection
+    ? [
+        {
+          key: "__select",
+          sortable: false,
+          className: "w-10",
+          header: (
+            <SelectBox
+              label="Select all shown rows"
+              checked={allShownSelected}
+              indeterminate={someShownSelected}
+              onChange={(checked) =>
+                selection.onChange(
+                  checked
+                    ? [...new Set([...selectedKeys, ...visibleKeys])]
+                    : selectedKeys.filter((key) => !visibleKeys.includes(key))
+                )
+              }
+            />
+          ),
+          render: (row) => {
+            const key = rowKey(row)
+            return (
+              <SelectBox
+                label="Select row"
+                checked={selectedSet.has(key)}
+                onChange={(checked) =>
+                  selection.onChange(checked ? [...selectedKeys, key] : selectedKeys.filter((value) => value !== key))
+                }
+              />
+            )
+          },
+        },
+        ...columns,
+      ]
+    : columns
 
   const total = server ? Number(server.total || 0) : visible.length
   const pages = Math.max(1, Math.ceil(total / limit))
@@ -299,7 +353,7 @@ export function DataTable({
         <table className={`${ui.table} min-w-[720px]`}>
           <thead className={ui.thead}>
             <tr>
-              {columns.map((column) => {
+              {tableColumns.map((column) => {
                 const active = sort?.key === column.key
                 const sortable = !server && column.sortable !== false
                 return (
@@ -327,7 +381,7 @@ export function DataTable({
             {loading ? (
               Array.from({ length: 5 }, (_, index) => (
                 <tr key={`skeleton-${index}`} className="border-b border-slate-100 last:border-0">
-                  {columns.map((column) => (
+                  {tableColumns.map((column) => (
                     <td key={column.key} className={ui.td}>
                       <div className="h-3.5 animate-pulse rounded-full bg-slate-100" style={{ width: `${45 + ((index * 17 + column.key.length * 7) % 45)}%` }} />
                     </td>
@@ -341,7 +395,7 @@ export function DataTable({
                   onClick={onRowClick ? () => onRowClick(row) : undefined}
                   className={`${ui.tr} ${onRowClick ? "cursor-pointer" : ""}`}
                 >
-                  {columns.map((column) => (
+                  {tableColumns.map((column) => (
                     <td key={column.key} className={[ui.td, alignClass(column.align), column.className || ""].join(" ")}>
                       {column.render ? column.render(row) : (row[column.key] ?? "—")}
                     </td>
@@ -350,7 +404,7 @@ export function DataTable({
               ))
             ) : (
               <tr>
-                <td colSpan={columns.length} className={ui.empty}>
+                <td colSpan={tableColumns.length} className={ui.empty}>
                   <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
                     <Inbox className="h-6 w-6" />
                   </span>
@@ -498,4 +552,26 @@ export function optionsFrom(rows, valueOf, labelOf = (value) => value) {
     if (!seen.has(String(value))) seen.set(String(value), { value: String(value), label: labelOf(value, row) })
   }
   return [...seen.values()].sort((a, b) => String(a.label).localeCompare(String(b.label)))
+}
+
+/** The selection column's checkbox: clicking it never opens the row or sorts the column. */
+function SelectBox({ label, checked, indeterminate = false, onChange }) {
+  return (
+    <span className="relative flex h-5 w-5 items-center justify-center" onClick={(event) => event.stopPropagation()}>
+      <input
+        type="checkbox"
+        aria-label={label}
+        checked={checked}
+        ref={(node) => {
+          if (node) node.indeterminate = indeterminate
+        }}
+        onChange={(event) => onChange(event.target.checked)}
+        className="peer h-5 w-5 cursor-pointer appearance-none rounded-md border border-slate-300 bg-white checked:border-brand-300 checked:bg-brand-700 indeterminate:border-brand-300 indeterminate:bg-brand-700"
+      />
+      <svg viewBox="0 0 16 16" className="pointer-events-none absolute h-3 w-3 text-white opacity-0 peer-checked:opacity-100" fill="none" stroke="currentColor" strokeWidth="2.2">
+        <path d="M3 8.5 6.2 12 13 4.5" />
+      </svg>
+      {indeterminate ? <span className="pointer-events-none absolute h-0.5 w-2.5 rounded bg-white" /> : null}
+    </span>
+  )
 }

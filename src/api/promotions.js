@@ -26,7 +26,8 @@ export function updateOffer(id, body) {
   return apiPatch(`/api/v1/offers/${id}`, body, auth)
 }
 
-export function deactivateOffer(id) {
+/** Soft delete a discount (it leaves the list and the POS). Switching it off is PATCH is_active. */
+export function deleteOffer(id) {
   return apiDelete(`/api/v1/offers/${id}`, auth)
 }
 

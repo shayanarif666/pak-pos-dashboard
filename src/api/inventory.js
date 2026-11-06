@@ -10,6 +10,29 @@ export function createStockMovement(body) {
   return apiPost("/api/v1/stock-movements", body, auth)
 }
 
+/** Fix wrong movements: items = [{ id (movement number), movement_type?, reason?, qty?, reason_note? }]. */
+export function updateStockMovements(items) {
+  return apiPatch("/api/v1/stock-movements/bulk", { items }, auth)
+}
+
+/** Soft delete a wrong movement; its qty is taken back off the stock. */
+export function deleteStockMovement(id) {
+  return apiDelete(`/api/v1/stock-movements/${id}`, auth)
+}
+
+/**
+ * Stock edits: items = [{ product_id (number), variant_id?, location_id (number), qty | number_of_packs
+ * (+ loose_units), expiry_date?, low_stock_threshold?, reason?, reason_note? }].
+ */
+export function updateStocks(items) {
+  return apiPatch("/api/v1/product-stocks/bulk", { items }, auth)
+}
+
+/** Soft delete a stock entry (its qty goes to 0 through an adjustment movement). */
+export function deleteStockEntry(id) {
+  return apiDelete(`/api/v1/product-stocks/${id}`, auth)
+}
+
 export function listStockTransfers() {
   return apiGet("/api/v1/stock-transfers", auth)
 }
@@ -20,6 +43,16 @@ export function createStockTransfer(body) {
 
 export function completeStockTransfer(id) {
   return apiPost(`/api/v1/stock-transfers/${id}/complete`, {}, auth)
+}
+
+/** Update transfers: items = [{ id (transfer number), from_location_id?, note?, destinations? }] — the create shape. */
+export function updateStockTransfers(items) {
+  return apiPatch("/api/v1/stock-transfers/bulk", { items }, auth)
+}
+
+/** Soft delete a transfer nothing of which was received yet (id = transfer number). */
+export function deleteStockTransfer(transferNumber) {
+  return apiDelete(`/api/v1/stock-transfers/${transferNumber}`, auth)
 }
 
 export function cancelStockTransfer(id) {

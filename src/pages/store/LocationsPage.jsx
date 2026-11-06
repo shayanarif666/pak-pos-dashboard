@@ -1,8 +1,9 @@
 import { PageHeader, StatCards } from "../../ui/PageHeader.jsx"
 import { useMemo, useState } from "react"
-import { Pencil, Plus, X } from "lucide-react"
+import { Pencil, Plus, Trash2, X } from "lucide-react"
 import { useAuth } from "../../auth/AuthContext.jsx"
 import {
+  useDeleteLocation,
   useSaveLocation,
   useStoreLocationsQuery,
 } from "../../features/people/peopleQuery.js"
@@ -32,10 +33,29 @@ const emptyForm = {
 
 export function LocationsPage() {
   const { user, location: assignedLocation, store } = useAuth()
-  const { toast } = useToast()
+  const { toast, confirmToast } = useToast()
   const isAdmin = user?.role === "store_admin"
   const locationsQuery = useStoreLocationsQuery()
   const saveLocation = useSaveLocation()
+  const deleteLocation = useDeleteLocation()
+
+  // Soft delete (store admin): the branch leaves the lists and the POS; its sales and stock
+  // history keep its name. The API refuses the default location, one holding stock, or one with
+  // a transfer on the way, and says why.
+  async function remove(row) {
+    const ok = await confirmToast({
+      title: `Delete ${row.name}?`,
+      message: "It leaves the location list and the POS, and its manager and cashiers are switched off. Its sales and stock history stay.",
+      confirmLabel: "Delete",
+    })
+    if (!ok) return
+    try {
+      await deleteLocation.mutateAsync(row.id)
+      toast(`${row.name} deleted`)
+    } catch (err) {
+      toast(err.message, "error")
+    }
+  }
   const allRows = locationsQuery.data || []
   const rows = useMemo(() => {
     if (isAdmin) return allRows
@@ -335,8 +355,19 @@ export function LocationsPage() {
             header: "",
             sortable: false,
             render: (row) => (
-              <div className="flex justify-end">
-                <Button variant="icon" aria-label="Edit location" onClick={() => openEdit(row)}><Pencil className="h-4 w-4" /></Button>
+              <div className="flex justify-end gap-1">
+                <Button variant="icon" aria-label="Edit location" title="Edit" onClick={() => openEdit(row)}><Pencil className="h-4 w-4" /></Button>
+                {isAdmin ? (
+                  <Button
+                    variant="icon"
+                    aria-label="Delete location"
+                    title={row.is_default ? "The default location cannot be deleted" : "Delete"}
+                    disabled={Boolean(row.is_default)}
+                    onClick={() => remove(row)}
+                  >
+                    <Trash2 className={`h-4 w-4 ${row.is_default ? "" : "text-rose-600"}`} />
+                  </Button>
+                ) : null}
               </div>
             ),
           },

@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   createCoupon,
   createOffer,
-  deactivateOffer,
+  deleteOffer,
   getCoupon,
   getOffer,
   listCouponRedemptions,
@@ -62,10 +62,11 @@ export function useSaveOffer() {
   })
 }
 
-export function useDeactivateOffer() {
+/** Soft delete a discount (it leaves the list and the POS). */
+export function useDeleteOffer() {
   const invalidatePromotions = useInvalidatePromotions()
   return useMutation({
-    mutationFn: (id) => deactivateOffer(id),
+    mutationFn: (id) => deleteOffer(id),
     onSuccess: invalidatePromotions,
   })
 }

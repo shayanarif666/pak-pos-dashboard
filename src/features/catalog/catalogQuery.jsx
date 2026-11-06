@@ -17,7 +17,9 @@ import {
   uploadProductImage,
   putProductStock,
   updateCategory,
+  updateCategoryLocations,
   updateProduct,
+  bulkUpdateProductStatus,
 } from "../../api/catalog.js"
 import { unwrap } from "../../lib/query.js"
 
@@ -127,10 +129,28 @@ export function useSaveCategory() {
   })
 }
 
+/** Update Locations on several categories at once (body: category_ids + location scope). */
+export function useUpdateCategoryLocations() {
+  const invalidateCatalog = useInvalidateCatalog()
+  return useMutation({
+    mutationFn: (body) => updateCategoryLocations(body),
+    onSuccess: invalidateCatalog,
+  })
+}
+
 export function useDeleteCategory() {
   const invalidateCatalog = useInvalidateCatalog()
   return useMutation({
     mutationFn: (id) => deleteCategory(id),
+    onSuccess: invalidateCatalog,
+  })
+}
+
+/** Update Status from the products table: items[] = [{ id (product number), is_active }]. */
+export function useBulkProductStatus() {
+  const invalidateCatalog = useInvalidateCatalog()
+  return useMutation({
+    mutationFn: (items) => bulkUpdateProductStatus(items),
     onSuccess: invalidateCatalog,
   })
 }

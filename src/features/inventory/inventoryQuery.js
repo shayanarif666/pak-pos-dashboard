@@ -7,7 +7,13 @@ import {
   createStockMovementsBulk,
   createStockTransfer,
   createSupplier,
+  deleteStockEntry,
+  deleteStockTransfer,
+  updateStockTransfers,
+  deleteStockMovement,
   deleteSupplier,
+  updateStockMovements,
+  updateStocks,
   getSupplier,
   listStockMovements,
   listStockTransfers,
@@ -51,6 +57,19 @@ export function useCreateStockMovement() {
   })
 }
 
+/** Edit / soft delete a movement or a stock entry; stock, movements and expiry all refresh. */
+export function useStockEdit() {
+  const invalidateInventory = useInvalidateInventory()
+  const onSuccess = () => invalidateInventory({ catalog: true })
+  return {
+    // One row each from the dashboard, through the bulk APIs ({ items: [...] }).
+    updateMovement: useMutation({ mutationFn: ({ id, body }) => updateStockMovements([{ id, ...body }]), onSuccess }),
+    deleteMovement: useMutation({ mutationFn: (id) => deleteStockMovement(id), onSuccess }),
+    updateEntry: useMutation({ mutationFn: (item) => updateStocks([item]), onSuccess }),
+    deleteEntry: useMutation({ mutationFn: (id) => deleteStockEntry(id), onSuccess }),
+  }
+}
+
 export function useStockTransfersQuery() {
   return useQuery({
     queryKey: inventoryKeys.transfers,
@@ -78,6 +97,24 @@ export function useCancelStockTransfer() {
   const invalidateInventory = useInvalidateInventory()
   return useMutation({
     mutationFn: (id) => cancelStockTransfer(id),
+    onSuccess: () => invalidateInventory(),
+  })
+}
+
+/** Edit one transfer (sent as items[] to PATCH /stock-transfers/bulk). */
+export function useUpdateStockTransfer() {
+  const invalidateInventory = useInvalidateInventory()
+  return useMutation({
+    mutationFn: (item) => updateStockTransfers([item]),
+    onSuccess: () => invalidateInventory(),
+  })
+}
+
+/** Soft delete a transfer (id = transfer number). */
+export function useDeleteStockTransfer() {
+  const invalidateInventory = useInvalidateInventory()
+  return useMutation({
+    mutationFn: (transferNumber) => deleteStockTransfer(transferNumber),
     onSuccess: () => invalidateInventory(),
   })
 }
