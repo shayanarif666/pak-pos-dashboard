@@ -112,6 +112,22 @@ export function uploadProductImage(productId, file) {
   return apiPost(`/api/v1/products/${productId}/image`, form, auth)
 }
 
+/** A variant's own image: variantId = its number in the product or its UUID. */
+export function uploadVariantImage(productId, variantId, file) {
+  const form = new FormData()
+  form.append("image", file)
+  return apiPost(`/api/v1/products/${productId}/variants/${variantId}/image`, form, auth)
+}
+
+/** Soft delete of one variant: hidden everywhere; its stock, movements and sales stay. */
+export function deleteVariant(productId, variantId) {
+  return apiDelete(`/api/v1/products/${productId}/variants/${variantId}`, auth)
+}
+
+export function removeVariantImage(productId, variantId) {
+  return apiDelete(`/api/v1/products/${productId}/variants/${variantId}/image`, auth)
+}
+
 export function removeProductImage(productId) {
   return apiDelete(`/api/v1/products/${productId}/image`, auth)
 }
@@ -124,8 +140,9 @@ export function listLocations() {
   return apiGet("/api/v1/locations", auth)
 }
 
+/** One row per lot (all=1: lots without an expiry date too — the whole stock, lot by lot). */
 export function listExpiryProducts() {
-  return apiGet("/api/v1/products/expiry", auth)
+  return apiGet("/api/v1/products/expiry?all=1", auth)
 }
 
 export function listWeightProducts() {

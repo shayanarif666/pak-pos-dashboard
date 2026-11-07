@@ -23,7 +23,6 @@ function productType(row) {
 const TYPE_LABEL = { loose: "Loose", pack: "Pack", weight: "Weight", pack_weight: "Pack + weight" }
 
 // Stock total and status come from the API (total_qty, stock_status: in / low / out).
-const STOCK_TONE = { out: "font-semibold text-rose-700", low: "font-semibold text-amber-700", in: "font-semibold text-slate-900" }
 
 /** Products: the store's catalog with each product's stock at the chosen location(s). */
 export function ProductsPage() {
@@ -106,13 +105,6 @@ export function ProductsPage() {
         ) : "—",
     },
     { key: "is_active", header: "Status", sortValue: (row) => (row.is_active ? 1 : 0), render: (row) => <Pill tone={row.is_active ? "emerald" : "rose"}>{row.is_active ? "Active" : "Disabled"}</Pill> },
-    {
-      key: "stock",
-      header: isAll ? "Stock (all)" : "Stock",
-      align: "right",
-      sortValue: (row) => toNumber(row.total_qty),
-      render: (row) => <span className={STOCK_TONE[row.stock_status] || STOCK_TONE.in}>{row.total_qty ?? 0}</span>,
-    },
     {
       key: "actions",
       header: "",

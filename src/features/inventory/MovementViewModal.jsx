@@ -3,6 +3,7 @@ import { Modal } from "../../ui/Modal.jsx"
 import { Pill } from "../../ui/Pill.jsx"
 import { formatDateTime } from "../../ui/format.js"
 import { label } from "./StockEditModals.jsx"
+import { unitShort } from "../../ui/units.js"
 
 export function movementTone(type) {
   if (type === "stock_in" || type === "refund" || type === "transfer_in") return "emerald"
@@ -41,11 +42,11 @@ export function MovementViewModal({ movement, onClose, staffName }) {
           <div className="mb-5 grid grid-cols-2 gap-3">
             <div className="rounded-2xl bg-slate-50 px-4 py-3">
               <p className="text-xs text-slate-500">Quantity</p>
-              <p className={`text-xl font-semibold ${qty < 0 ? "text-rose-700" : "text-emerald-700"}`}>{qty > 0 ? "+" : ""}{qty}</p>
+              <p className={`text-xl font-semibold ${qty < 0 ? "text-rose-700" : "text-emerald-700"}`}>{qty > 0 ? "+" : ""}{qty} {unitShort(row.product?.unit)}</p>
             </div>
             <div className="rounded-2xl bg-slate-50 px-4 py-3">
               <p className="text-xs text-slate-500">Stock after</p>
-              <p className="text-xl font-semibold text-slate-900">{row.qty_after ?? "—"}</p>
+              <p className="text-xl font-semibold text-slate-900">{row.qty_after == null ? "—" : `${row.qty_after} ${unitShort(row.product?.unit)}`}</p>
             </div>
           </div>
 
@@ -59,6 +60,16 @@ export function MovementViewModal({ movement, onClose, staffName }) {
               {row.variant ? <>{row.variant.name} <span className="text-slate-500">#{row.variant.variant_number}{row.variant.sku ? ` · ${row.variant.sku}` : ""}</span></> : null}
             </Field>
             <Field title="Location">{row.location_name ? <>{row.location_name}{row.location_number ? <span className="text-slate-500"> #{row.location_number}</span> : null}</> : null}</Field>
+            <Field title={(row.lots || []).length > 1 ? "Lots" : "Lot"}>
+              {(row.lots || []).length
+                ? row.lots.map((lot) => (
+                    <span key={lot.id} className="block">
+                      #{lot.id} · {lot.qty > 0 ? "+" : ""}{lot.qty} {unitShort(row.product?.unit)}
+                      <span className="text-slate-500"> · {lot.expiry_date ? `exp. ${formatDateTime(lot.expiry_date).split(",")[0]}` : "no expiry"}</span>
+                    </span>
+                  ))
+                : null}
+            </Field>
             <Field title="Unit">{row.product?.unit ? <span className="capitalize">{row.product.unit}</span> : null}</Field>
             <Field title="By">{by}{row.staff?.role ? <span className="capitalize text-slate-500"> · {label(row.staff.role)}</span> : null}</Field>
             <Field title="Supplier">{row.supplier ? <>{row.supplier.name} <span className="text-slate-500">#{row.supplier.supplier_number}</span></> : null}</Field>

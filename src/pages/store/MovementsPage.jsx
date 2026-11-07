@@ -98,6 +98,18 @@ export function MovementsPage() {
         title="Stock Movements"
         columns={[
           { key: "movement_number", header: "Movement #", sortValue: (row) => Number(row.movement_number), render: (row) => <span className="font-semibold text-slate-900">#{row.movement_number ?? "—"}</span> },
+          {
+            key: "product",
+            header: "Product",
+            sortValue: (row) => productLabel(row),
+            // The product, and under it the variant with the product ("1L Pepsi"); no variant: the product only.
+            render: (row) => (
+              <div className="min-w-36">
+                <p className="font-semibold text-slate-900">{row.product?.title || "—"}</p>
+                {row.variant?.name ? <p className="text-xs text-slate-500">{row.variant.name} {row.product?.title}</p> : null}
+              </div>
+            ),
+          },
           { key: "created_at", header: "Date", sortValue: (row) => new Date(row.created_at), render: (row) => formatDateTime(row.created_at) },
           { key: "movement_type", header: "Status", render: (row) => <Pill tone={movementTone(row.movement_type)}>{label(row.movement_type)}</Pill> },
           { key: "reason", header: "Reason", render: (row) => <span className="capitalize">{label(row.reason)}</span> },

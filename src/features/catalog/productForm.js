@@ -27,6 +27,12 @@ export const emptyVariant = () => ({
   sell_loose: false,
   is_weight_based: false,
   taxes: [],
+  // The colours it comes in (hex codes).
+  colors: [],
+  // Its own image: image = the saved URL; imageFile = a new file to upload; removeImage = drop it.
+  image: "",
+  imageFile: null,
+  removeImage: false,
 })
 
 export const emptyProductForm = {
@@ -45,6 +51,8 @@ export const emptyProductForm = {
   is_weight_based: false,
   low_stock_threshold: "10",
   taxes: [],
+  // The colours it comes in (hex codes); with variants each variant has its own.
+  colors: [],
   variants: [],
   is_active: true,
   is_pos_visible: true,
@@ -75,6 +83,7 @@ export function productToForm(product) {
     pack_price: text(product.pack_selling_price),
     sell_loose: Boolean(product.sell_loose),
     is_weight_based: Boolean(product.is_weight_based),
+    colors: product.colors || [],
     low_stock_threshold: text(product.low_stock_threshold ?? 10),
     taxes: (product.taxes || []).map((tax) => ({
       name: tax.name || "",
@@ -97,6 +106,10 @@ export function productToForm(product) {
       pack_price: text(row.pack_selling_price),
       sell_loose: Boolean(row.sell_loose),
       is_weight_based: Boolean(row.is_weight_based),
+      colors: row.colors || [],
+      image: row.image || "",
+      imageFile: null,
+      removeImage: false,
       // Only the variant's own taxes; the product's taxes reach every variant anyway.
       taxes: (row.variant_taxes || []).map((tax) => ({
         name: tax.name || "",
@@ -189,6 +202,8 @@ export function productPayload(form, { withScope = false, stockFor = () => undef
     is_pack_product: Boolean(form.is_pack_product),
     sell_loose: Boolean(form.sell_loose),
     is_weight_based: Boolean(form.is_weight_based),
+    // With variants the colours are each variant's.
+    colors: hasVariants ? [] : form.colors,
     low_stock_threshold: form.low_stock_threshold === "" ? 10 : Number(form.low_stock_threshold),
     taxes: form.taxes
       .filter((tax) => tax.value !== "")
@@ -208,6 +223,7 @@ export function productPayload(form, { withScope = false, stockFor = () => undef
       barcode: row.barcode.trim(),
       is_pack_product: Boolean(row.is_pack_product),
       is_weight_based: Boolean(row.is_weight_based),
+      colors: row.colors,
       ...(row.is_pack_product
         ? { pack_size: Number(row.pack_size), pack_cost: Number(row.pack_cost), pack_price: Number(row.pack_price), sell_loose: Boolean(row.sell_loose) }
         : { cost: Number(row.cost), price: Number(row.price) }),

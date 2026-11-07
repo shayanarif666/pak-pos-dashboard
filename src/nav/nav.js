@@ -11,6 +11,7 @@ import {
   Database,
   FileWarning,
   FolderTree,
+  Handshake,
   History,
   KeyRound,
   Layers,
@@ -110,6 +111,12 @@ const storeNav = [
       { to: "/movements", label: "Stock Movements", icon: ArrowLeftRight },
       { to: "/transfers", label: "Stock Transfers", icon: Truck },
     ],
+  },
+  {
+    title: "Suppliers",
+    icon: Handshake,
+    single: true,
+    items: [{ to: "/suppliers", label: "Suppliers", icon: Handshake }],
   },
   {
     title: "Locations",

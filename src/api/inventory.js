@@ -29,8 +29,14 @@ export function updateStocks(items) {
 }
 
 /** Soft delete a stock entry (its qty goes to 0 through an adjustment movement). */
-export function deleteStockEntry(id) {
-  return apiDelete(`/api/v1/product-stocks/${id}`, auth)
+export function deleteStockEntry(id, { product_id, variant_id, location_id } = {}) {
+  // A lot number is the product's own: say which product (and location) in the query.
+  const query = new URLSearchParams()
+  if (product_id) query.set("product_id", product_id)
+  if (variant_id) query.set("variant_id", variant_id)
+  if (location_id) query.set("location_id", location_id)
+  const qs = query.toString()
+  return apiDelete(`/api/v1/product-stocks/${id}${qs ? `?${qs}` : ""}`, auth)
 }
 
 export function listStockTransfers() {

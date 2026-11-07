@@ -93,7 +93,17 @@ export function DataTable({
   initialFilters = {},
   onFiltersChange = null,
   selection = null,
+  // (row) => node | null: a row with something to show opens under itself (a ▸ toggle first).
+  renderExpanded = null,
 }) {
+  const [expanded, setExpanded] = useState(() => new Set())
+  const toggleExpanded = (key) =>
+    setExpanded((current) => {
+      const next = new Set(current)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
   const [query, setQuery] = useState("")
   const [filterValues, setFilterValues] = useState(initialFilters)
   const [from, setFrom] = useState("")
@@ -181,6 +191,32 @@ export function DataTable({
   const selectedSet = new Set(selectedKeys)
   const allShownSelected = visibleKeys.length > 0 && visibleKeys.every((key) => selectedSet.has(key))
   const someShownSelected = !allShownSelected && visibleKeys.some((key) => selectedSet.has(key))
+  const expandColumn = renderExpanded
+    ? [{
+        key: "__expand",
+        sortable: false,
+        className: "w-10",
+        header: "",
+        render: (row) => {
+          const key = rowKey(row)
+          const open = expanded.has(key)
+          return (
+            <button
+              type="button"
+              aria-expanded={open}
+              aria-label={open ? "Hide details" : "Show details"}
+              onClick={(event) => {
+                event.stopPropagation()
+                toggleExpanded(key)
+              }}
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-600 hover:bg-brand-50 hover:text-brand-700"
+            >
+              <ChevronRight className={`h-4 w-4 transition-transform ${open ? "rotate-90" : ""}`} />
+            </button>
+          )
+        },
+      }]
+    : []
   const tableColumns = selection
     ? [
         {
@@ -217,6 +253,7 @@ export function DataTable({
         ...columns,
       ]
     : columns
+  const shownColumns = [...expandColumn, ...tableColumns]
 
   const total = server ? Number(server.total || 0) : visible.length
   const pages = Math.max(1, Math.ceil(total / limit))
@@ -353,7 +390,7 @@ export function DataTable({
         <table className={`${ui.table} min-w-[720px]`}>
           <thead className={ui.thead}>
             <tr>
-              {tableColumns.map((column) => {
+              {shownColumns.map((column) => {
                 const active = sort?.key === column.key
                 const sortable = !server && column.sortable !== false
                 return (
@@ -381,7 +418,7 @@ export function DataTable({
             {loading ? (
               Array.from({ length: 5 }, (_, index) => (
                 <tr key={`skeleton-${index}`} className="border-b border-slate-100 last:border-0">
-                  {tableColumns.map((column) => (
+                  {shownColumns.map((column) => (
                     <td key={column.key} className={ui.td}>
                       <div className="h-3.5 animate-pulse rounded-full bg-slate-100" style={{ width: `${45 + ((index * 17 + column.key.length * 7) % 45)}%` }} />
                     </td>
@@ -389,22 +426,34 @@ export function DataTable({
                 </tr>
               ))
             ) : pageRows.length ? (
-              pageRows.map((row, index) => (
-                <tr
-                  key={rowKey(row) ?? index}
-                  onClick={onRowClick ? () => onRowClick(row) : undefined}
-                  className={`${ui.tr} ${onRowClick ? "cursor-pointer" : ""}`}
-                >
-                  {tableColumns.map((column) => (
-                    <td key={column.key} className={[ui.td, alignClass(column.align), column.className || ""].join(" ")}>
-                      {column.render ? column.render(row) : (row[column.key] ?? "—")}
-                    </td>
-                  ))}
-                </tr>
-              ))
+              pageRows.map((row, index) => {
+                const key = rowKey(row) ?? index
+                const open = renderExpanded && expanded.has(key)
+                const detail = open ? renderExpanded(row) : null
+                return [
+                  <tr
+                    key={key}
+                    onClick={onRowClick ? () => onRowClick(row) : undefined}
+                    className={`${ui.tr} ${onRowClick ? "cursor-pointer" : ""} ${open ? "bg-slate-50/70" : ""}`}
+                  >
+                    {shownColumns.map((column) => (
+                      <td key={column.key} className={[ui.td, alignClass(column.align), column.className || ""].join(" ")}>
+                        {column.render ? column.render(row) : (row[column.key] ?? "—")}
+                      </td>
+                    ))}
+                  </tr>,
+                  detail ? (
+                    <tr key={`${key}__detail`} className="border-b border-slate-100 bg-slate-50/70">
+                      <td colSpan={shownColumns.length} className="px-4 pb-4 pt-0 sm:px-6">
+                        {detail}
+                      </td>
+                    </tr>
+                  ) : null,
+                ]
+              })
             ) : (
               <tr>
-                <td colSpan={tableColumns.length} className={ui.empty}>
+                <td colSpan={shownColumns.length} className={ui.empty}>
                   <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
                     <Inbox className="h-6 w-6" />
                   </span>

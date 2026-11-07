@@ -6,6 +6,9 @@ import {
   deleteProduct,
   getCategory,
   getProduct,
+  deleteVariant,
+  removeVariantImage,
+  uploadVariantImage,
   listBulkTiers,
   listCategories,
   listExpiryProducts,
@@ -170,14 +173,35 @@ export function useDisableProduct() {
 export function useSaveProduct() {
   const invalidateCatalog = useInvalidateCatalog()
   return useMutation({
-    mutationFn: async ({ id, body, imageFile, removeImage, stockPayloads = [] }) => {
+    mutationFn: async ({ id, body, imageFile, removeImage, variantImages = [], stockPayloads = [] }) => {
       const json = id ? await updateProduct(id, body) : await createProduct(body)
       const productId = json.data?.id || id
       if (imageFile) await uploadProductImage(productId, imageFile)
       else if (removeImage) await removeProductImage(productId)
+      // Variant images: each variant is a product of its own, so its image goes to its own id.
+      // A new variant's id is known only after the save: found by its name.
+      const pending = variantImages.filter((row) => row.file || row.remove)
+      if (pending.length) {
+        const saved = pending.some((row) => !row.id) ? unwrap(await getProduct(productId))?.variants || [] : []
+        for (const row of pending) {
+          const variantId = row.id || saved.find((variant) => variant.name === row.name)?.id
+          if (!variantId) continue
+          if (row.file) await uploadVariantImage(productId, variantId, row.file)
+          else await removeVariantImage(productId, variantId)
+        }
+      }
       for (const payload of stockPayloads) await putProductStock(productId, payload)
       return { ...json, productId }
     },
+    onSuccess: invalidateCatalog,
+  })
+}
+
+/** Soft delete of one variant (productId + variantId: UUIDs or numbers). */
+export function useDeleteVariant() {
+  const invalidateCatalog = useInvalidateCatalog()
+  return useMutation({
+    mutationFn: ({ productId, variantId }) => deleteVariant(productId, variantId),
     onSuccess: invalidateCatalog,
   })
 }

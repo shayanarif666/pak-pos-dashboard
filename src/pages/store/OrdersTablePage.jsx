@@ -8,7 +8,8 @@ import { useDashboardLocation, useLocationName } from "../../features/scope/Dash
 import { useStaffNames } from "../../features/lists/useStaffNames.js"
 import { DataTable, optionsFrom } from "../../ui/DataTable.jsx"
 import { Currency } from "../../ui/Currency.jsx"
-import { StatusBadge } from "../../ui/Pill.jsx"
+import { Pill, StatusBadge } from "../../ui/Pill.jsx"
+import { methodLabel } from "../../features/orders/orderView.js"
 import { PageHeader, StatCards } from "../../ui/PageHeader.jsx"
 import { Tabs, useTabParam } from "../../ui/Tabs.jsx"
 import { ExportButton } from "../../ui/ExportButton.jsx"
@@ -78,32 +79,95 @@ export function OrdersTablePage() {
       }))
     )
 
+  const nowrap = "whitespace-nowrap"
   const columns = [
     {
       key: "order_number",
-      header: "Order #",
+      header: "Order",
       sortValue: (row) => Number(row.order_number),
-      render: (row) => <span className="font-semibold text-slate-900">#{row.order_number}</span>,
+      render: (row) => (
+        <div className={nowrap}>
+          <p className="font-semibold text-slate-900">#{row.order_number}</p>
+          <p className="text-xs text-slate-500">{row.local_receipt_number || (row.batch?.id != null ? `Batch #${row.batch.id}` : row.channel?.toUpperCase())}</p>
+        </div>
+      ),
     },
-    { key: "placed_at", header: "Date", sortValue: (row) => new Date(row.placed_at), render: (row) => formatDateTime(row.placed_at) },
-    ...(isAll
-      ? [{ key: "location", header: "Location", sortValue: (row) => locationName(row.location_id), render: (row) => locationName(row.location_id) }]
-      : []),
-    { key: "cashier", header: "Cashier", sortValue: (row) => staffName(row.cashier_id), render: (row) => staffName(row.cashier_id) },
-    ...(tab === "all"
-      ? [{ key: "type", header: "Type", sortValue: (row) => (row.is_custom ? 1 : 0), render: (row) => <StatusBadge value={row.is_custom ? "custom" : "catalog"} /> }]
-      : []),
-    { key: "payment_method", header: "Payment", render: (row) => <StatusBadge value={row.payment_method} /> },
-    { key: "gross_amount", header: "Gross", align: "right", sortValue: (row) => toNumber(row.gross_amount), render: (row) => <Currency value={row.gross_amount} /> },
-    { key: "discount", header: "Discount", align: "right", sortValue: discountOf, render: (row) => <Currency value={discountOf(row)} /> },
-    { key: "tax_amount", header: "Tax", align: "right", sortValue: (row) => toNumber(row.tax_amount), render: (row) => <Currency value={row.tax_amount} /> },
-    { key: "total_amount", header: "Total", align: "right", sortValue: (row) => toNumber(row.total_amount), render: (row) => <span className="font-semibold"><Currency value={row.total_amount} /></span> },
-    ...(cancelled
-      ? [{ key: "reason", header: "Reason", sortable: false, render: (row) => row.void_reason || row.cancel_reason || "—" }]
-      : [
-          { key: "amount_paid", header: "Paid", align: "right", sortValue: (row) => toNumber(row.amount_paid), render: (row) => <Currency value={row.amount_paid} /> },
-          { key: "change_due", header: "Change", align: "right", sortValue: (row) => toNumber(row.change_due), render: (row) => <Currency value={row.change_due} /> },
-        ]),
+    {
+      key: "placed_at",
+      header: "Date",
+      sortValue: (row) => new Date(row.placed_at),
+      render: (row) => <span className={nowrap}>{formatDateTime(row.placed_at)}</span>,
+    },
+    {
+      key: "people",
+      header: isAll ? "Location · Cashier" : "Cashier",
+      sortValue: (row) => staffName(row.cashier_id),
+      render: (row) => (
+        <div className={nowrap}>
+          <p className="font-medium text-slate-900">{staffName(row.cashier_id)}</p>
+          {isAll ? <p className="text-xs text-slate-500">{locationName(row.location_id)}</p> : null}
+        </div>
+      ),
+    },
+    {
+      key: "customer",
+      header: "Customer",
+      sortValue: (row) => row.customer?.name || "",
+      render: (row) =>
+        row.customer ? (
+          <div className={nowrap}>
+            <p className="font-medium text-slate-900">{row.customer.name}</p>
+            {row.customer.phone ? <p className="text-xs text-slate-500">{row.customer.phone}</p> : null}
+          </div>
+        ) : (
+          <span className="text-slate-400">Walk-in</span>
+        ),
+    },
+    {
+      key: "items",
+      header: "Items",
+      align: "right",
+      sortValue: (row) => Number(row.item_count || 0),
+      render: (row) => (
+        <div className={`${nowrap} flex flex-col items-end gap-1`}>
+          <span className="font-medium">{row.item_count ?? "—"}</span>
+          {row.is_custom ? <Pill tone="amber">Custom</Pill> : row.custom_item_count ? <span className="text-xs text-amber-700">{row.custom_item_count} custom</span> : null}
+        </div>
+      ),
+    },
+    {
+      key: "payment_method",
+      header: "Payment",
+      render: (row) => (
+        <div className={nowrap}>
+          <p className="font-medium text-slate-900">{methodLabel(row.payment_method)}</p>
+          <p className="text-xs capitalize text-slate-500">{row.payment_status}</p>
+        </div>
+      ),
+    },
+    {
+      key: "discount",
+      header: "Discount",
+      align: "right",
+      sortValue: discountOf,
+      render: (row) => (discountOf(row) > 0 ? <span className={`${nowrap} text-rose-700`}>−<Currency value={discountOf(row)} /></span> : <span className="text-slate-400">—</span>),
+    },
+    { key: "tax_amount", header: "Tax", align: "right", sortValue: (row) => toNumber(row.tax_amount), render: (row) => <span className={nowrap}><Currency value={row.tax_amount} /></span> },
+    {
+      key: "total_amount",
+      header: "Total",
+      align: "right",
+      sortValue: (row) => toNumber(row.total_amount),
+      render: (row) => (
+        <div className={nowrap}>
+          <p className="font-semibold text-slate-950"><Currency value={row.total_amount} /></p>
+          {!cancelled && Number(row.change_due) > 0 ? (
+            <p className="text-xs text-slate-500">Paid <Currency value={row.amount_paid} /> · change <Currency value={row.change_due} /></p>
+          ) : null}
+        </div>
+      ),
+    },
+    ...(cancelled ? [{ key: "reason", header: "Reason", sortable: false, render: (row) => row.void_reason || row.cancel_reason || "—" }] : []),
     { key: "order_status", header: "Status", render: (row) => <StatusBadge value={row.order_status} /> },
   ]
 
@@ -150,7 +214,7 @@ export function OrdersTablePage() {
         rows={rows}
         loading={query.isPending}
         error={query.error}
-        search={{ placeholder: "Search order # or cashier…", text: (row) => `#${row.order_number} ${row.order_number} ${staffName(row.cashier_id)}` }}
+        search={{ placeholder: "Search order #, receipt, cashier or customer…", text: (row) => `#${row.order_number} ${row.order_number} ${row.local_receipt_number || ""} ${staffName(row.cashier_id)} ${row.customer?.name || ""} ${row.customer?.phone || ""}` }}
         filters={filters}
         dateRange={{ label: "Sale date", value: (row) => row.placed_at }}
         initialSort={{ key: "placed_at", dir: "desc" }}

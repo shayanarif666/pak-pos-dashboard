@@ -66,7 +66,8 @@ export function useStockEdit() {
     updateMovement: useMutation({ mutationFn: ({ id, body }) => updateStockMovements([{ id, ...body }]), onSuccess }),
     deleteMovement: useMutation({ mutationFn: (id) => deleteStockMovement(id), onSuccess }),
     updateEntry: useMutation({ mutationFn: (item) => updateStocks([item]), onSuccess }),
-    deleteEntry: useMutation({ mutationFn: (id) => deleteStockEntry(id), onSuccess }),
+    // A lot: { id (lot number), product_id, location_id } (lot numbers are per product).
+    deleteEntry: useMutation({ mutationFn: (ref) => (typeof ref === "object" ? deleteStockEntry(ref.id, ref) : deleteStockEntry(ref)), onSuccess }),
   }
 }
 

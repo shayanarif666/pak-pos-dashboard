@@ -10,6 +10,7 @@ import { Pill } from "../../ui/Pill.jsx"
 import { useToast } from "../../ui/Toast.jsx"
 import { PageHeader, StatCards } from "../../ui/PageHeader.jsx"
 import { toNumber } from "../../ui/format.js"
+import { unitShort, withUnit } from "../../ui/units.js"
 
 /** Weight Based Products: products sold by weight, their per-unit price and stock at the chosen location(s). */
 export function WeightPage() {
@@ -56,30 +57,69 @@ export function WeightPage() {
     }
   }
 
+  // Prices are per one unit of the product (e.g. per gm): "Rs. 1.6 / gm".
+  const perUnit = (value, unit) => (
+    <span className="whitespace-nowrap">
+      <Currency value={value} />
+      <span className="text-xs text-slate-400"> / {unitShort(unit)}</span>
+    </span>
+  )
   const columns = [
     {
       key: "title",
       header: "Product",
       render: (row) => (
-        <div className="min-w-44">
-          <p className="font-semibold text-slate-900">{row.title}</p>
-          <p className="text-xs text-slate-500">#{row.product_number} · {row.sku}</p>
+        <div className="flex min-w-56 max-w-xs items-center gap-3">
+          {row.image || row.featured_image ? (
+            <img src={row.image || row.featured_image} alt="" className="h-11 w-11 shrink-0 rounded-xl border border-slate-200 object-cover" />
+          ) : (
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-[10px] text-slate-400">No img</div>
+          )}
+          <div className="min-w-0">
+            {/* A variant: its own name, its product's name under it. */}
+            <p className="truncate font-semibold text-slate-900" title={row.title}>{row.parent ? row.variant_name || row.title : row.title}</p>
+            <p className="truncate text-xs text-slate-500" title={row.sku}>
+              {row.parent ? `${row.parent.title} · #${row.parent.product_number} · Variant ${row.variant_number}` : `#${row.product_number}`} · {row.sku}
+            </p>
+          </div>
         </div>
       ),
     },
-    { key: "category", header: "Category", sortValue: (row) => row.category?.name, render: (row) => row.category?.name || "—" },
-    { key: "unit", header: "Unit", render: (row) => row.unit || "—" },
-    { key: "selling_price", header: "Price / unit", align: "right", sortValue: (row) => toNumber(row.selling_price), render: (row) => <Currency value={row.selling_price} /> },
-    { key: "cost_price", header: "Cost / unit", align: "right", sortValue: (row) => toNumber(row.cost_price), render: (row) => <Currency value={row.cost_price} /> },
+    { key: "category", header: "Category", sortValue: (row) => row.category?.name, render: (row) => <span className="whitespace-nowrap">{row.category?.name || "—"}</span> },
+    { key: "selling_price", header: "Price", align: "right", sortValue: (row) => toNumber(row.selling_price), render: (row) => perUnit(row.selling_price, row.unit) },
+    { key: "cost_price", header: "Cost", align: "right", sortValue: (row) => toNumber(row.cost_price), render: (row) => perUnit(row.cost_price, row.unit) },
+    { key: "total_price_each_unit", header: "With tax", align: "right", sortValue: (row) => toNumber(row.total_price_each_unit), render: (row) => perUnit(row.total_price_each_unit, row.unit) },
     {
       key: "pack",
       header: "Pack",
       align: "right",
       sortValue: (row) => toNumber(row.pack_selling_price),
-      render: (row) => (row.is_pack_product ? <span>{row.pack_size} {row.unit} · <Currency value={row.pack_selling_price} /></span> : "—"),
+      render: (row) =>
+        row.is_pack_product ? (
+          <div className="whitespace-nowrap">
+            <p className="font-medium text-slate-900">{withUnit(row.pack_size, row.unit)}</p>
+            <p className="text-xs text-slate-500"><Currency value={row.pack_selling_price} /> / pack</p>
+          </div>
+        ) : (
+          <span className="text-slate-400">Loose only</span>
+        ),
     },
-    { key: "total_price_each_unit", header: "With tax / unit", align: "right", sortValue: (row) => toNumber(row.total_price_each_unit), render: (row) => <Currency value={row.total_price_each_unit} /> },
-    { key: "stock", header: isAll ? "Stock (all)" : "Stock", align: "right", sortValue: (row) => stockOf(row.id), render: (row) => <span className="font-semibold">{stockOf(row.id)}</span> },
+    {
+      key: "stock",
+      header: "Stock",
+      align: "right",
+      sortValue: (row) => stockOf(row.id),
+      render: (row) => {
+        const qty = stockOf(row.id)
+        const size = Number(row.pack_size)
+        return (
+          <div className="whitespace-nowrap">
+            <p className={`font-semibold ${qty <= 0 ? "text-rose-700" : "text-slate-900"}`}>{withUnit(qty, row.unit)}</p>
+            {row.is_pack_product && size >= 2 ? <p className="text-xs text-slate-500">{Math.floor(qty / size)} packs</p> : null}
+          </div>
+        )
+      },
+    },
     { key: "is_active", header: "Status", sortValue: (row) => (row.is_active ? 1 : 0), render: (row) => <Pill tone={row.is_active ? "emerald" : "rose"}>{row.is_active ? "Active" : "Disabled"}</Pill> },
     {
       key: "actions",
@@ -132,7 +172,7 @@ export function WeightPage() {
         rows={rows}
         loading={weightQuery.isPending}
         error={weightQuery.error}
-        search={{ placeholder: "Search product or SKU…", text: (row) => `${row.title} ${row.sku} ${row.barcode || ""} ${row.product_number}` }}
+        search={{ placeholder: "Search product or SKU…", text: (row) => `${row.title} ${row.sku} ${row.barcode || ""} ${row.product_number ?? row.parent?.product_number ?? ""}` }}
         filters={[
           {
             key: "category",

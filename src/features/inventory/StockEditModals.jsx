@@ -6,6 +6,7 @@ import { Input, Textarea } from "../../ui/Input.jsx"
 import { Modal } from "../../ui/Modal.jsx"
 import { Select } from "../../ui/Select.jsx"
 import { useToast } from "../../ui/Toast.jsx"
+import { unitShort } from "../../ui/units.js"
 
 // Reasons per type (as on Record movement); opening_balance only stays on its own movement.
 export const REASONS_BY_TYPE = {
@@ -165,13 +166,15 @@ const qtyText = (value) => String(Math.round(Number(value || 0) * 10000) / 10000
  * - pack + loose: packs and loose units, with the total
  * plus expiry date and the low-stock alert (starts on the level set on the product).
  */
-export function StockEntryEditModal({ entry, onClose }) {
+export function StockEntryEditModal({ entry, lot = null, onClose }) {
   const { toast } = useToast()
   const { updateEntry } = useStockEdit()
-  const stock = entry?.stocks?.[0] || null
+  // A lot: its qty and expiry date are what this form edits (the rest of the stock stays).
+  const baseStock = entry?.stocks?.[0] || null
+  const stock = baseStock && lot ? { ...baseStock, qty: lot.qty, expiry_date: lot.expiry_date } : baseStock
   const kind = stockKind(entry)
   const packSize = Number(entry?.pack_size) || 1
-  const unit = entry?.unit || "unit"
+  const unit = unitShort(entry?.unit)
   // The level that applies now: this location's own, else the one set when the product was created.
   const defaultThreshold = stock?.effective_threshold ?? (entry?.low_stock_threshold == null ? null : Number(entry.low_stock_threshold))
   const [form, setForm] = useState({ qty: "", packs: "", loose: "", expiry_date: "", low_stock_threshold: "", reason: "count", reason_note: "" })
@@ -191,7 +194,7 @@ export function StockEntryEditModal({ entry, onClose }) {
     })
     setError("")
     // Only when another entry is opened.
-  }, [entry])
+  }, [entry, lot])
 
   const set = (key, value) => setForm((current) => ({ ...current, [key]: value }))
   const oldQty = Number(stock?.qty || 0)
@@ -212,7 +215,8 @@ export function StockEntryEditModal({ entry, onClose }) {
     }
     if (kind === "pack_loose" && (form.loose === "" || Number(form.loose) < 0)) return setError("Loose units must be 0 or more.")
 
-    const item = { product_id: entry.product_number, location_id: stock.location_number ?? entry.location_number }
+    const item = { product_id: entry.product_number ?? entry.id, location_id: stock.location_number ?? entry.location_number, ...(lot ? { lot_id: lot.id } : {}) }
+    const baseKeys = Object.keys(item).length
     if (qtyChanged) {
       if (kind === "loose") item.qty = Number(form.qty)
       else {
@@ -226,7 +230,7 @@ export function StockEntryEditModal({ entry, onClose }) {
     if (expiry !== (String(stock.expiry_date || "").slice(0, 10) || null)) item.expiry_date = expiry
     const threshold = form.low_stock_threshold === "" ? null : Number(form.low_stock_threshold)
     if (threshold !== defaultThreshold) item.low_stock_threshold = threshold
-    if (Object.keys(item).length === 2) return onClose()
+    if (Object.keys(item).length === baseKeys) return onClose()
     try {
       await updateEntry.mutateAsync(item)
       toast(qtyChanged ? "Stock updated — adjustment recorded" : "Stock updated")
@@ -243,7 +247,7 @@ export function StockEntryEditModal({ entry, onClose }) {
       open={Boolean(entry)}
       onClose={onClose}
       title="Edit stock"
-      subtitle={entry ? `${entry.title} at ${stock?.location_name || entry.location_name || "this location"} — ${kindLabel}. A new quantity is saved as an adjustment movement.` : ""}
+      subtitle={entry ? `${entry.title}${lot ? ` · Lot #${lot.id}` : ""} at ${stock?.location_name || entry.location_name || "this location"} — ${kindLabel}. A new quantity is saved as an adjustment movement${lot ? " on this lot" : ""}.` : ""}
       onSubmit={save}
       error={error}
       pending={updateEntry.isPending}
@@ -273,7 +277,7 @@ export function StockEntryEditModal({ entry, onClose }) {
       ) : null}
       {leftover && !qtyChanged ? (
         <p className="rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          {qtyText(oldQty)} units in stock now: {Math.floor(oldQty / packSize)} packs and {leftover} single {leftover === 1 ? "unit" : "units"}. Saving a new number of packs leaves out the single units.
+          {qtyText(oldQty)} {unit} in stock now: {Math.floor(oldQty / packSize)} packs and {leftover} {unit} loose. Saving a new number of packs leaves out the single units.
         </p>
       ) : null}
       <div className="grid gap-3 sm:grid-cols-2">

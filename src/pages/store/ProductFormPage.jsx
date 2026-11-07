@@ -29,6 +29,8 @@ import { PageHeader } from "../../ui/PageHeader.jsx"
 import { Select } from "../../ui/Select.jsx"
 import { PageLoader } from "../../ui/Spinner.jsx"
 import { useToast } from "../../ui/Toast.jsx"
+import { unitShort } from "../../ui/units.js"
+import { ColorsField } from "../../features/catalog/ColorsField.jsx"
 
 /** Barcode input with a Generate button (a new 13-digit barcode). */
 function BarcodeField({ label, required, value, onChange }) {
@@ -58,6 +60,41 @@ function Section({ title, description, children, actions = null }) {
 }
 
 /** Add and edit a product: one form (/products/new and /products/:id/edit). */
+/** A variant's own image: a thumbnail with Upload / Change and Remove (saved with the product). */
+function VariantImageField({ row, onPick, onRemove }) {
+  const preview = useMemo(() => (row.imageFile ? URL.createObjectURL(row.imageFile) : ""), [row.imageFile])
+  useEffect(() => () => preview && URL.revokeObjectURL(preview), [preview])
+  const current = preview || (row.removeImage ? "" : row.image)
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-white">
+        {current ? <img src={current} alt="" className="h-full w-full object-cover" /> : <ImagePlus className="h-5 w-5 text-slate-300" />}
+      </div>
+      <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-brand-200 bg-white px-3 py-2 text-sm font-semibold text-brand-700 hover:bg-brand-50">
+        <ImagePlus className="h-4 w-4" />
+        {current ? "Change image" : "Variant image"}
+        <input
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0]
+            if (file) onPick(file)
+            e.target.value = ""
+          }}
+        />
+      </label>
+      {current ? (
+        <Button variant="ghost" type="button" onClick={onRemove}>
+          <X className="h-4 w-4" /> Remove
+        </Button>
+      ) : (
+        <span className="text-xs text-slate-500">None — the product's image is shown.</span>
+      )}
+    </div>
+  )
+}
+
 export function ProductFormPage() {
   const { id } = useParams()
   const isEdit = Boolean(id)
@@ -100,8 +137,13 @@ export function ProductFormPage() {
   useEffect(() => () => imagePreview && URL.revokeObjectURL(imagePreview), [imagePreview])
   const currentImage = removeImage ? "" : imagePreview || product?.featured_image || ""
 
+  // A variant is not edited on its own: its product's form edits every variant.
   useEffect(() => {
-    if (!product) return
+    if (product?.parent_product_id) navigate(`/products/${product.parent_product_id}/edit`, { replace: true })
+  }, [product, navigate])
+
+  useEffect(() => {
+    if (!product || product.parent_product_id) return
     setForm(productToForm(product))
     const rows = stockToForm(product)
     setStock(rows)
@@ -186,6 +228,12 @@ export function ProductFormPage() {
         body: productPayload(form, { withScope: isAdmin, stockFor: stockOf }),
         imageFile,
         removeImage: removeImage && !imageFile,
+        variantImages: form.variants.map((row) => ({
+          id: row.id,
+          name: row.name.trim(),
+          file: row.imageFile,
+          remove: Boolean(row.id && row.removeImage && !row.imageFile && row.image),
+        })),
       })
       toast(isEdit ? "Product updated" : "Product created")
       // A barcode already in use was swapped for a new one by the API.
@@ -287,6 +335,12 @@ export function ProductFormPage() {
                       )}
                     </div>
                   </div>
+                  <VariantImageField
+                    row={row}
+                    onPick={(file) => setForm((current) => ({ ...current, variants: current.variants.map((v, i) => (i === index ? { ...v, imageFile: file, removeImage: false } : v)) }))}
+                    onRemove={() => setForm((current) => ({ ...current, variants: current.variants.map((v, i) => (i === index ? { ...v, imageFile: null, removeImage: true } : v)) }))}
+                  />
+                  <ColorsField label="Colors of this variant" value={row.colors} onChange={(colors) => patchVariant(index, "colors", colors)} />
                   <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                     <Input label="Name" required value={row.name} onChange={(e) => patchVariant(index, "name", e.target.value)} placeholder="1.5L" />
                     <Input label="SKU" value={row.sku} onChange={(e) => patchVariant(index, "sku", e.target.value)} placeholder="Auto" />
@@ -318,14 +372,14 @@ export function ProductFormPage() {
                   <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                     {row.is_pack_product ? (
                       <>
-                        <Input label="Pack size" type="number" min="2" step="1" required value={row.pack_size} onChange={(e) => patchVariant(index, "pack_size", e.target.value)} />
-                        <Input label="Pack cost" type="number" min="0" step="0.01" required value={row.pack_cost} onChange={(e) => patchVariant(index, "pack_cost", e.target.value)} />
-                        <Input label="Pack price" type="number" min="0" step="0.01" required value={row.pack_price} onChange={(e) => patchVariant(index, "pack_price", e.target.value)} />
+                        <Input label={`Pack size (${unitShort(form.unit)} per pack)`} type="number" min="2" step="1" required value={row.pack_size} onChange={(e) => patchVariant(index, "pack_size", e.target.value)} />
+                        <Input label={`Pack cost (per pack${row.pack_size ? ` of ${row.pack_size} ${unitShort(form.unit)}` : ""})`} type="number" min="0" step="0.01" required value={row.pack_cost} onChange={(e) => patchVariant(index, "pack_cost", e.target.value)} />
+                        <Input label={`Pack price (per pack${row.pack_size ? ` of ${row.pack_size} ${unitShort(form.unit)}` : ""})`} type="number" min="0" step="0.01" required value={row.pack_price} onChange={(e) => patchVariant(index, "pack_price", e.target.value)} />
                       </>
                     ) : (
                       <>
-                        <Input label="Cost (one unit)" type="number" min="0" step="0.01" required value={row.cost} onChange={(e) => patchVariant(index, "cost", e.target.value)} />
-                        <Input label="Price (one unit)" type="number" min="0" step="0.01" required value={row.price} onChange={(e) => patchVariant(index, "price", e.target.value)} />
+                        <Input label={`Cost (per 1 ${unitShort(form.unit)})`} type="number" min="0" step="0.01" required value={row.cost} onChange={(e) => patchVariant(index, "cost", e.target.value)} />
+                        <Input label={`Price (per 1 ${unitShort(form.unit)})`} type="number" min="0" step="0.01" required value={row.price} onChange={(e) => patchVariant(index, "price", e.target.value)} />
                       </>
                     )}
                   </div>
@@ -383,14 +437,14 @@ export function ProductFormPage() {
           </div>
           {form.is_pack_product ? (
             <div className="grid gap-4 md:grid-cols-3">
-              <Input label="Pack size (units per pack)" type="number" min="2" step="1" required value={form.pack_size} onChange={(e) => patch("pack_size", e.target.value)} />
-              <Input label="Pack cost" type="number" min="0" step="0.01" required value={form.pack_cost} onChange={(e) => patch("pack_cost", e.target.value)} />
-              <Input label="Pack price" type="number" min="0" step="0.01" required value={form.pack_price} onChange={(e) => patch("pack_price", e.target.value)} />
+              <Input label={`Pack size (${unitShort(form.unit)} per pack)`} type="number" min="2" step="1" required value={form.pack_size} onChange={(e) => patch("pack_size", e.target.value)} />
+              <Input label={`Pack cost (per pack${form.pack_size ? ` of ${form.pack_size} ${unitShort(form.unit)}` : ""})`} type="number" min="0" step="0.01" required value={form.pack_cost} onChange={(e) => patch("pack_cost", e.target.value)} />
+              <Input label={`Pack price (per pack${form.pack_size ? ` of ${form.pack_size} ${unitShort(form.unit)}` : ""})`} type="number" min="0" step="0.01" required value={form.pack_price} onChange={(e) => patch("pack_price", e.target.value)} />
             </div>
           ) : (
             <div className="grid gap-4 md:grid-cols-2">
-              <Input label="Cost (one unit)" type="number" min="0" step="0.01" required value={form.cost} onChange={(e) => patch("cost", e.target.value)} />
-              <Input label="Selling price (one unit)" type="number" min="0" step="0.01" required value={form.price} onChange={(e) => patch("price", e.target.value)} />
+              <Input label={`Cost (per 1 ${unitShort(form.unit)})`} type="number" min="0" step="0.01" required value={form.cost} onChange={(e) => patch("cost", e.target.value)} />
+              <Input label={`Selling price (per 1 ${unitShort(form.unit)})`} type="number" min="0" step="0.01" required value={form.price} onChange={(e) => patch("price", e.target.value)} />
             </div>
           )}
           <div className="mt-4 flex flex-wrap gap-x-8 gap-y-3">
@@ -431,6 +485,12 @@ export function ProductFormPage() {
             <p className="rounded-2xl border border-dashed border-slate-200 px-4 py-6 text-center text-sm text-slate-500">No product tax. Add one if this product carries GST or another tax.</p>
           )}
         </Section>
+
+        {hasVariants ? null : (
+          <Section title="Colors" description="The colours this product comes in. Pick on the wheel, press Add color, and add as many as you like. (With variants, each variant has its own colours.)">
+            <ColorsField label="Colors" value={form.colors} onChange={(colors) => patch("colors", colors)} />
+          </Section>
+        )}
 
         <Section title="Image" description="One image per product. A new one replaces the old.">
           <div className="flex flex-wrap items-center gap-5">
@@ -521,13 +581,13 @@ export function ProductFormPage() {
                           </div>
                           {packSize ? (
                             <Select label="Quantity in" value={row.stock_unit || "unit"} onChange={(e) => patchStock(target.key, location.id, "stock_unit", e.target.value)}>
-                              <option value="pack">Packs (× {packSize})</option>
-                              <option value="unit">Loose items</option>
+                              <option value="pack">Packs (× {packSize} {unitShort(form.unit)})</option>
+                              <option value="unit">Loose ({unitShort(form.unit)})</option>
                             </Select>
                           ) : null}
                           <div>
-                            <Input label={inPacks ? "Packs" : "Quantity"} type="number" min="0" step={inPacks ? "1" : "0.01"} value={row.qty} onChange={(e) => patchStock(target.key, location.id, "qty", e.target.value)} />
-                            {inPacks && row.qty !== "" ? <p className="mt-1 text-xs text-slate-500">= {Number(row.qty) * packSize} items</p> : null}
+                            <Input label={inPacks ? "Packs" : `Quantity (${unitShort(form.unit)})`} type="number" min="0" step={inPacks ? "1" : "0.01"} value={row.qty} onChange={(e) => patchStock(target.key, location.id, "qty", e.target.value)} />
+                            {inPacks && row.qty !== "" ? <p className="mt-1 text-xs text-slate-500">= {Number(row.qty) * packSize} {unitShort(form.unit)}</p> : null}
                           </div>
                           <Input label="Expiry (optional)" type="date" value={row.expiry_date} onChange={(e) => patchStock(target.key, location.id, "expiry_date", e.target.value)} />
                         </div>

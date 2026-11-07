@@ -13,6 +13,7 @@ import { PageHeader } from "../../ui/PageHeader.jsx"
 import { Select } from "../../ui/Select.jsx"
 import { PageLoader } from "../../ui/Spinner.jsx"
 import { useToast } from "../../ui/Toast.jsx"
+import { unitShort, withUnit } from "../../ui/units.js"
 
 /*
  * New stock movement (/movements/new) — the Bulk Stock Movements body:
@@ -87,8 +88,9 @@ function MovementItem({ index, item, onChange, onRemove, products, suppliers, lo
           label: variant.name,
           stocks: variant.stocks || [],
           packSize: packSizeOf(variant),
+          unit: product.unit,
         }))
-      : [{ key: "product", label: product.title, stocks: product.stocks || [], packSize: packSizeOf(product) }]
+      : [{ key: "product", label: product.title, stocks: product.stocks || [], packSize: packSizeOf(product), unit: product.unit }]
     onChange((current) => ({
       ...current,
       targets,
@@ -192,16 +194,18 @@ function MovementItem({ index, item, onChange, onRemove, products, suppliers, lo
                 <p className="mb-2 text-sm font-semibold text-slate-900">
                   <span className="mr-2 text-xs font-normal text-slate-400">#{target.key}</span>
                   {target.label}
-                  {target.packSize ? <span className="ml-2 text-xs font-normal text-slate-500">pack of {target.packSize}</span> : null}
+                  {target.packSize ? <span className="ml-2 text-xs font-normal text-slate-500">pack of {withUnit(target.packSize, target.unit)}</span> : null}
                 </p>
               ) : target.packSize ? (
-                <p className="mb-2 text-xs text-slate-500">Pack of {target.packSize}</p>
+                <p className="mb-2 text-xs text-slate-500">Pack of {withUnit(target.packSize, target.unit)}</p>
               ) : null}
               <div className="space-y-2">
                 {shownLocations.map((location) => {
                   const row = rowOf(target, location.id)
                   const inPacks = Boolean(target.packSize) && row.stock_unit === "pack"
-                  const nowQty = Number(target.stocks.find((stock) => stock.location_id === location.id)?.qty || 0)
+                  const stockHere = target.stocks.find((stock) => stock.location_id === location.id)
+                  const nowQty = Number(stockHere?.qty || 0)
+                  const lots = stockHere?.lots || []
                   return (
                     <div
                       key={location.id}
@@ -210,31 +214,40 @@ function MovementItem({ index, item, onChange, onRemove, products, suppliers, lo
                       <div className="col-span-2 md:col-span-1 md:pb-2.5">
                         <p className="text-sm font-medium text-slate-800">{location.name}</p>
                         <p className="text-xs text-slate-500">
-                          In stock: {nowQty}
+                          In stock: {withUnit(nowQty, target.unit)}
                           {target.packSize ? ` (${Math.floor(nowQty / target.packSize)} packs)` : ""}
                         </p>
                       </div>
                       {target.packSize ? (
                         <Select label="Qty in" value={row.stock_unit} onChange={(e) => patchQty(target, location.id, "stock_unit", e.target.value)}>
-                          <option value="pack">Packs (× {target.packSize})</option>
-                          <option value="unit">Loose items</option>
+                          <option value="pack">Packs (× {target.packSize} {unitShort(target.unit)})</option>
+                          <option value="unit">Loose ({unitShort(target.unit)})</option>
                         </Select>
                       ) : null}
                       <div>
                         <Input
-                          label={inPacks ? "Packs" : "Qty"}
+                          label={inPacks ? "Packs" : `Qty (${unitShort(target.unit)})`}
                           type="number"
                           min={item.movement_type === "adjustment" ? undefined : "0"}
                           step={inPacks ? "1" : "0.01"}
                           value={row.qty}
                           onChange={(e) => patchQty(target, location.id, "qty", e.target.value)}
                         />
-                        {inPacks && row.qty !== "" ? <p className="mt-1 text-xs text-slate-500">= {Number(row.qty) * target.packSize} items</p> : null}
+                        {inPacks && row.qty !== "" ? <p className="mt-1 text-xs text-slate-500">= {Number(row.qty) * target.packSize} {unitShort(target.unit)}</p> : null}
                       </div>
                       {item.movement_type === "stock_in" ? (
+                        // A new expiry date makes a new lot; the same date adds to that lot.
                         <Input label="Expiry (optional)" type="date" value={row.expiry_date} onChange={(e) => patchQty(target, location.id, "expiry_date", e.target.value)} />
                       ) : (
-                        <span className="hidden md:block" />
+                        // Stock out / adjustment: which lot (default: the one that expires first).
+                        <Select label="Lot" value={row.lot_id || ""} onChange={(e) => patchQty(target, location.id, "lot_id", e.target.value)}>
+                          <option value="">Soonest expiry first</option>
+                          {lots.map((lot) => (
+                            <option key={lot.id} value={lot.id}>
+                              #{lot.id} · {lot.qty} left · {lot.expiry_date ? `exp. ${lot.expiry_date}` : "no expiry"}
+                            </option>
+                          ))}
+                        </Select>
                       )}
                     </div>
                   )
@@ -295,6 +308,8 @@ export function StockMovementFormPage() {
             qty: Number(row.qty),
             ...(inPacks ? { stock_unit: "pack" } : {}),
             ...(row.expiry_date && item.movement_type === "stock_in" ? { expiry_date: row.expiry_date } : {}),
+            // The lot to take from (stock out / adjustment); left out = the one that expires first.
+            ...(row.lot_id && item.movement_type !== "stock_in" ? { lot_id: Number(row.lot_id) } : {}),
           }
         })
         .filter(Boolean)

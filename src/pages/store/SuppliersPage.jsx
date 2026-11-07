@@ -1,7 +1,9 @@
 import { useState } from "react"
-import { PageHeader } from "../../ui/PageHeader.jsx"
-import { Link } from "react-router-dom"
-import { MapPin, Pencil, Plus, Trash2, X } from "lucide-react"
+import { useNavigate } from "react-router-dom"
+import { Eye, Pencil, Plus, Trash2, X } from "lucide-react"
+import { PageHeader, StatCards } from "../../ui/PageHeader.jsx"
+import { DataTable } from "../../ui/DataTable.jsx"
+import { LocationScopePills } from "../../features/scope/LocationScopeField.jsx"
 import { useAuth } from "../../auth/AuthContext.jsx"
 import { useLocationsQuery } from "../../features/catalog/catalogQuery.jsx"
 import {
@@ -13,8 +15,6 @@ import { Button } from "../../ui/Button.jsx"
 import { Modal } from "../../ui/Modal.jsx"
 import { Checkbox } from "../../ui/Checkbox.jsx"
 import { Input, Textarea } from "../../ui/Input.jsx"
-import { Select } from "../../ui/Select.jsx"
-import { PageLoader } from "../../ui/Spinner.jsx"
 import { useToast } from "../../ui/Toast.jsx"
 import { Pill } from "../../ui/Pill.jsx"
 
@@ -33,8 +33,8 @@ export function SuppliersPage() {
   const { toast, confirmToast } = useToast()
   const { user } = useAuth()
   const isAdmin = user?.role === "store_admin"
-  const [locationFilter, setLocationFilter] = useState("")
-  const suppliersQuery = useSuppliersQuery(locationFilter ? { location_id: locationFilter } : {})
+  const navigate = useNavigate()
+  const suppliersQuery = useSuppliersQuery()
   const locationsQuery = useLocationsQuery({ enabled: isAdmin })
   const saveSupplier = useSaveSupplier()
   const deleteSupplier = useDeleteSupplier()
@@ -110,110 +110,115 @@ export function SuppliersPage() {
     }
   }
 
+  // Soft delete: the supplier leaves the list and can no longer be picked on a stock movement;
+  // movements and its ledger keep its name. Switching it off instead: Edit → Active.
   async function remove(row) {
     const ok = await confirmToast({
-      title: "Deactivate supplier?",
-      message: `${row.name} will be marked inactive.`,
-      confirmLabel: "Deactivate",
+      title: `Delete ${row.name}?`,
+      message: "It leaves the supplier list and can no longer be picked on a stock movement. Stock movements and its ledger keep its name. To only switch it off, use Edit → Active.",
+      confirmLabel: "Delete",
     })
     if (!ok) return
     try {
       await deleteSupplier.mutateAsync(row.id)
-      toast("Supplier deactivated")
+      toast(`${row.name} deleted`)
     } catch (err) {
       toast(err.message, "error")
     }
   }
 
+  const columns = [
+    {
+      key: "supplier_number",
+      header: "Supplier #",
+      sortValue: (row) => Number(row.supplier_number),
+      render: (row) => <span className="font-semibold text-slate-900">#{row.supplier_number}</span>,
+    },
+    {
+      key: "name",
+      header: "Name",
+      render: (row) => (
+        <div className="min-w-40">
+          <p className="font-semibold text-slate-900">{row.name}</p>
+          <p className="text-xs text-slate-500">{row.email || "No email"}</p>
+        </div>
+      ),
+    },
+    { key: "phone", header: "Phone", render: (row) => row.phone || "—" },
+    { key: "payment_terms", header: "Payment terms", render: (row) => row.payment_terms || "—" },
+    { key: "locations", header: "Supplies to", sortable: false, render: (row) => <div className="whitespace-nowrap"><LocationScopePills row={row} /></div> },
+    {
+      key: "is_active",
+      header: "Status",
+      sortValue: (row) => (row.is_active ? 1 : 0),
+      render: (row) => <Pill tone={row.is_active ? "emerald" : "rose"}>{row.is_active ? "Active" : "Off"}</Pill>,
+    },
+    {
+      key: "actions",
+      header: "",
+      sortable: false,
+      render: (row) => (
+        <div className="flex justify-end gap-1" onClick={(event) => event.stopPropagation()}>
+          <Button variant="icon" aria-label="View supplier" title="View" onClick={() => navigate(`/suppliers/${row.id}`)}>
+            <Eye className="h-4 w-4" />
+          </Button>
+          <Button variant="icon" aria-label="Edit supplier" title="Edit" onClick={() => openEdit(row)}>
+            <Pencil className="h-4 w-4" />
+          </Button>
+          <Button variant="icon" aria-label="Delete supplier" title="Delete" onClick={() => remove(row)}>
+            <Trash2 className="h-4 w-4 text-rose-600" />
+          </Button>
+        </div>
+      ),
+    },
+  ]
+
   return (
-    <section>
+    <section className="space-y-6">
       <PageHeader
         section="Inventory"
         title="Suppliers"
-        description={<>
-          {isAdmin
-            ? "Vendors, the branches they supply, and their ledgers."
-            : "Vendors that supply your branch."}
-        </>}
-        actions={<>
-          <div className="flex flex-wrap items-end gap-3">
-            {isAdmin ? (
-              <Select
-                label="Location"
-                className="min-w-48"
-                value={locationFilter}
-                onChange={(event) => setLocationFilter(event.target.value)}
-              >
-                <option value="">All locations</option>
-                {locations.map((row) => (
-                  <option key={row.id} value={row.id}>
-                    {row.name}
-                  </option>
-                ))}
-              </Select>
-            ) : null}
-            <Button onClick={openCreate}>
-              <Plus className="h-4 w-4" />
-              Add supplier
-            </Button>
-          </div>
-        </>}
-        className="mb-6"
+        description={isAdmin ? "Vendors, the branches they supply, and their ledgers." : "Vendors that supply your branch."}
+        actions={
+          <Button onClick={openCreate}>
+            <Plus className="h-4 w-4" />
+            Add supplier
+          </Button>
+        }
       />
 
-      {suppliersQuery.isPending ? <PageLoader label="Loading suppliers…" /> : null}
-      {suppliersQuery.error ? (
-        <p className="mb-4 text-sm text-rose-700">{suppliersQuery.error.message}</p>
-      ) : null}
+      <StatCards
+        items={[
+          { label: "Suppliers", value: rows.length },
+          { label: "Active", value: rows.filter((row) => row.is_active).length },
+          { label: "Switched off", value: rows.filter((row) => !row.is_active).length },
+          { label: "All locations", value: rows.filter((row) => row.location_scope !== "selected").length },
+        ]}
+      />
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {rows.map((row) => (
-          <article key={row.id} className="rounded-[28px] border border-slate-200 bg-white p-5">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <Link to={`/suppliers/${row.id}`} className="text-lg font-semibold text-slate-900 hover:text-brand-700">
-                  {row.name}
-                </Link>
-                <p className="text-sm text-slate-600">{row.phone || row.email || "No contact"}</p>
-              </div>
-              <Pill tone={row.is_active ? "emerald" : "rose"}>{row.is_active ? "Active" : "Off"}</Pill>
-            </div>
-            <div className="mt-3 flex flex-wrap gap-1.5">
-              {row.location_scope === "selected" ? (
-                (row.locations || []).map((location) => (
-                  <Pill key={location.id} tone="sky" dot={false}>
-                    <div className="flex items-center gap-1">
-                      <MapPin className="h-3 w-3" aria-hidden="true" />
-                      {location.name}
-                    </div>
-                  </Pill>
-                ))
-              ) : (
-                <Pill tone="brand" dot={false}>
-                  <div className="flex items-center gap-1">
-                    <MapPin className="h-3 w-3" aria-hidden="true" />
-                    All locations
-                  </div>
-                </Pill>
-              )}
-            </div>
-            {row.payment_terms ? <p className="mt-3 text-sm text-slate-500">Terms: {row.payment_terms}</p> : null}
-            <div className="mt-5 flex gap-2">
-              <Button variant="icon" aria-label="Edit supplier" onClick={() => openEdit(row)}>
-                <Pencil className="h-4 w-4" />
-              </Button>
-              <Button variant="icon" aria-label="Deactivate supplier" onClick={() => remove(row)}>
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </div>
-          </article>
-        ))}
-      </div>
-      {!suppliersQuery.isPending && !rows.length ? (
-        <p className="mt-8 text-sm text-slate-500">
-          {locationFilter ? "No suppliers deliver to this location." : "No suppliers yet."}
-        </p>
-      ) : null}
+      <DataTable
+        title="Suppliers"
+        columns={columns}
+        rows={rows}
+        loading={suppliersQuery.isPending}
+        error={suppliersQuery.error}
+        search={{ placeholder: "Search name, phone or email…", text: (row) => `${row.name} ${row.phone || ""} ${row.email || ""} ${row.supplier_number}` }}
+        filters={[
+          { key: "status", label: "Status", options: [{ value: "active", label: "Active" }, { value: "off", label: "Off" }], match: (row, value) => (row.is_active ? "active" : "off") === value },
+          ...(isAdmin && locations.length > 1
+            ? [{
+                key: "location",
+                label: "Supplies to",
+                options: locations.map((row) => ({ value: row.id, label: row.name })),
+                match: (row, value) => row.location_scope !== "selected" || (row.location_ids || []).includes(value),
+              }]
+            : []),
+        ]}
+        dateRange={{ label: "Added on", value: (row) => row.created_at }}
+        initialSort={{ key: "name", dir: "asc" }}
+        onRowClick={(row) => navigate(`/suppliers/${row.id}`)}
+        emptyText="No suppliers yet — add your first supplier."
+      />
 
       <Modal open={Boolean(showForm)} onClose={() => setShowForm(false)}>
         <form
