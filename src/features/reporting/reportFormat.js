@@ -72,6 +72,23 @@ export function isNumericKey(key) {
   return QTY_RE.test(name) || COUNT_RE.test(name) || MONEY_RE.test(name) || name.endsWith("percent") || name === "batch_number"
 }
 
+/**
+ * The columns of a table to right-align: the ones whose values are numbers. Decided from the
+ * values, not the name — "tax_rule" and "cashier" are text even though they contain "tax" / "cash".
+ */
+export function numericColumns(rows, columns) {
+  const looksNumeric = (value) => typeof value === "number" || (typeof value === "string" && /^-?d+(.d+)?$/.test(value.trim()))
+  return new Set(
+    columns.filter((key) => {
+      const values = rows.map((row) => row[key]).filter((value) => value !== null && value !== undefined && value !== "")
+      if (!values.length) return false
+      if (values.every((value) => typeof value === "number")) return true
+      // Numbers sent as text ("12.50"): numeric only when the name says so too.
+      return isNumericKey(key) && values.every(looksNumeric)
+    })
+  )
+}
+
 export function formatValue(key, value, row = null) {
   if (value === null || value === undefined || value === "") return "—"
   if (typeof value === "boolean") return value ? "Yes" : "No"

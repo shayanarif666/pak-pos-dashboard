@@ -40,7 +40,7 @@ import { getReportingOverview, getReportingSection } from "../../api/reports.js"
 import { toDateInput } from "../../features/reports/dateRange.js"
 import { ReportFilters, activeFilters } from "../../features/reporting/ReportFilters.jsx"
 import { BRAND, ChartCard, ColumnChart, ComparisonBars, HBarChart, Heatmap, ShareBar, methodColor } from "../../features/reports/ReportCharts.jsx"
-import { columnLabel, columnsOf, flattenSummary, formatValue, isNumericKey, summaryLabel, toneOf } from "../../features/reporting/reportFormat.js"
+import { columnLabel, columnsOf, flattenSummary, formatValue, numericColumns, summaryLabel, toneOf } from "../../features/reporting/reportFormat.js"
 import { useClockOut, useCloseBatch } from "../../features/lists/listQueries.js"
 import { inputToIso, nowInput } from "../../features/lists/StaffLocationFields.jsx"
 import { formatCurrency, formatNumber } from "../../ui/Currency.jsx"
@@ -151,6 +151,8 @@ function ReportTable({ section, name, base, search, title, rowAction }) {
   const table = query.data?.tables?.[name] || { rows: [], pagination: { page: 1, total: 0, total_pages: 1 } }
   const rows = table.rows || []
   const columns = useMemo(() => columnsOf(rows), [rows])
+  // Numbers are right-aligned, text (names, rules, statuses) left.
+  const numeric = useMemo(() => numericColumns(rows, columns), [rows, columns])
   const { total, total_pages: pages } = table.pagination
   const hasActions = rowAction && rows.some((row) => rowAction(row))
 
@@ -166,7 +168,7 @@ function ReportTable({ section, name, base, search, title, rowAction }) {
             <thead className={ui.thead}>
               <tr>
                 {columns.map((key) => (
-                  <th key={key} className={`${ui.th} ${isNumericKey(key) ? "text-right" : ""}`}>{columnLabel(key)}</th>
+                  <th key={key} className={`${ui.th} ${numeric.has(key) ? "text-right" : ""}`}>{columnLabel(key)}</th>
                 ))}
                 {hasActions ? <th className={`${ui.th} text-right`}>Actions</th> : null}
               </tr>
@@ -175,7 +177,7 @@ function ReportTable({ section, name, base, search, title, rowAction }) {
               {rows.map((row, index) => (
                 <tr key={index} className={ui.tr}>
                   {columns.map((key, col) => (
-                    <td key={key} className={`${ui.td} whitespace-nowrap ${isNumericKey(key) ? "text-right tabular-nums" : ""} ${toneOf(key, row[key])}`}>
+                    <td key={key} className={`${ui.td} whitespace-nowrap ${numeric.has(key) ? "text-right tabular-nums" : ""} ${toneOf(key, row[key])}`}>
                       <Cell name={key} row={row} first={col === 0} />
                     </td>
                   ))}
