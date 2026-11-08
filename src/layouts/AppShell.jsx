@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom"
-import { ChevronDown, ChevronRight, LogOut, MapPin, Menu, ShieldCheck, Store, X } from "lucide-react"
+import { ChevronDown, ChevronRight, LogOut, MapPin, Menu, PanelLeftClose, PanelLeftOpen, ShieldCheck, Store, X } from "lucide-react"
 import { useAuth } from "../auth/AuthContext.jsx"
 import { ROLE_LABEL } from "../auth/roles.js"
 import { ErrorBoundary } from "../ui/ErrorBoundary.jsx"
@@ -9,6 +9,22 @@ import { isStoreStaff } from "../auth/roles.js"
 import { DashboardLocationProvider, LocationScopeSwitcher } from "../features/scope/DashboardLocation.jsx"
 
 const SIGN_OUT_DELAY_MS = 900
+// Laptop / desktop: the sidebar can fold to icons only. The choice is remembered in this browser.
+const COLLAPSE_KEY = "dashboard.sidebarCollapsed"
+function readCollapsed() {
+  try {
+    return localStorage.getItem(COLLAPSE_KEY) === "1"
+  } catch {
+    return false
+  }
+}
+function saveCollapsed(value) {
+  try {
+    localStorage.setItem(COLLAPSE_KEY, value ? "1" : "0")
+  } catch {
+    // Private window / blocked storage: it just does not stay folded after a reload.
+  }
+}
 
 function initialsOf(name) {
   const parts = String(name || "").trim().split(/\s+/).filter(Boolean)
@@ -40,9 +56,32 @@ function SidebarLink({ item, items, onNavigate, nested = false }) {
   )
 }
 
-function NavGroup({ group, items, open, onToggle, onNavigate }) {
+function NavGroup({ group, items, open, onToggle, onNavigate, collapsed = false }) {
   const { pathname } = useLocation()
   const containsActive = group.items.some((item) => isNavItemActive(pathname, item, items))
+
+  // Folded sidebar: just the icon. A single page opens right away; a group unfolds the sidebar
+  // (and opens that group) so its pages can be picked.
+  if (collapsed) {
+    const Icon = group.icon
+    const box = [
+      "mx-auto flex h-11 w-11 items-center justify-center rounded-xl transition-colors duration-150",
+      containsActive ? "bg-brand-700 text-white" : "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
+    ].join(" ")
+    if (group.single) {
+      const item = group.items[0]
+      return (
+        <NavLink to={item.to} end={item.end} onClick={onNavigate} title={group.title} aria-label={group.title} aria-current={containsActive ? "page" : undefined} className={box}>
+          <Icon className="h-[20px] w-[20px]" strokeWidth={1.9} />
+        </NavLink>
+      )
+    }
+    return (
+      <button type="button" onClick={onToggle} title={group.title} aria-label={group.title} className={box}>
+        <Icon className="h-[20px] w-[20px]" strokeWidth={1.9} />
+      </button>
+    )
+  }
 
   if (group.single) {
     const item = group.items[0]
@@ -115,7 +154,7 @@ function NavGroup({ group, items, open, onToggle, onNavigate }) {
 }
 
 /** Top of the sidebar: the store (or platform) and the location the user works at. */
-function SidebarHeader() {
+function SidebarHeader({ collapsed = false, onToggleCollapse = null }) {
   const { user, store, location } = useAuth()
   const isPlatform = user.role === "superadmin"
   const name = isPlatform ? "Platform" : store?.name || "Store"
@@ -125,27 +164,65 @@ function SidebarHeader() {
       ? "All locations"
       : location?.name || "Assigned location"
 
+  const logo = (
+    <span title={`${name} · ${place}`} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-700 text-white">
+      {isPlatform ? <ShieldCheck className="h-5 w-5" /> : <Store className="h-5 w-5" />}
+    </span>
+  )
+  if (collapsed) {
+    return (
+      <div className="flex flex-col items-center gap-3 border-b border-slate-200 px-2 py-4">
+        {logo}
+        {onToggleCollapse ? (
+          <button type="button" onClick={onToggleCollapse} aria-label="Expand sidebar" title="Expand sidebar" className="rounded-lg p-1.5 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900">
+            <PanelLeftOpen className="h-5 w-5" />
+          </button>
+        ) : null}
+      </div>
+    )
+  }
   return (
     <div className="flex items-center gap-3 border-b border-slate-200 px-5 py-5">
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-700 text-white">
-        {isPlatform ? <ShieldCheck className="h-5 w-5" /> : <Store className="h-5 w-5" />}
-      </span>
-      <div className="min-w-0">
+      {logo}
+      <div className="min-w-0 flex-1">
         <p className="truncate text-base font-bold leading-tight text-slate-950">{name}</p>
         <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-slate-500">
           <MapPin className="h-3 w-3 shrink-0" />
           {place}
         </p>
       </div>
+      {onToggleCollapse ? (
+        <button type="button" onClick={onToggleCollapse} aria-label="Collapse sidebar" title="Collapse sidebar" className="shrink-0 rounded-lg p-1.5 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900">
+          <PanelLeftClose className="h-5 w-5" />
+        </button>
+      ) : null}
     </div>
   )
 }
 
 /** Bottom of the sidebar: the signed-in user (opens the profile) and sign out. */
-function SidebarUser({ onNavigate, onSignOut }) {
+function SidebarUser({ onNavigate, onSignOut, collapsed = false }) {
   const { user } = useAuth()
   const { pathname } = useLocation()
   const active = pathname === "/profile"
+  if (collapsed) {
+    return (
+      <div className="flex flex-col items-center gap-2 border-t border-slate-200 p-3">
+        <NavLink
+          to="/profile"
+          onClick={onNavigate}
+          title={`${user.name} · ${ROLE_LABEL[user.role]}`}
+          aria-label="Profile"
+          className={["flex h-10 w-10 items-center justify-center rounded-full bg-brand-700 text-sm font-bold text-white", active ? "ring-2 ring-brand-700 ring-offset-2" : ""].join(" ")}
+        >
+          {initialsOf(user.name)}
+        </NavLink>
+        <button type="button" onClick={onSignOut} aria-label="Sign out" title="Sign out" className="rounded-xl p-2 text-slate-500 transition hover:bg-rose-50 hover:text-rose-700">
+          <LogOut className="h-[18px] w-[18px]" />
+        </button>
+      </div>
+    )
+  }
   return (
     <div className="border-t border-slate-200 p-3">
       <div className={["flex items-center gap-2 rounded-2xl p-2 transition", active ? "bg-slate-100" : "hover:bg-slate-50"].join(" ")}>
@@ -173,7 +250,7 @@ function SidebarUser({ onNavigate, onSignOut }) {
   )
 }
 
-function Sidebar({ onNavigate, onSignOut }) {
+function Sidebar({ onNavigate, onSignOut, collapsed = false, onToggleCollapse = null, onExpand = null }) {
   const { user } = useAuth()
   const { pathname } = useLocation()
   const groups = navForRole(user.role)
@@ -189,22 +266,31 @@ function Sidebar({ onNavigate, onSignOut }) {
 
   return (
     <div className="flex h-full flex-col bg-white">
-      <SidebarHeader />
+      <SidebarHeader collapsed={collapsed} onToggleCollapse={onToggleCollapse} />
 
-      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
+      <nav className={["flex-1 overflow-y-auto px-3 py-4", collapsed ? "space-y-2" : "space-y-1"].join(" ")}>
         {groups.map((group) => (
           <NavGroup
             key={group.title}
             group={group}
             items={items}
             open={openGroup === group.title}
-            onToggle={() => setOpenGroup((current) => (current === group.title ? null : group.title))}
+            collapsed={collapsed}
+            onToggle={() => {
+              // Folded: the click unfolds the sidebar and opens this group.
+              if (collapsed) {
+                setOpenGroup(group.title)
+                onExpand?.()
+              } else {
+                setOpenGroup((current) => (current === group.title ? null : group.title))
+              }
+            }}
             onNavigate={onNavigate}
           />
         ))}
       </nav>
 
-      <SidebarUser onNavigate={onNavigate} onSignOut={onSignOut} />
+      <SidebarUser onNavigate={onNavigate} onSignOut={onSignOut} collapsed={collapsed} />
     </div>
   )
 }
@@ -242,6 +328,12 @@ export function AppShell() {
   const { pathname } = useLocation()
   const [open, setOpen] = useState(false)
   const [signingOut, setSigningOut] = useState(false)
+  // Laptop / desktop only: the sidebar folded to icons.
+  const [collapsed, setCollapsed] = useState(readCollapsed)
+  const setFolded = (value) => {
+    setCollapsed(value)
+    saveCollapsed(value)
+  }
 
   async function handleSignOut() {
     if (signingOut) return
@@ -258,8 +350,8 @@ export function AppShell() {
   return (
     <DashboardLocationProvider>
     <div className="min-h-screen bg-white text-slate-900">
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-72 border-r border-slate-200 lg:block">
-        <Sidebar onSignOut={handleSignOut} />
+      <aside className={["fixed inset-y-0 left-0 z-30 hidden border-r border-slate-200 transition-[width] duration-200 lg:block", collapsed ? "w-20" : "w-72"].join(" ")}>
+        <Sidebar onSignOut={handleSignOut} collapsed={collapsed} onToggleCollapse={() => setFolded(!collapsed)} onExpand={() => setFolded(false)} />
       </aside>
 
       {open ? (
@@ -284,7 +376,7 @@ export function AppShell() {
         </div>
       ) : null}
 
-      <div className="lg:pl-72">
+      <div className={["transition-[padding] duration-200", collapsed ? "lg:pl-20" : "lg:pl-72"].join(" ")}>
         <header className="sticky top-0 z-20 flex items-center gap-3 border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur lg:hidden">
           <button
             type="button"
