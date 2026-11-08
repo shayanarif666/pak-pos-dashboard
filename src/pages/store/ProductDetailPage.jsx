@@ -413,6 +413,9 @@ export function ProductDetailPage() {
             <Row label="Product taxes" value={taxList(taxes)} />
             <Row label="Taxes page taxes" value={taxList(product.store_taxes)} />
             <Row label="Product discount" value={rule(product.discount_type, product.discount_value, product.discount_name)} />
+            {product.discount_type && product.discount_applies_to && product.discount_applies_to !== "all" ? (
+              <Row label="Discount on" value={{ pack: "Pack", loose: "Loose item", weight: "Weight" }[product.discount_applies_to] || product.discount_applies_to} />
+            ) : null}
             <div className="mt-2 border-t border-slate-100 pt-2">
               <Row label="Category tax" value={rule(category?.tax_type, category?.tax_value, category?.tax_name)} />
               <Row label="Category discount" value={rule(category?.discount_type, category?.discount_value, category?.discount_name)} />

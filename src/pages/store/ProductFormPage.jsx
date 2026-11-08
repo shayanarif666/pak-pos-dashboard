@@ -13,6 +13,7 @@ import { LocationScopeField } from "../../features/scope/LocationScopeField.jsx"
 import { generateBarcode } from "../../features/catalog/barcode.js"
 import {
   PRODUCT_UNITS,
+  discountAppliesToOptions,
   emptyOpeningStock,
   emptyProductForm,
   emptyTax,
@@ -417,7 +418,7 @@ export function ProductFormPage() {
         </Section>
 
         {hasVariants ? null : (
-        <Section title="Price" description="A loose item is priced per unit; a pack product by the whole pack (the unit price is pack price ÷ pack size).">
+        <Section title="Price" description="A loose item is priced per unit; a pack product by the whole pack. A pack that is also sold as single units has its own unit cost and price (80 a unit in a pack of 10 at 500 is fine).">
           <div className="mb-4 inline-flex rounded-xl border border-slate-200 p-1">
             {[
               { value: false, label: "Loose item" },
@@ -454,6 +455,38 @@ export function ProductFormPage() {
             ) : null}
             <Checkbox label="Sold by weight (kg)" checked={form.is_weight_based} onChange={(e) => patch("is_weight_based", e.target.checked)} />
           </div>
+          {form.is_pack_product && form.sell_loose ? (
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <Input label={`Unit cost (per 1 ${unitShort(form.unit)} sold loose)`} type="number" min="0" step="0.01" required value={form.cost} onChange={(e) => patch("cost", e.target.value)} />
+              <Input label={`Unit price (per 1 ${unitShort(form.unit)} sold loose)`} type="number" min="0" step="0.01" required value={form.price} onChange={(e) => patch("price", e.target.value)} />
+            </div>
+          ) : null}
+        </Section>
+        )}
+
+        {hasVariants ? null : (
+        <Section title="Discount" description="A product level discount. The category discount and the order discounts are separate.">
+          <div className="grid gap-4 md:grid-cols-4">
+            <Select label="Discount type" value={form.discount_type} onChange={(e) => patch("discount_type", e.target.value)}>
+              <option value="">None</option>
+              <option value="percentage">Percentage (%)</option>
+              <option value="fixed">Fixed (Rs per unit)</option>
+            </Select>
+            {form.discount_type ? (
+              <>
+                <Input label={form.discount_type === "percentage" ? "Discount (%)" : "Discount (Rs)"} type="number" min="0" step="0.01" value={form.discount_value} onChange={(e) => patch("discount_value", e.target.value)} />
+                <Input label="Discount name" value={form.discount_name} onChange={(e) => patch("discount_name", e.target.value)} placeholder="Eid special" />
+                {discountAppliesToOptions(form).length > 1 ? (
+                  <Select label="Discount on" value={discountAppliesToOptions(form).some((option) => option.value === form.discount_applies_to) ? form.discount_applies_to : "all"} onChange={(e) => patch("discount_applies_to", e.target.value)}>
+                    {discountAppliesToOptions(form).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                  </Select>
+                ) : null}
+              </>
+            ) : null}
+          </div>
+          {form.discount_type && discountAppliesToOptions(form).length > 1 ? (
+            <p className="mt-3 text-xs text-slate-500">This product is sold in more than one way: choose whether the discount is on the pack, the loose item, the weight, or all of them.</p>
+          ) : null}
         </Section>
         )}
 

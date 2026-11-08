@@ -1,26 +1,18 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   createCoupon,
-  createOffer,
-  deleteOffer,
   getCoupon,
-  getOffer,
   listCouponRedemptions,
   listCoupons,
-  listOffers,
   listReviews,
   moderateReview,
-  replaceOfferTargets,
   updateCoupon,
-  updateOffer,
   validateCoupon,
 } from "../../api/promotions.js"
 import { unwrap } from "../../lib/query.js"
 
 export const promotionKeys = {
   all: ["promotions"],
-  offers: (filters = {}) => ["promotions", "offers", filters],
-  offer: (id) => ["promotions", "offer", id],
   coupons: (filters = {}) => ["promotions", "coupons", filters],
   coupon: (id) => ["promotions", "coupon", id],
   redemptions: (id) => ["promotions", "coupon", id, "redemptions"],
@@ -32,43 +24,6 @@ export function useInvalidatePromotions() {
   return function invalidatePromotions() {
     return queryClient.invalidateQueries({ queryKey: promotionKeys.all })
   }
-}
-
-export function useOffersQuery(filters = {}) {
-  return useQuery({
-    queryKey: promotionKeys.offers(filters),
-    queryFn: async () => unwrap(await listOffers(filters)) || [],
-  })
-}
-
-export function useOfferQuery(id, options = {}) {
-  return useQuery({
-    queryKey: promotionKeys.offer(id),
-    queryFn: async () => unwrap(await getOffer(id)),
-    enabled: Boolean(id) && options.enabled !== false,
-  })
-}
-
-export function useSaveOffer() {
-  const invalidatePromotions = useInvalidatePromotions()
-  return useMutation({
-    mutationFn: async ({ id, body, targets }) => {
-      const json = id ? await updateOffer(id, body) : await createOffer(body)
-      const offerId = json.data?.id || id
-      if (offerId && targets) await replaceOfferTargets(offerId, targets)
-      return json
-    },
-    onSuccess: invalidatePromotions,
-  })
-}
-
-/** Soft delete a discount (it leaves the list and the POS). */
-export function useDeleteOffer() {
-  const invalidatePromotions = useInvalidatePromotions()
-  return useMutation({
-    mutationFn: (id) => deleteOffer(id),
-    onSuccess: invalidatePromotions,
-  })
 }
 
 export function useCouponsQuery(filters = {}) {

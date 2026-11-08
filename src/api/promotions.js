@@ -1,4 +1,4 @@
-import { apiDelete, apiGet, apiPatch, apiPost, apiPut, withQuery } from "../lib/http.js"
+import { apiGet, apiPatch, apiPost, withQuery } from "../lib/http.js"
 
 const auth = { auth: true }
 
@@ -8,35 +8,6 @@ export function listCustomerCredit(customerId) {
 
 export function addCustomerCredit(customerId, body) {
   return apiPost(`/api/v1/customers/${customerId}/credit`, body, auth)
-}
-
-export function listOffers(params = {}) {
-  return apiGet(withQuery("/api/v1/offers", params), auth)
-}
-
-export function getOffer(id) {
-  return apiGet(`/api/v1/offers/${id}`, auth)
-}
-
-export function createOffer(body) {
-  return apiPost("/api/v1/offers", body, auth)
-}
-
-export function updateOffer(id, body) {
-  return apiPatch(`/api/v1/offers/${id}`, body, auth)
-}
-
-/** Soft delete a discount (it leaves the list and the POS). Switching it off is PATCH is_active. */
-export function deleteOffer(id) {
-  return apiDelete(`/api/v1/offers/${id}`, auth)
-}
-
-export function listOfferTargets(id) {
-  return apiGet(`/api/v1/offers/${id}/targets`, auth)
-}
-
-export function replaceOfferTargets(id, targets) {
-  return apiPut(`/api/v1/offers/${id}/targets`, { targets }, auth)
 }
 
 export function listCoupons(params = {}) {

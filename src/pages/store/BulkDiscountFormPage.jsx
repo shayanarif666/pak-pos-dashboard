@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom"
 import { ArrowLeft, Search } from "lucide-react"
 import { useAuth } from "../../auth/AuthContext.jsx"
 import { useCategoriesQuery, useLocationsQuery, useProductsQuery } from "../../features/catalog/catalogQuery.jsx"
-import { useOfferQuery, useSaveOffer } from "../../features/promotions/promotionQuery.js"
+import { useBulkDiscountQuery as useOfferQuery, useSaveBulkDiscount as useSaveOffer } from "../../features/discounts/discountQuery.js"
 import { LocationScopeField } from "../../features/scope/LocationScopeField.jsx"
 import { formatCurrency } from "../../ui/Currency.jsx"
 import { Button } from "../../ui/Button.jsx"
@@ -14,31 +14,20 @@ import { Select } from "../../ui/Select.jsx"
 import { PageLoader } from "../../ui/Spinner.jsx"
 import { Switch } from "../../ui/Switch.jsx"
 import { useToast } from "../../ui/Toast.jsx"
-import { TYPE_LABEL } from "./OffersPage.jsx"
 
 /*
- * Add and edit a discount on its own page (/discounts/new, /discounts/:id/edit): the same body as
- * the Bulk Offer Creation payload, with room for every product's single item / pack choice.
+ * Add and edit a bulk discount (buy X, get Y free) on its own page (/bulk-discounts/new,
+ * /bulk-discounts/:id/edit): the POST /bulk-discounts body, with room for every product's single
+ * item / pack choice. The type is always bogo, so it is not sent.
  */
-
-const TYPE_HINT = {
-  promotional: "A percentage or fixed amount off.",
-  flash_sale: "A sale price per product (or a % / amount off for categories).",
-  bulk_discount: "Off when the customer buys at least the minimum quantity.",
-  bogo: "Buy some, get some free.",
-}
 
 const emptyForm = {
   name: "",
-  type: "promotional",
-  discount_type: "percentage",
-  discount_value: "",
-  min_qty: "",
+  type: "bogo",
   buy_qty: "",
   get_qty: "",
   // Pack products: the discount's default (categories), and how min / buy / get are counted.
   sale_unit: "both",
-  min_qty_unit: "unit",
   buy_unit: "unit",
   get_unit: "unit",
   start_at: "",
@@ -134,7 +123,7 @@ function Section({ title, description, children }) {
   )
 }
 
-export function DiscountFormPage() {
+export function BulkDiscountFormPage() {
   const { id } = useParams()
   const editingId = id || null
   const navigate = useNavigate()
@@ -186,14 +175,10 @@ export function DiscountFormPage() {
   function formOf(row) {
     return {
       name: row.name || "",
-      type: row.type || "promotional",
-      discount_type: row.discount_type || "percentage",
-      discount_value: row.discount_value ?? "",
-      min_qty: row.min_qty ?? "",
+      type: "bogo",
       buy_qty: row.buy_qty ?? "",
       get_qty: row.get_qty ?? "",
       sale_unit: row.sale_unit || "both",
-      min_qty_unit: row.min_qty_unit || "unit",
       buy_unit: row.buy_unit || "unit",
       get_unit: row.get_unit || "unit",
       start_at: toLocalInput(row.start_at),
@@ -213,18 +198,12 @@ export function DiscountFormPage() {
   }
 
   function buildBody() {
-    const usesDiscount = form.type === "promotional" || form.type === "bulk_discount" || (form.type === "flash_sale" && form.discount_value !== "")
     return {
       name: form.name.trim(),
-      type: form.type,
-      discount_type: usesDiscount ? form.discount_type : null,
-      discount_value: usesDiscount ? Number(form.discount_value) : null,
-      min_qty: form.type === "bulk_discount" ? Number(form.min_qty) : null,
-      min_qty_unit: form.type === "bulk_discount" ? form.min_qty_unit : "unit",
-      buy_qty: form.type === "bogo" ? Number(form.buy_qty) : null,
-      buy_unit: form.type === "bogo" ? form.buy_unit : "unit",
-      get_qty: form.type === "bogo" ? Number(form.get_qty) : null,
-      get_unit: form.type === "bogo" ? form.get_unit : "unit",
+      buy_qty: Number(form.buy_qty),
+      buy_unit: form.buy_unit,
+      get_qty: Number(form.get_qty),
+      get_unit: form.get_unit,
       sale_unit: form.sale_unit,
       products: form.products.map((p) => {
         const product = productById.get(p.product_id)
@@ -233,9 +212,7 @@ export function DiscountFormPage() {
           product_id: p.product_id,
           // A pack product: single item, full pack or both.
           ...(isPack(product) ? { sale_unit: unit } : {}),
-          ...(form.type === "flash_sale" && p.promo_price !== "" && unit !== "pack" ? { promo_price: Number(p.promo_price) } : {}),
-          ...(form.type === "flash_sale" && p.promo_pack_price !== "" && unit !== "unit" ? { promo_pack_price: Number(p.promo_pack_price) } : {}),
-          ...(form.type === "bogo" && p.free_product_id ? { free_product_id: p.free_product_id } : {}),
+          ...(p.free_product_id ? { free_product_id: p.free_product_id } : {}),
         }
       }),
       categories: form.categories,
@@ -252,23 +229,7 @@ export function DiscountFormPage() {
   function formError() {
     if (!form.name.trim()) return "Give the discount a name."
     if (!form.products.length && !form.categories.length) return "Pick at least one product or category."
-    if ((form.type === "promotional" || form.type === "bulk_discount") && form.discount_value === "") return "Enter the discount value."
-    if (form.type === "bulk_discount" && !(Number(form.min_qty) > 0)) return "Enter the minimum quantity."
-    if (form.type === "bogo" && !(Number(form.buy_qty) > 0 && Number(form.get_qty) > 0)) return "Enter buy and get quantities."
-    if (form.type === "flash_sale") {
-      const hasDiscount = form.discount_value !== ""
-      if (form.categories.length && !hasDiscount) return "A flash sale on categories needs a % or amount off."
-      if (!hasDiscount) {
-        for (const p of form.products) {
-          const product = productById.get(p.product_id)
-          const unit = effectiveSaleUnit(product, p.sale_unit, form.sale_unit)
-          const name = product?.title || "A product"
-          if (unit !== "pack" && p.promo_price === "") return `${name}: give its sale price (single item), or a % / amount off.`
-          if (unit !== "unit" && p.promo_pack_price === "") return `${name}: give its pack sale price, or a % / amount off.`
-        }
-      }
-    }
-    if (form.discount_type === "percentage" && Number(form.discount_value) > 100) return "A percentage cannot be over 100."
+    if (!(Number(form.buy_qty) > 0 && Number(form.get_qty) > 0)) return "Enter buy and get quantities."
     if (form.start_at && form.end_at && form.end_at < form.start_at) return "The end must be after the start."
     if (isAdmin && form.location_scope === "selected" && !form.location_ids.length) return "Pick at least one location, or choose All locations."
     return ""
@@ -281,8 +242,8 @@ export function DiscountFormPage() {
     setError("")
     try {
       await saveOffer.mutateAsync({ id: editingId, body: buildBody() })
-      toast(editingId ? "Discount updated" : "Discount created")
-      navigate("/discounts")
+      toast(editingId ? "Bulk discount updated" : "Bulk discount created")
+      navigate("/bulk-discounts")
     } catch (err) {
       setError(err.message)
     }
@@ -305,89 +266,47 @@ export function DiscountFormPage() {
   // The discount's own unit / pack / both matters for categories (their pack products).
   const selectedPack = form.products.some((p) => isPack(productById.get(p.product_id)))
   const categoryOptions = categories.map((row) => ({ id: row.id, label: row.name }))
-  const usesDiscountFields = form.type !== "bogo"
 
   if (editingId && (offerQuery.isPending || !loaded)) {
     if (offerQuery.error) return <p className="text-sm text-rose-700">{offerQuery.error.message}</p>
-    return <PageLoader label="Loading discount…" />
+    return <PageLoader label="Loading bulk discount…" />
   }
 
   return (
     <section className="space-y-6">
-      <Link to="/discounts" className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-brand-700">
+      <Link to="/bulk-discounts" className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-brand-700">
         <ArrowLeft className="h-4 w-4" />
-        Back to discounts
+        Back to bulk discounts
       </Link>
       <PageHeader
-        section="Promotions"
-        title={editingId ? `Edit ${offer?.name || "discount"}` : "New discount"}
-        description={editingId ? `Discount #${offer?.offer_number}` : "Sales on several products and categories at once."}
+        section="Discounts"
+        title={editingId ? `Edit ${offer?.name || "bulk discount"}` : "New bulk discount"}
+        description={editingId ? `Bulk discount #${offer?.offer_number}` : "Buy some, get some free: on several products and categories at once."}
       />
 
       <form onSubmit={save} className="space-y-6">
       <div className="space-y-6">
-        <Section title="Discount" description="Its name, its kind and how much comes off.">
+        <Section title="Bulk discount" description="Its name and what the customer buys and gets free.">
+        <Input label="Name" required value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="Buy 2 get 1 free" />
         <div className="grid gap-4 md:grid-cols-2">
-          <Input label="Name" required value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="Eid Sale 10%" />
-          <Select label="Type" value={form.type} onChange={(e) => set("type", e.target.value)}>
-            {Object.entries(TYPE_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-          </Select>
+          <div className="flex items-end gap-2">
+            <Input label="Buy" type="number" min="1" step="1" required value={form.buy_qty} onChange={(e) => set("buy_qty", e.target.value)} className="min-w-0 flex-1" />
+            <Select label="Of" value={form.buy_unit} onChange={(e) => set("buy_unit", e.target.value)}>
+              <option value="unit">Single items</option>
+              <option value="pack">Packs</option>
+            </Select>
+          </div>
+          <div className="flex items-end gap-2">
+            <Input label="Get free" type="number" min="1" step="1" required value={form.get_qty} onChange={(e) => set("get_qty", e.target.value)} className="min-w-0 flex-1" />
+            <Select label="Of" value={form.get_unit} onChange={(e) => set("get_unit", e.target.value)}>
+              <option value="unit">Single items</option>
+              <option value="pack">Packs</option>
+            </Select>
+          </div>
         </div>
-        <p className="text-xs text-slate-500">{TYPE_HINT[form.type]}</p>
-
-        <div className="grid gap-4 md:grid-cols-3">
-          {usesDiscountFields ? (
-            <>
-              <Select label="Discount type" value={form.discount_type} onChange={(e) => set("discount_type", e.target.value)}>
-                <option value="percentage">Percentage (%)</option>
-                <option value="fixed">Fixed (Rs off)</option>
-              </Select>
-              <Input
-                label={form.type === "flash_sale" ? "Value (optional with sale prices)" : "Value"}
-                type="number"
-                min="0"
-                step="0.01"
-                value={form.discount_value}
-                onChange={(e) => set("discount_value", e.target.value)}
-              />
-            </>
-          ) : null}
-          {form.type === "bulk_discount" ? (
-            <div className="flex items-end gap-2">
-              <Input label="Minimum quantity" type="number" min="1" step="1" required value={form.min_qty} onChange={(e) => set("min_qty", e.target.value)} className="min-w-0 flex-1" />
-              <Select label="Counted in" value={form.min_qty_unit} onChange={(e) => set("min_qty_unit", e.target.value)}>
-                <option value="unit">Single items</option>
-                <option value="pack">Packs</option>
-              </Select>
-            </div>
-          ) : null}
-          {form.type === "bogo" ? (
-            <>
-              <div className="flex items-end gap-2">
-                <Input label="Buy" type="number" min="1" step="1" required value={form.buy_qty} onChange={(e) => set("buy_qty", e.target.value)} className="min-w-0 flex-1" />
-                <Select label="Of" value={form.buy_unit} onChange={(e) => set("buy_unit", e.target.value)}>
-                  <option value="unit">Single items</option>
-                  <option value="pack">Packs</option>
-                </Select>
-              </div>
-              <div className="flex items-end gap-2">
-                <Input label="Get free" type="number" min="1" step="1" required value={form.get_qty} onChange={(e) => set("get_qty", e.target.value)} className="min-w-0 flex-1" />
-                <Select label="Of" value={form.get_unit} onChange={(e) => set("get_unit", e.target.value)}>
-                  <option value="unit">Single items</option>
-                  <option value="pack">Packs</option>
-                </Select>
-              </div>
-            </>
-          ) : null}
-        </div>
-        {form.type === "bogo" ? (
-          <p className="text-xs text-slate-500">
-            e.g. buy 1 pack, get 1 single item free. Packs only count on pack products; others use single items.
-          </p>
-        ) : form.discount_type === "fixed" && usesDiscountFields ? (
-          <p className="text-xs text-slate-500">A fixed amount comes off each single item, or each pack when a pack is sold.</p>
-        ) : null}
-
+        <p className="text-xs text-slate-500">
+          e.g. buy 1 pack, get 1 single item free. Packs only count on pack products; others use single items.
+        </p>
         </Section>
 
         <Section title="Products and categories" description="Pick several of each. A pack product says whether the discount is for a single item, the full pack or both.">
@@ -410,7 +329,7 @@ export function DiscountFormPage() {
         {form.products.length ? (
           <div className="rounded-2xl border border-slate-200 p-4">
             <p className="mb-3 text-sm font-medium text-slate-700">
-              Selected products{form.type === "flash_sale" ? " · sale prices" : form.type === "bogo" ? " · free item (empty = the same product)" : ""}
+              Selected products · free item (empty = the same product)
             </p>
             <div className="space-y-3">
               {form.products.map((p) => {
@@ -436,16 +355,6 @@ export function DiscountFormPage() {
                         ) : (
                           <Pill tone="sky" dot={false}>Full pack only (not sold loose)</Pill>
                         )}
-                      </div>
-                    ) : null}
-                    {form.type === "flash_sale" ? (
-                      <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                        {unit !== "pack" ? (
-                          <Input label="Sale price (single item)" type="number" min="0" step="0.01" value={p.promo_price} onChange={(e) => patchProduct(p.product_id, "promo_price", e.target.value)} />
-                        ) : null}
-                        {pack && unit !== "unit" ? (
-                          <Input label={`Sale price (pack of ${product.pack_size})`} type="number" min="0" step="0.01" value={p.promo_pack_price} onChange={(e) => patchProduct(p.product_id, "promo_pack_price", e.target.value)} />
-                        ) : null}
                       </div>
                     ) : null}
                     {form.type === "bogo" ? (
@@ -490,10 +399,10 @@ export function DiscountFormPage() {
 
         {error ? <p className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</p> : null}
         <div className="flex justify-end gap-3">
-          <Link to="/discounts">
+          <Link to="/bulk-discounts">
             <Button variant="ghost" type="button">Cancel</Button>
           </Link>
-          <Button type="submit" disabled={saveOffer.isPending}>{saveOffer.isPending ? "Saving…" : editingId ? "Save discount" : "Create discount"}</Button>
+          <Button type="submit" disabled={saveOffer.isPending}>{saveOffer.isPending ? "Saving…" : editingId ? "Save bulk discount" : "Create bulk discount"}</Button>
         </div>
       </form>
     </section>

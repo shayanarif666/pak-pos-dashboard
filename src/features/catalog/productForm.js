@@ -51,6 +51,11 @@ export const emptyProductForm = {
   sell_loose: false,
   is_weight_based: false,
   low_stock_threshold: "10",
+  // The product level discount; discount_applies_to: all | pack | loose | weight.
+  discount_type: "",
+  discount_value: "",
+  discount_name: "",
+  discount_applies_to: "all",
   taxes: [],
   // The colours it comes in (hex codes); with variants each variant has its own.
   colors: [],
@@ -86,6 +91,10 @@ export function productToForm(product) {
     sell_loose: Boolean(product.sell_loose),
     is_weight_based: Boolean(product.is_weight_based),
     colors: product.colors || [],
+    discount_type: product.has_product_discount ? product.discount_type || "" : "",
+    discount_value: product.has_product_discount ? text(product.discount_value) : "",
+    discount_name: product.discount_name || "",
+    discount_applies_to: product.discount_applies_to || "all",
     low_stock_threshold: String(Math.round(Number(product.low_stock_threshold ?? 10)) || 0),
     taxes: (product.taxes || []).map((tax) => ({
       name: tax.name || "",
@@ -176,6 +185,9 @@ export function productFormError(form) {
     if (!(Number(form.pack_size) >= 2)) return "Pack size must be 2 or more."
     if (!(Number(form.pack_cost) > 0)) return "Pack cost is required."
     if (!(Number(form.pack_price) > 0)) return "Pack price is required."
+    // A pack that is also sold loose has its own unit cost and price (a loose item may cost more than pack price ÷ size).
+    if (form.sell_loose && (form.cost === "" || Number(form.cost) < 0)) return "Unit cost is required for the single units."
+    if (form.sell_loose && (form.price === "" || Number(form.price) < 0)) return "Unit price is required for the single units."
   } else if (form.cost === "" || Number(form.cost) < 0) {
     return "Cost is required."
   } else if (form.price === "" || Number(form.price) < 0) {
@@ -185,7 +197,23 @@ export function productFormError(form) {
     if (tax.value === "" || Number(tax.value) < 0) return `Tax ${index + 1}: enter its value.`
     if (tax.type === "percentage" && Number(tax.value) > 100) return `Tax ${index + 1}: a percentage cannot be over 100.`
   }
+  if (form.variants.length === 0 && form.discount_type) {
+    if (form.discount_value === "" || !(Number(form.discount_value) > 0)) return "Enter the discount value, or set the discount to None."
+    if (form.discount_type === "percentage" && Number(form.discount_value) > 100) return "A discount percentage cannot be over 100."
+  }
   return ""
+}
+
+/**
+ * What a product discount can be taken off, by how the product is sold: the pack, the loose
+ * item, the weight, or all of them. Only the ways this product is sold are listed.
+ */
+export function discountAppliesToOptions(form) {
+  const options = [{ value: "all", label: "All" }]
+  if (form.is_pack_product) options.push({ value: "pack", label: "Pack" })
+  if (!form.is_weight_based && (!form.is_pack_product || form.sell_loose)) options.push({ value: "loose", label: "Loose item" })
+  if (form.is_weight_based) options.push({ value: "weight", label: "Weight" })
+  return options
 }
 
 /**
@@ -241,9 +269,22 @@ export function productPayload(form, { withScope = false, stockFor = () => undef
     body.pack_size = Number(form.pack_size)
     body.pack_cost = Number(form.pack_cost)
     body.pack_price = Number(form.pack_price)
+    // A pack that is also sold loose: its own unit cost / price.
+    if (form.sell_loose) {
+      body.cost = Number(form.cost)
+      body.price = Number(form.price)
+    }
   } else {
     body.cost = Number(form.cost)
     body.price = Number(form.price)
+  }
+  if (!hasVariants) {
+    // The product level discount. None clears it (an empty type on edit).
+    const discount = Boolean(form.discount_type) && Number(form.discount_value) > 0
+    body.discount_type = discount ? form.discount_type : null
+    body.discount_value = discount ? Number(form.discount_value) : null
+    body.discount_name = discount ? form.discount_name.trim() || null : null
+    body.discount_applies_to = discount && discountAppliesToOptions(form).some((option) => option.value === form.discount_applies_to) ? form.discount_applies_to : "all"
   }
   if (!hasVariants && stockFor("product")) body.stock = stockFor("product")
   if (withScope) {

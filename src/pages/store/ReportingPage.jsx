@@ -300,13 +300,13 @@ function SectionCharts({ section, data }) {
       )
     case "offers":
       return (
-        <ChartCard title="Discount given by offer" subtitle="Hover for the sales and units it brought">
-          <HBarChart items={rowsOf("rows").map((row) => ({ label: row.offer?.name || "Offer", sub: `${formatNumber(row.orders)} orders · ${formatNumber(row.units)} units`, value: Number(row.discount_given || 0), extra: [["Sales", money(row.sales)], ["Free units", formatNumber(row.free_units || 0)]] }))} empty="No offer used in these dates" />
+        <ChartCard title="Discount given, by discount name" subtitle="Hover for the sales and units it brought">
+          <HBarChart items={rowsOf("rows").map((row) => ({ label: row.offer?.name || "Discount", sub: `${formatNumber(row.orders)} orders · ${formatNumber(row.units)} units`, value: Number(row.discount_given || 0), extra: [["Sales", money(row.sales)], ["Free units", formatNumber(row.free_units || 0)]] }))} empty="No discount used in these dates" />
         </ChartCard>
       )
     case "discounts":
       return (
-        <ChartCard title="Discount given by discount">
+        <ChartCard title="Discount given, by discount name">
           <HBarChart items={rowsOf("catalog").map((row) => ({ label: row.name, sub: `${row.amount} · ${formatNumber(row.used_orders || 0)} orders`, value: Number(row.discount_given || 0) }))} empty="No discount used in these dates" />
         </ChartCard>
       )

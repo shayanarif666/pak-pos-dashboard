@@ -14,8 +14,10 @@ import { ExpiryPage } from "./pages/store/ExpiryPage.jsx"
 import { InventoryPage } from "./pages/store/InventoryPage.jsx"
 import { LocationsPage } from "./pages/store/LocationsPage.jsx"
 import { MovementsPage } from "./pages/store/MovementsPage.jsx"
-import { DiscountsPage } from "./pages/store/OffersPage.jsx"
-import { DiscountFormPage } from "./pages/store/DiscountFormPage.jsx"
+import { DiscountsPage } from "./pages/store/OrderDiscountsPage.jsx"
+import { BulkDiscountsPage } from "./pages/store/BulkDiscountsPage.jsx"
+import { BulkDiscountFormPage } from "./pages/store/BulkDiscountFormPage.jsx"
+import { BundleDiscountsPage } from "./pages/store/BundleDiscountsPage.jsx"
 import { TransferFormPage } from "./pages/store/TransferFormPage.jsx"
 import { StockMovementFormPage } from "./pages/store/StockMovementFormPage.jsx"
 import { SurchargesPage } from "./pages/store/SurchargesPage.jsx"
@@ -142,8 +144,10 @@ export default function App() {
             <Route path="shifts" element={<Navigate to="/batches" replace />} />
             <Route path="discounts" element={<DiscountsPage />} />
             <Route path="taxes" element={<Navigate to="/settings/taxes" replace />} />
-            <Route path="discounts/new" element={<DiscountFormPage />} />
-            <Route path="discounts/:id/edit" element={<DiscountFormPage />} />
+            <Route path="bulk-discounts" element={<BulkDiscountsPage />} />
+            <Route path="bulk-discounts/new" element={<BulkDiscountFormPage />} />
+            <Route path="bulk-discounts/:id/edit" element={<BulkDiscountFormPage />} />
+            <Route path="bundle-discounts" element={<BundleDiscountsPage />} />
             <Route path="offers" element={<Navigate to="/discounts" replace />} />
             <Route path="coupons" element={<CouponsPage />} />
             <Route path="reviews" element={<ReviewsPage />} />

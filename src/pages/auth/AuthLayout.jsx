@@ -7,7 +7,7 @@ export const AUTH_FIELD =
 
 const FEATURES = [
   { icon: BarChart3, title: "Live reports", text: "Sales, profit and tax by day, month or year." },
-  { icon: Boxes, title: "Catalog & stock", text: "Products, offers and stock at every location." },
+  { icon: Boxes, title: "Catalog & stock", text: "Products, discounts and stock at every location." },
   { icon: MapPin, title: "Every branch", text: "Staff, devices and sessions per location." },
 ]
 

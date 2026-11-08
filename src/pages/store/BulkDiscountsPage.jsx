@@ -2,7 +2,7 @@ import { useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { Eye, Pencil, Plus, Trash2, X } from "lucide-react"
 import { useCategoriesQuery, useProductsQuery } from "../../features/catalog/catalogQuery.jsx"
-import { useDeleteOffer, useOffersQuery, useSaveOffer } from "../../features/promotions/promotionQuery.js"
+import { useBulkDiscountsQuery as useOffersQuery, useDeleteBulkDiscount as useDeleteOffer, useSaveBulkDiscount as useSaveOffer } from "../../features/discounts/discountQuery.js"
 import { LocationScopePills } from "../../features/scope/LocationScopeField.jsx"
 import { Currency, formatCurrency } from "../../ui/Currency.jsx"
 import { Button } from "../../ui/Button.jsx"
@@ -16,14 +16,13 @@ import { Switch } from "../../ui/Switch.jsx"
 import { useToast } from "../../ui/Toast.jsx"
 
 /*
- * Discounts (the API's offers): each one applies to several products and / or categories, built
- * the same way as the Bulk Offer Creation payload: { name, type, discount_type, discount_value,
- * products: [{ product_id, sale_unit?, promo_price?, promo_pack_price?, free_product_id? }],
- * categories: [ids], sale_unit, min_qty + min_qty_unit, buy_qty + buy_unit, get_qty + get_unit,
- * start_at, end_at, is_active, location_scope, location_ids }.
+ * Bulk Discounts (POST /bulk-discounts): buy X, get Y free. Each one applies to several products and / or
+ * categories: { name, products: [{ product_id, sale_unit?, free_product_id? }], categories: [ids],
+ * sale_unit, buy_qty + buy_unit, get_qty + get_unit, start_at, end_at, is_active, location_scope,
+ * location_ids }. The type is always bogo, so it is never sent.
  *
  * Pack products: each one says whether the discount is for a single item, the whole pack or both
- * (sale_unit); categories use the discount's own sale_unit. A fixed amount is per item or per pack.
+ * (sale_unit); categories use the discount's own sale_unit.
  */
 
 // On a pack product: what the discount applies to.
@@ -38,13 +37,7 @@ function effectiveSaleUnit(product, own, fallback) {
   return own || fallback || "both"
 }
 
-export const TYPE_LABEL = {
-  promotional: "Promotional",
-  flash_sale: "Flash sale",
-  bulk_discount: "Bulk discount",
-  bogo: "Buy X get Y (BOGO)",
-}
-
+const TYPE_LABEL = { bogo: "Buy X get Y" }
 
 /** Running now: switched on and inside its start / end window. */
 function offerState(row, now = Date.now()) {
@@ -88,7 +81,7 @@ function Info({ label, children }) {
   )
 }
 
-export function DiscountsPage() {
+export function BulkDiscountsPage() {
   const { toast, confirmToast } = useToast()
   const navigate = useNavigate()
   const deleteOffer = useDeleteOffer()
@@ -117,8 +110,8 @@ export function DiscountsPage() {
   }
 
   // Add / edit open their own page.
-  const openCreate = () => navigate("/discounts/new")
-  const openEdit = (row) => navigate(`/discounts/${row.id}/edit`)
+  const openCreate = () => navigate("/bulk-discounts/new")
+  const openEdit = (row) => navigate(`/bulk-discounts/${row.id}/edit`)
 
   async function toggleActive(row, next) {
     setToggling((current) => ({ ...current, [row.id]: true }))
@@ -220,15 +213,15 @@ export function DiscountsPage() {
   return (
     <section className="space-y-6">
       <PageHeader
-        section="Promotions"
-        title="Discounts"
-        description="Sales on several products and categories at once. Switch one off to stop it at checkout; switch it back on any time."
-        actions={<Button onClick={openCreate}><Plus className="h-4 w-4" /> Add discount</Button>}
+        section="Discounts"
+        title="Bulk Discounts"
+        description="Buy some, get some free: on several products and categories at once. Switch one off to stop it at checkout; switch it back on any time."
+        actions={<Button onClick={openCreate}><Plus className="h-4 w-4" /> Add bulk discount</Button>}
       />
 
       <StatCards
         items={[
-          { label: "Discounts", value: offers.length },
+          { label: "Bulk discounts", value: offers.length },
           { label: "Running now", value: offers.filter((row) => offerState(row, now) === "running").length },
           { label: "Scheduled", value: offers.filter((row) => offerState(row, now) === "scheduled").length },
           { label: "Inactive", value: offers.filter((row) => !row.is_active).length, hint: `${offers.filter((row) => offerState(row, now) === "expired").length} expired` },
@@ -236,21 +229,20 @@ export function DiscountsPage() {
       />
 
       <DataTable
-        title="Discounts"
+        title="Bulk discounts"
         columns={columns}
         rows={offers}
         loading={offersQuery.isPending}
         error={offersQuery.error}
         search={{ placeholder: "Search discount, product or category…", text: (row) => `${row.name} ${row.offer_number} ${appliesTo(row)}` }}
         filters={[
-          { key: "type", label: "Type", options: Object.entries(TYPE_LABEL).map(([value, label]) => ({ value, label })), match: (row, value) => row.type === value },
           { key: "status", label: "Status", options: Object.entries(STATE_PILL).map(([value, state]) => ({ value, label: state.label })), match: (row, value) => offerState(row, now) === value },
           { key: "apply_to", label: "Applies to", options: [{ value: "product", label: "Products" }, { value: "category", label: "Categories" }, { value: "mixed", label: "Both" }], match: (row, value) => row.apply_to === value },
         ]}
         dateRange={{ label: "Added on", value: (row) => row.created_at }}
         initialSort={{ key: "name", dir: "asc" }}
         onRowClick={(row) => setSelected(row)}
-        emptyText="No discounts yet."
+        emptyText="No bulk discounts yet."
       />
 
       <Modal open={Boolean(selected)} onClose={() => setSelected(null)}>
@@ -273,9 +265,7 @@ export function DiscountsPage() {
 
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               <Info label="Discount">{discountText(selected)}</Info>
-              <Info label="Discount type">{selected.discount_type || "—"}</Info>
               <Info label="Applies to">{selected.apply_to === "mixed" ? "Products and categories" : selected.apply_to === "product" ? "Products" : "Categories"}</Info>
-              {selected.type === "bulk_discount" ? <Info label="Minimum quantity">{selected.min_qty} {COUNT_UNIT_LABEL[selected.min_qty_unit || "unit"].toLowerCase()}</Info> : null}
               {selected.type === "bogo" ? (
                 <Info label="Buy / get free">
                   {selected.buy_qty} {COUNT_UNIT_LABEL[selected.buy_unit || "unit"].toLowerCase()} / {selected.get_qty} {COUNT_UNIT_LABEL[selected.get_unit || "unit"].toLowerCase()}
@@ -348,5 +338,3 @@ export function DiscountsPage() {
   )
 }
 
-// The old name, for any import still using it.
-export const OffersPage = DiscountsPage

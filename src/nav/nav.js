@@ -101,8 +101,11 @@ const storeNav = [
   {
     title: "Discounts",
     icon: BadgePercent,
-    single: true,
-    items: [{ to: "/discounts", label: "Discounts", icon: BadgePercent }],
+    items: [
+      { to: "/discounts", label: "Discounts", icon: BadgePercent },
+      { to: "/bulk-discounts", label: "Bulk Discounts", icon: Layers },
+      { to: "/bundle-discounts", label: "Bundle Discounts", icon: Boxes },
+    ],
   },
   {
     title: "Inventories",
