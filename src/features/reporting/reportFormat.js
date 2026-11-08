@@ -92,6 +92,12 @@ export function formatValue(key, value, row = null) {
     const text = formatNumber(number, { maximumFractionDigits: 3 })
     return row?.unit ? `${text} ${unitShort(row.unit)}` : text
   }
+  // A tax rate / surcharge: a percentage, or an amount for a fixed one.
+  if ((name === "rate" || name === "surcharge_value") && row) {
+    const type = row.tax_type || row.surcharge_type
+    if (type === "percentage") return `${formatNumber(number, { maximumFractionDigits: 2 })}%`
+    if (type === "fixed") return formatCurrency(number)
+  }
   if (COUNT_RE.test(name) && !/(sales|amount|value|cost|tax)/.test(name)) return formatNumber(number, { maximumFractionDigits: 2 })
   if (MONEY_RE.test(name)) return formatCurrency(number)
   return formatNumber(number, { maximumFractionDigits: 2 })

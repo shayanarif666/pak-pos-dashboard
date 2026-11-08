@@ -38,6 +38,7 @@ import {
 import { useAuth } from "../../auth/AuthContext.jsx"
 import { getReportingOverview, getReportingSection } from "../../api/reports.js"
 import { toDateInput } from "../../features/reports/dateRange.js"
+import { ReportFilters, activeFilters } from "../../features/reporting/ReportFilters.jsx"
 import { BRAND, ChartCard, ColumnChart, ComparisonBars, HBarChart, Heatmap, ShareBar, methodColor } from "../../features/reports/ReportCharts.jsx"
 import { columnLabel, columnsOf, flattenSummary, formatValue, isNumericKey, summaryLabel, toneOf } from "../../features/reporting/reportFormat.js"
 import { useClockOut, useCloseBatch } from "../../features/lists/listQueries.js"
@@ -71,6 +72,7 @@ const ICONS = {
   top_products: Package,
   top_categories: FolderTree,
   refunds: RotateCcw,
+  refunds_cancelled: RotateCcw,
   cancelled: Ban,
   locations: MapPin,
   inventory: Boxes,
@@ -108,7 +110,9 @@ const CHART_LIMIT = {
   suppliers: "all", variance: "all",
 }
 // Columns shown as a status badge.
-const STATUS_KEYS = new Set(["status", "order_status", "payment_status", "type", "refund_type", "source_label"])
+const STATUS_KEYS = new Set(["status", "order_status", "payment_status", "type", "refund_type", "source_label", "stock_status", "expiry_status"])
+// No filters picked (one shared object, so memos stay steady).
+const NO_FILTERS = {}
 
 const weekAgo = () => {
   const date = new Date()
@@ -580,10 +584,17 @@ export function ReportingPage() {
     queryKey: ["reporting", "overview", base],
     queryFn: async () => (await getReportingOverview(base)).data,
   })
-  const cards = overview.data?.cards || []
+  // Cards the API marks hidden (the two older refund cards) are replaced by Refunds / Cancelled.
+  const cards = (overview.data?.cards || []).filter((card) => !card.hidden)
   const level = overview.data?.plan?.reporting_level || "basic"
   const open = cards.find((card) => card.id === searchParams.get("report") && !card.locked) || null
   const unlocked = cards.filter((card) => !card.locked)
+  // The filters of the open report (a report's own filters; another report starts without any).
+  const [picked, setPicked] = useState({ id: null, values: {} })
+  const filterValues = picked.id === open?.id ? picked.values : NO_FILTERS
+  const setFilterValues = (values) => setPicked({ id: open?.id ?? null, values })
+  const filterParams = useMemo(() => activeFilters(filterValues), [filterValues])
+  const reportBase = useMemo(() => ({ ...base, ...filterParams }), [base, filterParams])
 
   function openCard(card) {
     if (card?.locked) {
@@ -617,7 +628,7 @@ export function ReportingPage() {
     const picked = open ? [open] : unlocked
     const tables = []
     for (const card of picked) {
-      const data = (await getReportingSection(card.id, { ...base, limit: "all" })).data
+      const data = (await getReportingSection(card.id, { ...base, ...(open ? filterParams : {}), limit: "all" })).data
       const lists = Object.fromEntries(Object.entries(data.tables || {}).map(([name, table]) => [name, table.rows]))
       tables.push(...sectionToTables(card.label, { ...(data.summary || {}), ...lists }))
     }
@@ -766,7 +777,8 @@ export function ReportingPage() {
         </div>
       ) : null}
 
-      {open ? <SectionView key={open.id} card={open} base={base} search={search} /> : null}
+      {open ? <ReportFilters filters={open.filters} values={filterValues} onChange={setFilterValues} /> : null}
+      {open ? <SectionView key={open.id} card={open} base={reportBase} search={search} /> : null}
     </section>
   )
 }

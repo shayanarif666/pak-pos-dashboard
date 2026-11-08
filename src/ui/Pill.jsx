@@ -50,14 +50,14 @@ const GREEN = [
 ]
 const AMBER = [
   "pending", "draft", "monthly", "warning", "initiated", "low", "low stock", "partial",
-  "adjustment", "count", "processing", "unpublished",
+  "adjustment", "count", "processing", "unpublished", "partial_refund",
 ]
 const RED = [
   "failed", "revoked", "off", "no", "inactive", "cancelled", "canceled", "voided", "void",
   "expired", "rejected", "critical", "out of stock", "stock_out", "sale", "transfer_out",
-  "debit", "suspended", "damage", "theft", "waste",
+  "debit", "suspended", "damage", "theft", "waste", "out",
 ]
-const VIOLET = ["yearly", "web", "refunded", "custom", "mixed", "superadmin"]
+const VIOLET = ["yearly", "web", "refunded", "complete_refund", "custom", "mixed", "superadmin"]
 const BRAND = ["pos", "store_admin", "cash", "default", "closed", "clock_out", "clock_in"]
 
 export function statusTone(value) {
