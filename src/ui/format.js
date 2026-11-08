@@ -6,6 +6,14 @@ export function formatDateTime(value) {
   return date.toLocaleString(undefined, { day: "2-digit", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" })
 }
 
+/** "1:18 PM" — or "—" when there is no date. */
+export function formatTime(value) {
+  if (!value) return "—"
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return "—"
+  return date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
+}
+
 /** "25 Oct 2026". */
 export function formatDate(value) {
   if (!value) return "—"

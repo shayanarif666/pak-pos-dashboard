@@ -10,7 +10,7 @@ import { Eye, Pencil, Plus, Trash2 } from "lucide-react"
 import { MovementViewModal, movementTone } from "../../features/inventory/MovementViewModal.jsx"
 import { Button } from "../../ui/Button.jsx"
 import { DataTable } from "../../ui/DataTable.jsx"
-import { formatDateTime } from "../../ui/format.js"
+import { formatDate, formatTime } from "../../ui/format.js"
 import { useDashboardLocation } from "../../features/scope/DashboardLocation.jsx"
 import { useStaffNames } from "../../features/lists/useStaffNames.js"
 import { Pill } from "../../ui/Pill.jsx"
@@ -110,7 +110,13 @@ export function MovementsPage() {
               </div>
             ),
           },
-          { key: "created_at", header: "Date", sortValue: (row) => new Date(row.created_at), render: (row) => formatDateTime(row.created_at) },
+          { key: "created_at", header: "Date", sortValue: (row) => new Date(row.created_at), render: (row) => (
+              <div className="whitespace-nowrap">
+                <p className="text-slate-900">{formatDate(row.created_at)}</p>
+                <p className="text-xs text-slate-500">{formatTime(row.created_at)}</p>
+              </div>
+            ),
+          },
           { key: "movement_type", header: "Status", render: (row) => <Pill tone={movementTone(row.movement_type)}>{label(row.movement_type)}</Pill> },
           { key: "reason", header: "Reason", render: (row) => <span className="capitalize">{label(row.reason)}</span> },
           {

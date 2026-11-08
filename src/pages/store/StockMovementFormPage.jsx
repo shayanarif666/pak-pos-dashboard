@@ -209,9 +209,9 @@ function MovementItem({ index, item, onChange, onRemove, products, suppliers, lo
                   return (
                     <div
                       key={location.id}
-                      className={`grid grid-cols-2 items-end gap-3 ${target.packSize ? "md:grid-cols-[minmax(0,1.2fr)_1fr_1fr_1fr]" : "md:grid-cols-[minmax(0,1.2fr)_1fr_1fr]"}`}
+                      className={`grid grid-cols-2 items-start gap-3 ${target.packSize ? "md:grid-cols-3 2xl:grid-cols-[minmax(0,1.1fr)_repeat(3,minmax(0,1fr))]" : "md:grid-cols-2 2xl:grid-cols-[minmax(0,1.1fr)_repeat(2,minmax(0,1fr))]"}`}
                     >
-                      <div className="col-span-2 md:col-span-1 md:pb-2.5">
+                      <div className="col-span-full 2xl:col-span-1 2xl:pt-[2.35rem]">
                         <p className="text-sm font-medium text-slate-800">{location.name}</p>
                         <p className="text-xs text-slate-500">
                           In stock: {withUnit(nowQty, target.unit)}

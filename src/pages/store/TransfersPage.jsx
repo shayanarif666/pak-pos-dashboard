@@ -48,6 +48,7 @@ export function TransfersPage() {
   const productText = (row) => (row.destinations || []).flatMap((dest) => dest.products.map((line) => productName[line.product_id] || "")).join(" ")
 
   async function complete(row) {
+    if (!isOpen(row)) return toast(`Transfer #${row.transfer_number} is already ${row.status === "cancelled" ? "cancelled" : "received"}: nothing is left on the way to complete.`, "error")
     const ok = await confirmToast({
       title: `Complete transfer #${row.transfer_number}?`,
       message: "Everything still on the way arrives in full: the source gives it up and each destination gets it.",
@@ -63,6 +64,7 @@ export function TransfersPage() {
   }
 
   async function cancel(row) {
+    if (!isOpen(row)) return toast(`Transfer #${row.transfer_number} is already ${row.status === "cancelled" ? "cancelled" : "received"}: nothing is left on the way to cancel.`, "error")
     const ok = await confirmToast({
       title: `Cancel transfer #${row.transfer_number}?`,
       message: "What is still on the way is cancelled; no stock moves for it.",
@@ -79,6 +81,7 @@ export function TransfersPage() {
 
   // Soft delete: the transfer leaves the list (and the POS); nothing of it was received, so no stock moved.
   async function remove(row) {
+    if (received(row)) return toast(`Transfer #${row.transfer_number} has been received, so its stock has moved: it cannot be deleted.`, "error")
     const ok = await confirmToast({
       title: `Delete transfer #${row.transfer_number}?`,
       message: "It leaves the list and the POS. No stock has moved for it yet, so stock stays as it is.",
@@ -142,7 +145,6 @@ export function TransfersPage() {
             header: "",
             sortable: false,
             render: (row) => {
-              const locked = received(row)
               return (
                 <div className="flex items-center justify-end gap-1">
                   <Button variant="icon" aria-label="View transfer" title="View" onClick={() => setViewing(row)}><Eye className="h-4 w-4" /></Button>
@@ -151,8 +153,7 @@ export function TransfersPage() {
                       <Button
                         variant="icon"
                         aria-label="Edit transfer"
-                        title={locked ? "Received transfers cannot be edited: their stock has moved" : "Edit"}
-                        disabled={locked}
+                        title="Edit"
                         onClick={() => navigate(`/transfers/${row.transfer_number}/edit`)}
                       >
                         <Pencil className="h-4 w-4" />
@@ -160,13 +161,12 @@ export function TransfersPage() {
                       <Button
                         variant="icon"
                         aria-label="Delete transfer"
-                        title={locked ? "Received transfers cannot be deleted: their stock has moved" : "Delete"}
-                        disabled={locked}
+                        title="Delete"
                         onClick={() => remove(row)}
                       >
-                        <Trash2 className={`h-4 w-4 ${locked ? "" : "text-rose-600"}`} />
+                        <Trash2 className="h-4 w-4 text-rose-600" />
                       </Button>
-                      <StatusMenu disabled={!isOpen(row)} onComplete={() => complete(row)} onCancel={() => cancel(row)} />
+                      <StatusMenu onComplete={() => complete(row)} onCancel={() => cancel(row)} />
                     </>
                   ) : null}
                 </div>
@@ -207,7 +207,7 @@ export function TransfersPage() {
  * "Update status ▾": Complete (everything still on the way arrives) or Cancel. The menu is fixed
  * to the screen under the button, so the table's horizontal scroll does not cut it off.
  */
-function StatusMenu({ disabled, onComplete, onCancel }) {
+function StatusMenu({ onComplete, onCancel }) {
   const [place, setPlace] = useState(null) // { top, right } while open
   const buttonRef = useRef(null)
   const menuRef = useRef(null)
@@ -248,11 +248,10 @@ function StatusMenu({ disabled, onComplete, onCancel }) {
         ref={buttonRef}
         type="button"
         onClick={toggle}
-        disabled={disabled}
-        title={disabled ? "Only a transfer on the way can change status" : "Update status"}
+        title="Update status"
         aria-haspopup="menu"
         aria-expanded={Boolean(place)}
-        className="inline-flex h-10 items-center gap-1.5 whitespace-nowrap rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-slate-200 disabled:hover:bg-white disabled:hover:text-slate-800"
+        className="inline-flex h-10 items-center gap-1.5 whitespace-nowrap rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700"
       >
         Update status <ChevronDown className={`h-4 w-4 transition ${place ? "rotate-180" : ""}`} />
       </button>

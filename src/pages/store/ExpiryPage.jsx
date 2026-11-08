@@ -35,14 +35,14 @@ const KIND_TABS = [
   ["pack_loose", "Pack + Loose Items"],
 ]
 
-/** "48" for a loose item; "48 (4 packs + 8)" for a pack item. */
-function qtyLabel(row) {
+/** The total as { main: "20 bottles", sub: "4 packs" } (sub only for a pack item). */
+function qtyParts(row) {
   const qty = Number(row.stocks?.[0]?.qty ?? 0)
   const size = Number(row.pack_size)
-  if (stockKind(row) === "loose" || !(size >= 2)) return withUnit(qty, row.unit)
+  if (stockKind(row) === "loose" || !(size >= 2)) return { main: withUnit(qty, row.unit), sub: null }
   const packs = Math.floor(qty / size)
   const loose = Math.round((qty - packs * size) * 10000) / 10000
-  return `${withUnit(qty, row.unit)} (${packs} ${packs === 1 ? "pack" : "packs"}${loose ? ` + ${withUnit(loose, row.unit)}` : ""})`
+  return { main: withUnit(qty, row.unit), sub: `${packs} ${packs === 1 ? "pack" : "packs"}${loose ? ` + ${withUnit(loose, row.unit)}` : ""}` }
 }
 
 function daysLeft(date) {
@@ -132,7 +132,16 @@ export function ExpiryPage() {
     },
     { key: "category", header: "Category", sortValue: (row) => row.category?.name, render: (row) => row.category?.name || "—" },
     ...(isAll ? [{ key: "location", header: "Location", sortValue: (row) => locationName(row.location_id), render: (row) => locationName(row.location_id) }] : []),
-    { key: "qty", header: "Total", align: "right", sortValue: (row) => Number(row.stocks?.[0]?.qty || 0), render: (row) => (row.stocks?.[0] ? qtyLabel(row) : "—") },
+    { key: "qty", header: "Total", align: "right", sortValue: (row) => Number(row.stocks?.[0]?.qty || 0), render: (row) => {
+        if (!row.stocks?.[0]) return "—"
+        const { main, sub } = qtyParts(row)
+        return (
+          <div className="whitespace-nowrap">
+            <p className="font-medium text-slate-900">{main}</p>
+            {sub ? <p className="text-xs text-slate-500">{sub}</p> : null}
+          </div>
+        )
+      } },
     {
       key: "lots",
       header: "Lots",
