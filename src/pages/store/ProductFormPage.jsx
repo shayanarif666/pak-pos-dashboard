@@ -377,6 +377,12 @@ export function ProductFormPage() {
                         <Input label={`Pack size (${unitShort(form.unit)} per pack)`} type="number" min="2" step="1" required value={row.pack_size} onChange={(e) => patchVariant(index, "pack_size", e.target.value)} />
                         <Input label={`Pack cost (per pack${row.pack_size ? ` of ${row.pack_size} ${unitShort(form.unit)}` : ""})`} type="number" min="0" step="0.01" required value={row.pack_cost} onChange={(e) => patchVariant(index, "pack_cost", e.target.value)} />
                         <Input label={`Pack price (per pack${row.pack_size ? ` of ${row.pack_size} ${unitShort(form.unit)}` : ""})`} type="number" min="0" step="0.01" required value={row.pack_price} onChange={(e) => patchVariant(index, "pack_price", e.target.value)} />
+                        {row.sell_loose ? (
+                          <>
+                            <Input label={`Unit cost (per 1 ${unitShort(form.unit)} sold loose)`} type="number" min="0" step="0.01" required value={row.cost} onChange={(e) => patchVariant(index, "cost", e.target.value)} />
+                            <Input label={`Unit price (per 1 ${unitShort(form.unit)} sold loose)`} type="number" min="0" step="0.01" required value={row.price} onChange={(e) => patchVariant(index, "price", e.target.value)} />
+                          </>
+                        ) : null}
                       </>
                     ) : (
                       <>

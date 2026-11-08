@@ -171,6 +171,9 @@ export function productFormError(form) {
         if (!(Number(row.pack_size) >= 2)) return `${label}: pack size must be 2 or more.`
         if (!(Number(row.pack_cost) > 0)) return `${label}: enter its pack cost.`
         if (!(Number(row.pack_price) > 0)) return `${label}: enter its pack price.`
+        // A pack variant that is also sold loose has its own unit cost and price.
+        if (row.sell_loose && (row.cost === "" || Number(row.cost) < 0)) return `${label}: enter its unit cost (sold as single units).`
+        if (row.sell_loose && (row.price === "" || Number(row.price) < 0)) return `${label}: enter its unit price (sold as single units).`
       } else {
         if (row.cost === "" || Number(row.cost) < 0) return `${label}: enter its cost.`
         if (row.price === "" || Number(row.price) < 0) return `${label}: enter its price.`
@@ -257,7 +260,7 @@ export function productPayload(form, { withScope = false, stockFor = () => undef
       is_weight_based: Boolean(row.is_weight_based),
       colors: row.colors,
       ...(row.is_pack_product
-        ? { pack_size: Number(row.pack_size), pack_cost: Number(row.pack_cost), pack_price: Number(row.pack_price), sell_loose: Boolean(row.sell_loose) }
+        ? { pack_size: Number(row.pack_size), pack_cost: Number(row.pack_cost), pack_price: Number(row.pack_price), sell_loose: Boolean(row.sell_loose), ...(row.sell_loose ? { cost: Number(row.cost), price: Number(row.price) } : {}) }
         : { cost: Number(row.cost), price: Number(row.price) }),
       // Its own taxes, on top of the product's taxes.
       taxes: row.taxes
