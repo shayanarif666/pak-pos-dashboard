@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { RotateCcw, SlidersHorizontal } from "lucide-react"
+import { Check, RotateCcw, SlidersHorizontal } from "lucide-react"
 import { useCategoriesQuery, useProductsQuery } from "../catalog/catalogQuery.jsx"
 import { useSuppliersQuery } from "../inventory/inventoryQuery.js"
 import { useStaffQuery } from "../operations/operationsQuery.js"
@@ -12,7 +12,8 @@ import { PAYMENT_METHOD_LABEL } from "../../ui/format.js"
 /*
  * The filters of one report. They come from the API (GET /reporting: every card carries its
  * `filters` — name, label, type, values, default, kind), so a filter added to the API shows up here
- * by itself. The values are sent as query parameters of GET /reporting/:section.
+ * by itself. Nothing is sent while a filter is being chosen: the choices wait in a draft and go
+ * to GET /reporting/:section as query parameters when "Apply filters" is pressed.
  *
  *   type enum    a drop-down of its values        type boolean  Any / Yes / No
  *   type text    a text box                       type number   a number box
@@ -24,25 +25,6 @@ const PAYMENT_NAMES = new Set(["payment_method", "method", "refund_method"])
 function optionLabel(filter, value) {
   if (PAYMENT_NAMES.has(filter.name)) return PAYMENT_METHOD_LABEL[value] || humanize(value)
   return humanize(value)
-}
-
-/** A text / number box that sends its value on Enter or when it loses focus. */
-function CommittedInput({ label, type, value, onCommit, placeholder }) {
-  const [draft, setDraft] = useState(value)
-  useEffect(() => setDraft(value), [value])
-  const commit = () => draft !== value && onCommit(draft.trim())
-  return (
-    <Input
-      label={label}
-      type={type}
-      min={type === "number" ? "0" : undefined}
-      value={draft}
-      placeholder={placeholder}
-      onChange={(e) => setDraft(e.target.value)}
-      onBlur={commit}
-      onKeyDown={(e) => e.key === "Enter" && commit()}
-    />
-  )
 }
 
 const rowsOf = (query) => query.data || []
@@ -124,44 +106,76 @@ function Control({ filter, values, patch }) {
       </Select>
     )
   }
-  if (filter.type === "number") return <CommittedInput label={label} type="number" value={value} onCommit={onChange} placeholder="Any" />
+  if (filter.type === "number") return <Input label={label} type="number" min="0" value={value} placeholder="Any" onChange={(e) => onChange(e.target.value)} />
   if (filter.type === "ref") {
     if (filter.kind === "staff") return <StaffSelect label={label} value={value} onChange={onChange} />
     if (filter.kind === "category") return <CategorySelect label={label} value={value} onChange={onChange} />
     if (filter.kind === "supplier") return <SupplierSelect label={label} value={value} onChange={onChange} />
     if (filter.kind === "product") return <ProductSelect label={label} value={value} onChange={(next) => patch({ product_id: next, variant_id: "" })} />
     if (filter.kind === "variant") return <VariantSelect label={label} productId={values.product_id} value={value} onChange={onChange} />
-    return <CommittedInput label={label} type="text" value={value} onCommit={onChange} placeholder="Number" />
+    return <Input label={label} value={value} placeholder="Number" onChange={(e) => onChange(e.target.value.trim())} />
   }
-  return <CommittedInput label={label} type="text" value={value} onCommit={onChange} placeholder="Any" />
+  return <Input label={label} value={value} placeholder="Any" onChange={(e) => onChange(e.target.value)} />
 }
 
 /** The values that are set (an empty box is not sent). */
 export function activeFilters(values) {
-  return Object.fromEntries(Object.entries(values || {}).filter(([, value]) => value !== "" && value != null))
+  return Object.fromEntries(Object.entries(values || {}).filter(([, value]) => value !== "" && value != null && String(value).trim() !== ""))
 }
 
+const sameFilters = (a, b) => {
+  const left = Object.entries(activeFilters(a)).sort(([x], [y]) => x.localeCompare(y))
+  const right = Object.entries(activeFilters(b)).sort(([x], [y]) => x.localeCompare(y))
+  return JSON.stringify(left) === JSON.stringify(right)
+}
+
+/**
+ * values = the filters now applied to the report; onChange(values) applies new ones. The boxes
+ * hold a draft until Apply filters (or Enter in a text box); Clear filters empties and applies.
+ */
 export function ReportFilters({ filters, values, onChange }) {
+  const [draft, setDraft] = useState(values)
+  // The applied filters changed from outside (another report, a clear): the boxes follow.
+  useEffect(() => setDraft(values), [values])
   if (!filters?.length) return null
-  const patch = (change) => onChange({ ...values, ...change })
-  const active = Object.keys(activeFilters(values)).length
+
+  const patch = (change) => setDraft((current) => ({ ...current, ...change }))
+  const applied = Object.keys(activeFilters(values)).length
+  const dirty = !sameFilters(draft, values)
+  const anything = applied > 0 || Object.keys(activeFilters(draft)).length > 0
+
+  function apply(event) {
+    event?.preventDefault()
+    onChange(activeFilters(draft))
+  }
+  function clear() {
+    setDraft({})
+    onChange({})
+  }
+
   return (
-    <section className="rounded-[24px] border border-slate-200 bg-white p-4 sm:p-5">
+    <form onSubmit={apply} className="rounded-[24px] border border-slate-200 bg-white p-4 sm:p-5">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900">
           <SlidersHorizontal className="h-4 w-4 text-brand-700" />
           Filters
-          {active ? <span className="rounded-full bg-brand-700 px-2 py-0.5 text-xs font-semibold text-white">{active}</span> : null}
+          {applied ? <span title="Filters applied" className="rounded-full bg-brand-700 px-2 py-0.5 text-xs font-semibold text-white">{applied}</span> : null}
+          {dirty ? <span className="text-xs font-medium text-amber-700">Not applied yet</span> : null}
         </p>
-        {active ? (
-          <Button variant="ghost" className="h-8 px-3 text-xs" onClick={() => onChange({})}>
-            <RotateCcw className="h-3.5 w-3.5" /> Clear filters
-          </Button>
-        ) : null}
       </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {filters.map((filter) => <Control key={filter.name} filter={filter} values={values} patch={patch} />)}
+        {filters.map((filter) => <Control key={filter.name} filter={filter} values={draft} patch={patch} />)}
       </div>
-    </section>
+      <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
+        {anything ? (
+          <Button variant="ghost" type="button" className="h-10 px-4 text-sm" onClick={clear}>
+            <RotateCcw className="h-4 w-4" /> Clear filters
+          </Button>
+        ) : null}
+        <Button type="submit" className="h-10 px-5 text-sm" disabled={!dirty}>
+          <Check className="h-4 w-4" /> Apply filters
+        </Button>
+      </div>
+    </form>
   )
 }
