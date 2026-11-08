@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom"
-import { ChevronDown, ChevronRight, LogOut, MapPin, Menu, PanelLeftClose, PanelLeftOpen, ShieldCheck, Store, X } from "lucide-react"
+import { ChevronDown, ChevronLeft, ChevronRight, LogOut, MapPin, Menu, ShieldCheck, Store, X } from "lucide-react"
 import { useAuth } from "../auth/AuthContext.jsx"
 import { ROLE_LABEL } from "../auth/roles.js"
 import { ErrorBoundary } from "../ui/ErrorBoundary.jsx"
@@ -154,7 +154,7 @@ function NavGroup({ group, items, open, onToggle, onNavigate, collapsed = false 
 }
 
 /** Top of the sidebar: the store (or platform) and the location the user works at. */
-function SidebarHeader({ collapsed = false, onToggleCollapse = null }) {
+function SidebarHeader({ collapsed = false }) {
   const { user, store, location } = useAuth()
   const isPlatform = user.role === "superadmin"
   const name = isPlatform ? "Platform" : store?.name || "Store"
@@ -173,11 +173,6 @@ function SidebarHeader({ collapsed = false, onToggleCollapse = null }) {
     return (
       <div className="flex flex-col items-center gap-3 border-b border-slate-200 px-2 py-4">
         {logo}
-        {onToggleCollapse ? (
-          <button type="button" onClick={onToggleCollapse} aria-label="Expand sidebar" title="Expand sidebar" className="rounded-lg p-1.5 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900">
-            <PanelLeftOpen className="h-5 w-5" />
-          </button>
-        ) : null}
       </div>
     )
   }
@@ -191,11 +186,6 @@ function SidebarHeader({ collapsed = false, onToggleCollapse = null }) {
           {place}
         </p>
       </div>
-      {onToggleCollapse ? (
-        <button type="button" onClick={onToggleCollapse} aria-label="Collapse sidebar" title="Collapse sidebar" className="shrink-0 rounded-lg p-1.5 text-slate-500 transition hover:bg-slate-100 hover:text-slate-900">
-          <PanelLeftClose className="h-5 w-5" />
-        </button>
-      ) : null}
     </div>
   )
 }
@@ -250,7 +240,7 @@ function SidebarUser({ onNavigate, onSignOut, collapsed = false }) {
   )
 }
 
-function Sidebar({ onNavigate, onSignOut, collapsed = false, onToggleCollapse = null, onExpand = null }) {
+function Sidebar({ onNavigate, onSignOut, collapsed = false, onExpand = null }) {
   const { user } = useAuth()
   const { pathname } = useLocation()
   const groups = navForRole(user.role)
@@ -266,7 +256,7 @@ function Sidebar({ onNavigate, onSignOut, collapsed = false, onToggleCollapse = 
 
   return (
     <div className="flex h-full flex-col bg-white">
-      <SidebarHeader collapsed={collapsed} onToggleCollapse={onToggleCollapse} />
+      <SidebarHeader collapsed={collapsed} />
 
       <nav className={["flex-1 overflow-y-auto px-3 py-4", collapsed ? "space-y-2" : "space-y-1"].join(" ")}>
         {groups.map((group) => (
@@ -351,7 +341,17 @@ export function AppShell() {
     <DashboardLocationProvider>
     <div className="min-h-screen bg-white text-slate-900">
       <aside className={["fixed inset-y-0 left-0 z-30 hidden border-r border-slate-200 transition-[width] duration-200 lg:block", collapsed ? "w-20" : "w-72"].join(" ")}>
-        <Sidebar onSignOut={handleSignOut} collapsed={collapsed} onToggleCollapse={() => setFolded(!collapsed)} onExpand={() => setFolded(false)} />
+        <Sidebar onSignOut={handleSignOut} collapsed={collapsed} onExpand={() => setFolded(false)} />
+        {/* Fold / unfold: a round button on the edge between the sidebar and the page. */}
+        <button
+          type="button"
+          onClick={() => setFolded(!collapsed)}
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          className="absolute -right-3.5 top-9 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-brand-700 text-white shadow-md ring-2 ring-white transition hover:bg-brand-800 focus:outline-none focus-visible:ring-4 focus-visible:ring-brand-700/30"
+        >
+          {collapsed ? <ChevronRight className="h-4 w-4" strokeWidth={2.5} /> : <ChevronLeft className="h-4 w-4" strokeWidth={2.5} />}
+        </button>
       </aside>
 
       {open ? (
