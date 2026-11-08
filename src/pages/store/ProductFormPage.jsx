@@ -261,7 +261,7 @@ export function ProductFormPage() {
       <PageHeader
         section="Catalog"
         title={isEdit ? `Edit ${product?.title || "product"}` : "New product"}
-        description={isEdit ? `#${product?.product_number} · SKU ${product?.sku}` : "The SKU is made from the title when you save."}
+        description={isEdit ? `#${product?.product_number} · SKU ${product?.sku}` : "Leave the SKU empty and it is made from the title when you save."}
       />
       {loadError ? <p className="text-sm text-rose-700">{loadError}</p> : null}
 
@@ -269,6 +269,7 @@ export function ProductFormPage() {
         <Section title="Product" description="What it is and where it belongs.">
           <div className="grid gap-4 md:grid-cols-2">
             <Input label="Title" required value={form.title} onChange={(e) => patch("title", e.target.value)} placeholder="1 Litre Pepsi" />
+            <Input label="SKU" value={form.sku} onChange={(e) => patch("sku", e.target.value)} placeholder="Leave empty to make it from the title" />
             <BarcodeField
               label={hasVariants ? "Barcode (optional with variants)" : "Barcode"}
               required={!hasVariants}
@@ -573,9 +574,9 @@ export function ProductFormPage() {
                       return (
                         <div
                           key={location.id}
-                          className={`grid grid-cols-2 items-end gap-3 ${packSize ? "md:grid-cols-[minmax(0,1.2fr)_1fr_1fr_1fr]" : "md:grid-cols-[minmax(0,1.2fr)_1fr_1fr]"}`}
+                          className={`grid grid-cols-2 items-start gap-3 ${packSize ? "md:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1fr)]" : "md:grid-cols-[minmax(0,1.2fr)_1fr_1fr]"}`}
                         >
-                          <div className="col-span-2 md:col-span-1 md:pb-2.5">
+                          <div className="col-span-2 md:col-span-1 md:pt-[2.35rem]">
                             <p className="text-sm font-medium text-slate-800">{location.name}</p>
                             {location.is_default ? <p className="text-xs text-slate-500">Default location</p> : null}
                           </div>

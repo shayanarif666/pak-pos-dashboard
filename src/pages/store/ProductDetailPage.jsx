@@ -7,7 +7,6 @@ import { useDashboardLocation } from "../../features/scope/DashboardLocation.jsx
 import { LocationScopePills } from "../../features/scope/LocationScopeField.jsx"
 import { Currency } from "../../ui/Currency.jsx"
 import { Button } from "../../ui/Button.jsx"
-import { StatCards } from "../../ui/PageHeader.jsx"
 import { PageLoader } from "../../ui/Spinner.jsx"
 import { Pill } from "../../ui/Pill.jsx"
 import { formatDate } from "../../ui/format.js"
@@ -40,6 +39,17 @@ function Row({ label, value, strong = false }) {
 
 const money = (value) => (value == null ? "—" : <Currency value={value} />)
 const yesNo = (value) => (value ? "Yes" : "No")
+const wholeNumber = (value) => (value == null || value === "" ? "—" : String(Math.round(Number(value))))
+
+/** A labelled identifier (SKU, Barcode) shown as a block, not as part of a sentence. */
+function IdTag({ label, value }) {
+  return (
+    <div className="min-w-[9rem] rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
+      <p className="break-all font-mono text-sm font-semibold text-slate-950">{value || "—"}</p>
+    </div>
+  )
+}
 
 /** Taxes as "GST 18% · Sugar tax Rs. 5 / unit". */
 function taxList(taxes) {
@@ -216,7 +226,10 @@ function VariantCard({ variant, fallbackImage, unit, onDelete, deleting = false 
             <span className="mr-2 text-xs font-normal text-slate-400">#{variant.variant_number}</span>
             {variant.name}
           </h3>
-          <p className="mt-0.5 text-xs text-slate-500">SKU {variant.sku} · {variant.barcode || "no barcode"}</p>
+          <div className="mt-1.5 flex flex-wrap gap-2">
+            <IdTag label="SKU" value={variant.sku} />
+            <IdTag label="Barcode" value={variant.barcode} />
+          </div>
           <Link
             to={`/products/${variant.id}`}
             className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-brand-200 bg-white px-2.5 py-1 text-xs font-semibold text-brand-700 hover:bg-brand-50"
@@ -343,10 +356,13 @@ export function ProductDetailPage() {
           )}
           <div className="min-w-0">
             <h1 className="text-2xl font-bold tracking-tight text-slate-950">{product.title}</h1>
-            <p className="mt-1 text-sm text-slate-500">
-              #{product.product_number} · SKU {product.sku}
-              {product.barcode ? ` · ${product.barcode}` : ""}
-            </p>
+            {product.product_number != null || product.variant_number != null ? (
+              <p className="mt-1 text-sm text-slate-500">{product.product_number != null ? `Product #${product.product_number}` : `Variant #${product.variant_number}`}</p>
+            ) : null}
+            <div className="mt-2 flex flex-wrap gap-2">
+              <IdTag label="SKU" value={product.sku} />
+              <IdTag label="Barcode" value={product.barcode} />
+            </div>
             <div className="mt-3 flex flex-wrap gap-1.5">
               <Pill tone={product.is_active ? "emerald" : "rose"}>{product.is_active ? "Active" : "Disabled"}</Pill>
               <Pill tone={product.is_published ? "sky" : "zinc"}>{product.is_published ? "Published" : "Draft"}</Pill>
@@ -377,19 +393,9 @@ export function ProductDetailPage() {
   // A product with variants: the product groups them; prices, pack and stock are each variant's.
   if (product.has_variants) {
     const variants = product.variants || []
-    const totalOf = (key) => variants.reduce((sum, row) => sum + Number(row.total_qty || 0) * Number(row[key] || 0), 0)
-    const totalQty = variants.reduce((sum, row) => sum + Number(row.total_qty || 0), 0)
     return (
       <div className="space-y-6">
         {header}
-        <StatCards
-          items={[
-            { label: "Variants", value: variants.length, hint: `${variants.filter((row) => row.is_active !== false).length} active` },
-            { label: "In stock", value: withUnit(totalQty, product.unit), hint: `${variants.filter((row) => row.stock_status === "low").length} low · ${variants.filter((row) => row.stock_status === "out").length} out` },
-            { label: "Stock value (selling)", value: money(totalOf("selling_price")), hint: <>At cost <Currency value={totalOf("cost_price")} /></> },
-            { label: "Category", value: category?.name || "—", hint: product.unit },
-          ]}
-        />
         <div className="grid gap-4 lg:grid-cols-2">
           <Card title="Details">
             <Row
@@ -398,11 +404,8 @@ export function ProductDetailPage() {
             />
             <Row label="Sold at" value={<LocationScopePills row={product} />} />
             <Row label="Stock held at" value={stockHeldAt(product)} />
-            <Row label="Slug" value={product.slug} />
-            <Row label="SKU" value={product.sku} />
-            <Row label="Barcode" value={product.barcode} />
             <Row label="Unit" value={product.unit} />
-            <Row label="Default low stock" value={product.low_stock_threshold} />
+            <Row label="Default low stock" value={wholeNumber(product.low_stock_threshold)} />
             <Row label="Created" value={formatDate(product.created_at)} />
             <Row label="Updated" value={formatDate(product.updated_at)} />
           </Card>
@@ -442,15 +445,6 @@ export function ProductDetailPage() {
     <div className="space-y-6">
       {header}
 
-      <StatCards
-        items={[
-          { label: "Selling price", value: money(pricing.selling_price), hint: <>After discounts <Currency value={pricing.price_after_discount} /></> },
-          { label: "Customer pays / unit", value: money(pricing.price_with_tax), hint: <>Tax <Currency value={pricing.tax_amount} /></> },
-          { label: "In stock", value: withUnit(stock.total_qty ?? 0, product.unit), hint: `${stock.locations ?? 0} location${stock.locations === 1 ? "" : "s"} · ${stock.low_stock_locations ?? 0} low` },
-          { label: "Stock value (selling)", value: money(stock.selling_value), hint: <>At cost <Currency value={stock.cost_value} /></> },
-        ]}
-      />
-
       <div className="grid gap-4 lg:grid-cols-2">
         <Card title="Details">
           <Row
@@ -465,17 +459,36 @@ export function ProductDetailPage() {
           {category?.location_scope === "selected" ? (
             <Row label="Category sold at" value={<LocationScopePills row={category} />} />
           ) : null}
-          <Row label="Slug" value={product.slug} />
-          <Row label="Barcode" value={product.barcode} />
           <Row label="Unit" value={product.unit} />
           <Row label="Weight based" value={yesNo(product.is_weight_based)} />
           <Row label="Colors" value={<ColorSwatches colors={product.colors} />} />
           <Row label="Sell loose" value={yesNo(product.sell_loose)} />
-          <Row label="Default low stock" value={product.low_stock_threshold} />
+          <Row label="Default low stock" value={wholeNumber(product.low_stock_threshold)} />
           <Row label="Created" value={formatDate(product.created_at)} />
           <Row label="Updated" value={formatDate(product.updated_at)} />
         </Card>
+        <Card title="Taxes" description="Every tax a sale of this product charges, and where it is set.">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">On the product</p>
+          {taxes.length ? (
+            taxes.map((tax, index) => <Row key={`${tax.name}-${index}`} label={tax.name || `Tax ${index + 1}`} value={rule(tax.type, tax.value)} />)
+          ) : (
+            <p className="py-1.5 text-sm text-slate-500">None</p>
+          )}
+          <p className="mt-2 border-t border-slate-100 pt-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">Taxes page</p>
+          {(product.store_taxes || []).length ? (
+            product.store_taxes.map((tax) => <Row key={tax.id ?? tax.name} label={tax.name} value={rule(tax.type, tax.value)} />)
+          ) : (
+            <p className="py-1.5 text-sm text-slate-500">None apply to this product</p>
+          )}
+          <p className="mt-2 border-t border-slate-100 pt-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">Category</p>
+          <Row label={category?.name || "Category"} value={category?.tax_type ? rule(category.tax_type, category.tax_value, category.tax_name) : "None"} />
+          <div className="mt-2 border-t border-slate-100 pt-2">
+            <Row label="Tax on one unit" value={money(pricing.tax_amount)} strong />
+          </div>
+        </Card>
+      </div>
 
+      <div className={`grid gap-4 ${product.is_pack_product ? "lg:grid-cols-2" : ""}`}>
         <Card title="Price of one unit" description="As a sale charges it: the product discount, then the category discount on the rest, then the taxes on that.">
           <Row label="Selling price" value={money(pricing.selling_price)} />
           {Number(pricing.product_discount_amount) > 0 ? (
@@ -499,41 +512,9 @@ export function ProductDetailPage() {
             <Row label="Margin" value={`${pricing.margin_percent ?? 0}%`} />
           </div>
         </Card>
-
-        <Card title={scope.isAll || !scope.isAdmin ? "Stock" : `Stock · ${scope.label}`} description={scope.isAdmin ? "Every location, or the one picked in the top bar." : "Your location only."}>
-          <StockTable stocks={stocks} isPack={product.is_pack_product} packSize={product.pack_size} unit={product.unit} />
-          <div className="mt-3 border-t border-slate-100 pt-2">
-            <Row label="Total quantity" value={withUnit(stock.total_qty ?? 0, product.unit)} strong />
-            <Row label="Sold" value={withUnit(stock.unit_sold ?? 0, product.unit)} />
-            <Row label="Stock value at cost" value={money(stock.cost_value)} />
-            <Row label="Stock value at selling price" value={money(stock.selling_value)} />
-          </div>
-        </Card>
-
-        <Card title="Taxes" description="Every tax a sale of this product charges, and where it is set.">
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">On the product</p>
-          {taxes.length ? (
-            taxes.map((tax, index) => <Row key={`${tax.name}-${index}`} label={tax.name || `Tax ${index + 1}`} value={rule(tax.type, tax.value)} />)
-          ) : (
-            <p className="py-1.5 text-sm text-slate-500">None</p>
-          )}
-          <p className="mt-2 border-t border-slate-100 pt-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">Taxes page</p>
-          {(product.store_taxes || []).length ? (
-            product.store_taxes.map((tax) => <Row key={tax.id ?? tax.name} label={tax.name} value={rule(tax.type, tax.value)} />)
-          ) : (
-            <p className="py-1.5 text-sm text-slate-500">None apply to this product</p>
-          )}
-          <p className="mt-2 border-t border-slate-100 pt-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">Category</p>
-          <Row label={category?.name || "Category"} value={category?.tax_type ? rule(category.tax_type, category.tax_value, category.tax_name) : "None"} />
-          <div className="mt-2 border-t border-slate-100 pt-2">
-            <Row label="Tax on one unit" value={money(pricing.tax_amount)} strong />
-          </div>
-        </Card>
-
+        {product.is_pack_product ? (
         <Card title="Pack">
-          <Row label="Pack product" value={yesNo(product.is_pack_product)} />
-          {product.is_pack_product ? (
-            <>
+          <>
               <Row label="Pack size" value={withUnit(stock.pack_size ?? product.pack_size, product.unit)} />
               <Row label={`Pack cost price (${withUnit(stock.pack_size ?? product.pack_size, product.unit)})`} value={money(product.pack_cost_price)} />
               <Row label={`Pack selling price (${withUnit(stock.pack_size ?? product.pack_size, product.unit)})`} value={money(product.pack_selling_price)} />
@@ -544,12 +525,20 @@ export function ProductDetailPage() {
               <Row label="Loose" value={withUnit(stock.loose_units ?? 0, product.unit)} />
               <Row label="Full packs value at cost" value={money(stock.full_packs_cost_value)} />
               <Row label="Full packs value at selling price" value={money(stock.full_packs_selling_value)} />
-            </>
-          ) : (
-            <p className="mt-1 text-sm text-slate-500">Sold by the unit, not in packs.</p>
-          )}
+          </>
         </Card>
+        ) : null}
       </div>
+
+        <Card title={scope.isAll || !scope.isAdmin ? "Stock" : `Stock · ${scope.label}`} description={scope.isAdmin ? "Every location, or the one picked in the top bar." : "Your location only."}>
+          <StockTable stocks={stocks} isPack={product.is_pack_product} packSize={product.pack_size} unit={product.unit} />
+          <div className="mt-3 border-t border-slate-100 pt-2">
+            <Row label="Total quantity" value={withUnit(stock.total_qty ?? 0, product.unit)} strong />
+            <Row label="Sold" value={withUnit(stock.unit_sold ?? 0, product.unit)} />
+            <Row label="Stock value at cost" value={money(stock.cost_value)} />
+            <Row label="Stock value at selling price" value={money(stock.selling_value)} />
+          </div>
+        </Card>
 
       {product.description ? (
         <Card title="Description">

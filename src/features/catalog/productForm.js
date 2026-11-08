@@ -37,6 +37,7 @@ export const emptyVariant = () => ({
 
 export const emptyProductForm = {
   title: "",
+  sku: "",
   barcode: "",
   category_id: "",
   unit: "piece",
@@ -71,6 +72,7 @@ const text = (value) => (value == null ? "" : String(value))
 export function productToForm(product) {
   return {
     title: product.title || "",
+    sku: product.sku || "",
     barcode: product.barcode || "",
     category_id: product.category_id || "",
     unit: product.unit || "piece",
@@ -84,7 +86,7 @@ export function productToForm(product) {
     sell_loose: Boolean(product.sell_loose),
     is_weight_based: Boolean(product.is_weight_based),
     colors: product.colors || [],
-    low_stock_threshold: text(product.low_stock_threshold ?? 10),
+    low_stock_threshold: String(Math.round(Number(product.low_stock_threshold ?? 10)) || 0),
     taxes: (product.taxes || []).map((tax) => ({
       name: tax.name || "",
       type: tax.type === "fixed" ? "fixed" : "percentage",
@@ -195,6 +197,8 @@ export function productPayload(form, { withScope = false, stockFor = () => undef
   const hasVariants = form.variants.length > 0
   const body = {
     title: form.title.trim(),
+    // Empty = the API makes the SKU from the title.
+    ...(form.sku.trim() ? { sku: form.sku.trim() } : {}),
     barcode: form.barcode.trim() || (hasVariants ? null : ""),
     category_id: form.category_id,
     unit: form.unit,
@@ -204,7 +208,7 @@ export function productPayload(form, { withScope = false, stockFor = () => undef
     is_weight_based: Boolean(form.is_weight_based),
     // With variants the colours are each variant's.
     colors: hasVariants ? [] : form.colors,
-    low_stock_threshold: form.low_stock_threshold === "" ? 10 : Number(form.low_stock_threshold),
+    low_stock_threshold: form.low_stock_threshold === "" ? 10 : Math.max(0, Math.round(Number(form.low_stock_threshold))),
     taxes: form.taxes
       .filter((tax) => tax.value !== "")
       .map((tax) => ({ name: tax.name.trim() || null, type: tax.type, value: Number(tax.value) })),
