@@ -246,7 +246,8 @@ export function productPayload(form, { withScope = false, stockFor = () => undef
     is_weight_based: Boolean(form.is_weight_based),
     // With variants the colours are each variant's.
     colors: hasVariants ? [] : form.colors,
-    low_stock_threshold: form.low_stock_threshold === "" ? 10 : Math.max(0, Math.round(Number(form.low_stock_threshold))),
+    // With variants the product's own level is 0: each variant sends its own.
+    low_stock_threshold: hasVariants ? 0 : form.low_stock_threshold === "" ? 10 : Math.max(0, Math.round(Number(form.low_stock_threshold))),
     // Only a pack + loose product has a choice; the others are decided by how they are sold.
     ...(!hasVariants && form.is_pack_product && form.sell_loose ? { low_stock_unit: form.low_stock_unit === "pack" ? "pack" : "unit" } : {}),
     taxes: form.taxes
