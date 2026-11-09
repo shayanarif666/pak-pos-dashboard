@@ -25,6 +25,8 @@ export const emptyVariant = () => ({
   pack_cost: "",
   pack_price: "",
   sell_loose: false,
+  // What the low stock level counts when it is sold both ways: pack | unit.
+  low_stock_unit: "unit",
   is_weight_based: false,
   taxes: [],
   // The colours it comes in (hex codes).
@@ -51,6 +53,7 @@ export const emptyProductForm = {
   sell_loose: false,
   is_weight_based: false,
   low_stock_threshold: "10",
+  low_stock_unit: "unit",
   // The product level discount; discount_applies_to: all | pack | loose | weight.
   discount_type: "",
   discount_value: "",
@@ -96,6 +99,7 @@ export function productToForm(product) {
     discount_name: product.discount_name || "",
     discount_applies_to: product.discount_applies_to || "all",
     low_stock_threshold: String(Math.round(Number(product.low_stock_threshold ?? 10)) || 0),
+    low_stock_unit: product.low_stock_unit === "pack" ? "pack" : "unit",
     taxes: (product.taxes || []).map((tax) => ({
       name: tax.name || "",
       type: tax.type === "fixed" ? "fixed" : "percentage",
@@ -116,6 +120,7 @@ export function productToForm(product) {
       pack_cost: text(row.pack_cost_price),
       pack_price: text(row.pack_selling_price),
       sell_loose: Boolean(row.sell_loose),
+      low_stock_unit: row.low_stock_unit === "pack" ? "pack" : "unit",
       is_weight_based: Boolean(row.is_weight_based),
       colors: row.colors || [],
       image: row.image || "",
@@ -240,6 +245,8 @@ export function productPayload(form, { withScope = false, stockFor = () => undef
     // With variants the colours are each variant's.
     colors: hasVariants ? [] : form.colors,
     low_stock_threshold: form.low_stock_threshold === "" ? 10 : Math.max(0, Math.round(Number(form.low_stock_threshold))),
+    // Only a pack + loose product has a choice; the others are decided by how they are sold.
+    ...(!hasVariants && form.is_pack_product && form.sell_loose ? { low_stock_unit: form.low_stock_unit === "pack" ? "pack" : "unit" } : {}),
     taxes: form.taxes
       .filter((tax) => tax.value !== "")
       .map((tax) => ({ name: tax.name.trim() || null, type: tax.type, value: Number(tax.value) })),
@@ -259,6 +266,7 @@ export function productPayload(form, { withScope = false, stockFor = () => undef
       is_pack_product: Boolean(row.is_pack_product),
       is_weight_based: Boolean(row.is_weight_based),
       colors: row.colors,
+      ...(row.is_pack_product && row.sell_loose ? { low_stock_unit: row.low_stock_unit === "pack" ? "pack" : "unit" } : {}),
       ...(row.is_pack_product
         ? { pack_size: Number(row.pack_size), pack_cost: Number(row.pack_cost), pack_price: Number(row.pack_price), sell_loose: Boolean(row.sell_loose), ...(row.sell_loose ? { cost: Number(row.cost), price: Number(row.price) } : {}) }
         : { cost: Number(row.cost), price: Number(row.price) }),

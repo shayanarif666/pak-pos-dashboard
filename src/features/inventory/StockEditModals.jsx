@@ -283,7 +283,7 @@ export function StockEntryEditModal({ entry, lot = null, onClose }) {
       <div className="grid gap-3 sm:grid-cols-2">
         <Input label="Expiry date" type="date" value={form.expiry_date} onChange={(e) => set("expiry_date", e.target.value)} />
         <Input
-          label={`Low-stock alert at (${(stock?.threshold_unit || entry?.threshold_unit) === "pack" ? "packs" : unit})`}
+          label={`Low-stock alert at (${(stock?.low_stock_unit || entry?.low_stock_unit) === "pack" ? "packs" : unit})`}
           type="number"
           min="0"
           step="any"
