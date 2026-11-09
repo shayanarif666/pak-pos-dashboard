@@ -593,7 +593,15 @@ export function ProductFormPage() {
             </div>
           ) : null}
           <div className="mb-4 max-w-xs">
-            <Input label="Low stock alert at" type="number" min="0" step="1" value={form.low_stock_threshold} onChange={(e) => patch("low_stock_threshold", e.target.value)} />
+            <Input
+              label={
+                hasVariants
+                  ? "Low stock alert at (packs for pack-only variants, else units)"
+                  : form.is_pack_product && !form.sell_loose
+                    ? "Low stock alert at (packs)"
+                    : `Low stock alert at (${form.unit || "units"})`
+              }
+              type="number" min="0" step="1" value={form.low_stock_threshold} onChange={(e) => patch("low_stock_threshold", e.target.value)} />
           </div>
           {stockLocations.length ? (
             <div className="space-y-4">
