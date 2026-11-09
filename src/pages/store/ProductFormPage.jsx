@@ -370,12 +370,6 @@ export function ProductFormPage() {
                       <Checkbox label="Also sold as single units" checked={row.sell_loose} onChange={(e) => patchVariant(index, "sell_loose", e.target.checked)} />
                     ) : null}
                     <Checkbox label="Sold by weight (kg)" checked={row.is_weight_based} onChange={(e) => patchVariant(index, "is_weight_based", e.target.checked)} />
-                    {row.is_pack_product && row.sell_loose ? (
-                      <Select label="Low stock counts" value={row.low_stock_unit} onChange={(e) => patchVariant(index, "low_stock_unit", e.target.value)}>
-                        <option value="unit">Single units</option>
-                        <option value="pack">Packs</option>
-                      </Select>
-                    ) : null}
                   </div>
                   <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                     {row.is_pack_product ? (
@@ -396,6 +390,20 @@ export function ProductFormPage() {
                         <Input label={`Price (per 1 ${unitShort(form.unit)})`} type="number" min="0" step="0.01" required value={row.price} onChange={(e) => patchVariant(index, "price", e.target.value)} />
                       </>
                     )}
+                    <Input
+                      label={`Low stock alert at (${row.is_pack_product && (!row.sell_loose || row.low_stock_unit === "pack") ? "packs" : unitShort(form.unit)})`}
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={row.low_stock_threshold}
+                      onChange={(e) => patchVariant(index, "low_stock_threshold", e.target.value)}
+                    />
+                    {row.is_pack_product && row.sell_loose ? (
+                      <Select label="Low stock counts" value={row.low_stock_unit} onChange={(e) => patchVariant(index, "low_stock_unit", e.target.value)}>
+                        <option value="unit">Single units ({unitShort(form.unit)})</option>
+                        <option value="pack">Packs</option>
+                      </Select>
+                    ) : null}
                   </div>
                   <div>
                     <div className="mb-2 flex items-center justify-between gap-3">
@@ -598,25 +606,24 @@ export function ProductFormPage() {
               />
             </div>
           ) : null}
-          <div className="mb-4 max-w-xs">
-            <Input
-              label={
-                hasVariants
-                  ? "Low stock alert at (packs for pack-only variants, else units)"
-                  : form.is_pack_product && !form.sell_loose
-                    ? "Low stock alert at (packs)"
-                    : form.is_pack_product && form.sell_loose && form.low_stock_unit === "pack"
-                      ? "Low stock alert at (packs)"
-                      : `Low stock alert at (${form.unit || "units"})`
-              }
-              type="number" min="0" step="1" value={form.low_stock_threshold} onChange={(e) => patch("low_stock_threshold", e.target.value)} />
-            {!hasVariants && form.is_pack_product && form.sell_loose ? (
-              <Select label="Low stock counts" value={form.low_stock_unit} onChange={(e) => patch("low_stock_unit", e.target.value)}>
-                <option value="unit">Single units ({form.unit || "units"})</option>
-                <option value="pack">Packs</option>
-              </Select>
-            ) : null}
-          </div>
+          {hasVariants ? null : (
+            <div className="mb-4 grid max-w-xl gap-3 sm:grid-cols-2">
+              <Input
+                label={`Low stock alert at (${form.is_pack_product && (!form.sell_loose || form.low_stock_unit === "pack") ? "packs" : form.unit || "units"})`}
+                type="number"
+                min="0"
+                step="1"
+                value={form.low_stock_threshold}
+                onChange={(e) => patch("low_stock_threshold", e.target.value)}
+              />
+              {form.is_pack_product && form.sell_loose ? (
+                <Select label="Low stock counts" value={form.low_stock_unit} onChange={(e) => patch("low_stock_unit", e.target.value)}>
+                  <option value="unit">Single units ({form.unit || "units"})</option>
+                  <option value="pack">Packs</option>
+                </Select>
+              ) : null}
+            </div>
+          )}
           {stockLocations.length ? (
             <div className="space-y-4">
               {stockTargets.map((target) => (

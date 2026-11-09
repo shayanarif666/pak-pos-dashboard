@@ -26,6 +26,7 @@ export const emptyVariant = () => ({
   pack_price: "",
   sell_loose: false,
   // What the low stock level counts when it is sold both ways: pack | unit.
+  low_stock_threshold: "10",
   low_stock_unit: "unit",
   is_weight_based: false,
   taxes: [],
@@ -120,6 +121,7 @@ export function productToForm(product) {
       pack_cost: text(row.pack_cost_price),
       pack_price: text(row.pack_selling_price),
       sell_loose: Boolean(row.sell_loose),
+      low_stock_threshold: String(Math.round(Number(row.low_stock_threshold ?? product.low_stock_threshold ?? 10)) || 0),
       low_stock_unit: row.low_stock_unit === "pack" ? "pack" : "unit",
       is_weight_based: Boolean(row.is_weight_based),
       colors: row.colors || [],
@@ -266,6 +268,7 @@ export function productPayload(form, { withScope = false, stockFor = () => undef
       is_pack_product: Boolean(row.is_pack_product),
       is_weight_based: Boolean(row.is_weight_based),
       colors: row.colors,
+      low_stock_threshold: row.low_stock_threshold === "" ? 10 : Math.max(0, Math.round(Number(row.low_stock_threshold))),
       ...(row.is_pack_product && row.sell_loose ? { low_stock_unit: row.low_stock_unit === "pack" ? "pack" : "unit" } : {}),
       ...(row.is_pack_product
         ? { pack_size: Number(row.pack_size), pack_cost: Number(row.pack_cost), pack_price: Number(row.pack_price), sell_loose: Boolean(row.sell_loose), ...(row.sell_loose ? { cost: Number(row.cost), price: Number(row.price) } : {}) }
