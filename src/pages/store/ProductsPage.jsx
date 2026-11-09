@@ -10,6 +10,7 @@ import { Button } from "../../ui/Button.jsx"
 import { useToast } from "../../ui/Toast.jsx"
 import { Pill } from "../../ui/Pill.jsx"
 import { PageHeader, StatCards } from "../../ui/PageHeader.jsx"
+import { Currency } from "../../ui/Currency.jsx"
 import { toNumber } from "../../ui/format.js"
 import { rowsToTables } from "../../lib/exportFile.js"
 import { ExportButton } from "../../ui/ExportButton.jsx"
@@ -92,6 +93,7 @@ export function ProductsPage() {
         </div>
       ),
     },
+    { key: "sku", header: "SKU", sortValue: (row) => row.sku || "", render: (row) => <span className="font-mono text-xs text-slate-700">{row.sku || "—"}</span> },
     { key: "barcode", header: "Barcode", render: (row) => <span className="font-mono text-xs text-slate-700">{row.barcode || "—"}</span> },
     {
       key: "category",
@@ -103,6 +105,25 @@ export function ProductsPage() {
             {row.category.name}
           </Link>
         ) : "—",
+    },
+    {
+      // A product with variants: how many it has; its price and stock are each variant's (on its detail page).
+      key: "total_variants",
+      header: "Total variants",
+      sortValue: (row) => (row.has_variants ? (row.variants || []).length : -1),
+      render: (row) => (row.has_variants ? (row.variants || []).length : "—"),
+    },
+    {
+      key: "price",
+      header: "Price",
+      sortValue: (row) => (row.has_variants ? -1 : Number(row.selling_price || 0)),
+      render: (row) => (row.has_variants ? "—" : <Currency value={row.selling_price} />),
+    },
+    {
+      key: "stock",
+      header: "Stock",
+      sortValue: (row) => (row.has_variants ? -1 : toNumber(row.total_qty ?? row.qty) ?? 0),
+      render: (row) => (row.has_variants ? "—" : toNumber(row.total_qty ?? row.qty) ?? 0),
     },
     { key: "is_active", header: "Status", sortValue: (row) => (row.is_active ? 1 : 0), render: (row) => <Pill tone={row.is_active ? "emerald" : "rose"}>{row.is_active ? "Active" : "Disabled"}</Pill> },
     {

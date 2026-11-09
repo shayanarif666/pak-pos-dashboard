@@ -106,7 +106,7 @@ export function CategoryFormModal({ open, onClose, category = null, categories =
           <Input label="Name" required value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="Beverages" />
 
           <fieldset className="rounded-2xl border border-slate-200 p-4">
-            <legend className="px-1 text-sm font-medium text-slate-700">Category tax (on every product in it)</legend>
+            <legend className="px-1 text-sm font-medium text-slate-700">Category tax</legend>
             <div className="grid gap-3 sm:grid-cols-3">
               <Select label="Type" value={form.tax_type} onChange={(e) => set("tax_type", e.target.value)}>
                 <option value="">None</option>
@@ -119,7 +119,7 @@ export function CategoryFormModal({ open, onClose, category = null, categories =
           </fieldset>
 
           <fieldset className="rounded-2xl border border-slate-200 p-4">
-            <legend className="px-1 text-sm font-medium text-slate-700">Category discount (on every product in it)</legend>
+            <legend className="px-1 text-sm font-medium text-slate-700">Category discount</legend>
             <div className="grid gap-3 sm:grid-cols-3">
               <Select label="Type" value={form.discount_type} onChange={(e) => set("discount_type", e.target.value)}>
                 <option value="">None</option>
