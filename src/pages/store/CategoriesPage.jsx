@@ -86,16 +86,7 @@ export function CategoriesPage() {
     {
       key: "name",
       header: "Name",
-      render: (row) => (
-        <div className="flex min-w-40 items-center gap-3">
-          {row.image_url ? (
-            <img src={row.image_url} alt="" className="h-9 w-9 shrink-0 rounded-xl object-cover" />
-          ) : (
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-[10px] text-slate-400">No img</div>
-          )}
-          <p className="truncate font-semibold text-slate-900">{row.name}</p>
-        </div>
-      ),
+      render: (row) => <p className="min-w-40 truncate font-semibold text-slate-900">{row.name}</p>,
     },
     {
       key: "locations",
